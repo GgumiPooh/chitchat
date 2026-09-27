@@ -84,9 +84,9 @@ function renderBlankSentence(sentence: string, targetWord: string): ReactNode {
       return (
         <b
           key={index}
-          className="inline-block font-bold tracking-wider whitespace-nowrap text-ink underline decoration-primary decoration-2 underline-offset-4"
+          className="inline-block px-1 font-bold whitespace-nowrap text-primary underline decoration-primary decoration-2 underline-offset-4"
         >
-          __________
+          _______
         </b>
       );
     }
@@ -347,24 +347,24 @@ export function CardFace({
     return (
       <div
         className={cn(
-          "flex min-h-[260px] flex-col justify-between rounded-2xl border border-hairline bg-canvas p-6 shadow-sm sm:min-h-[300px] sm:rounded-3xl sm:p-8",
+          "flex min-h-[260px] flex-col justify-between rounded-2xl border border-hairline bg-canvas px-4 py-6 shadow-sm sm:min-h-[300px] sm:rounded-3xl sm:p-8",
           className,
         )}
       >
         <div
           className={cn(
-            "flex w-full flex-1 flex-col items-center justify-center space-y-6 py-4 text-center",
+            "flex w-full flex-1 flex-col items-center justify-center space-y-5 py-2 text-center sm:space-y-6 sm:py-4",
             contentClassName,
           )}
         >
           {/* Main Sentence with blank */}
-          <div className="w-full max-w-[560px] text-display-sm leading-relaxed font-medium text-ink sm:text-display-md">
+          <div className="w-full text-[18px] leading-[1.7] font-medium text-balance text-ink sm:text-[20px]">
             {renderBlankSentence(card.sentence, card.targetWord)}
           </div>
 
           {/* Definition box */}
           {card.englishDefinition && (
-            <div className="w-full max-w-[560px] rounded-2xl bg-surface-soft/80 px-6 py-4 text-center">
+            <div className="w-full rounded-xl bg-surface-soft/80 px-4 py-3 text-center sm:rounded-2xl sm:px-6 sm:py-4">
               <p className="text-body-sm leading-relaxed text-body italic sm:text-body-md">
                 {card.englishDefinition}
               </p>
@@ -382,7 +382,7 @@ export function CardFace({
   return (
     <div
       className={cn(
-        "flex min-h-[300px] flex-col rounded-2xl border border-hairline bg-canvas p-6 shadow-sm sm:rounded-3xl sm:p-8",
+        "flex min-h-[300px] flex-col rounded-2xl border border-hairline bg-canvas px-4 py-6 shadow-sm sm:rounded-3xl sm:p-8",
         className,
       )}
     >
@@ -424,7 +424,7 @@ export function CardFace({
 
         {/* Filled sentence with sentence audio */}
         <div className="flex w-full flex-col items-center space-y-3 text-center">
-          <div className="w-full max-w-[560px] text-body-md leading-relaxed font-normal text-ink sm:text-title-sm">
+          <div className="w-full text-body-md leading-relaxed font-normal text-balance text-ink sm:text-title-sm">
             {renderFilledSentence(card.sentence, card.targetWord)}
           </div>
 

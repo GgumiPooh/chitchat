@@ -110,9 +110,7 @@ export function VocaReviewPage({
       </header>
 
       {/* Main Review Body */}
-      <main
-        className={cn("flex-1 px-4 pt-4 sm:pt-6", isFlipped ? "pb-36 sm:pb-40" : "pb-16 sm:pb-24")}
-      >
+      <main className={cn("flex-1 pt-4 sm:pt-6", isFlipped ? "pb-36 sm:pb-40" : "pb-16 sm:pb-24")}>
         <Container className="flex flex-col gap-6" size="md">
           {isCompleted ? (
             <ReviewCompletionCard
