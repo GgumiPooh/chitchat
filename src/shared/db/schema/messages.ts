@@ -31,6 +31,7 @@ export const systemActionEnum = pgEnum("system_action", [
   "event_reminder",
   // INFO: The AI's answer to a question asked in chat. `sender_id` stays the asker — this is the one system action with a real actor.
   "assistant_reply",
+  "voca_completed",
 ]);
 
 // INFO: REQUIREMENTS.md § 6. Append-only — marking messages read moves `users.last_read_at`, never a row here.
@@ -101,7 +102,9 @@ export const messages = pgTable(
         WHEN 'system' THEN "emoticon_item_id" IS NULL AND (
           ("system_action"::text = 'assistant_reply' AND "text" IS NOT NULL AND "event_id" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL AND "llm_provider" IS NOT NULL AND "llm_model" IS NOT NULL)
           OR
-          ("system_action" IS NOT NULL AND "system_action"::text <> 'assistant_reply' AND "text" IS NULL AND "event_title" IS NOT NULL AND "event_starts_at" IS NOT NULL AND "llm_provider" IS NULL AND "llm_model" IS NULL)
+          ("system_action"::text = 'voca_completed' AND "text" IS NOT NULL AND "event_id" IS NULL AND "event_title" IS NULL AND "event_starts_at" IS NULL AND "llm_provider" IS NULL AND "llm_model" IS NULL)
+          OR
+          ("system_action" IS NOT NULL AND "system_action"::text NOT IN ('assistant_reply', 'voca_completed') AND "text" IS NULL AND "event_title" IS NOT NULL AND "event_starts_at" IS NOT NULL AND "llm_provider" IS NULL AND "llm_model" IS NULL)
         )
       END`,
     ),

@@ -16,6 +16,10 @@ export {
 } from "./api/create-media-message";
 export { createSystemMessage, type CreateSystemMessageParams } from "./api/create-system-message";
 export { createTextMessage, type CreateTextMessageParams } from "./api/create-text-message";
+export {
+  createVocaCompletionMessage,
+  type CreateVocaCompletionMessageParams,
+} from "./api/create-voca-completion-message";
 export { deleteMessage } from "./api/delete-message";
 export { editMessage } from "./api/edit-message";
 export { getMessage } from "./api/get-message";

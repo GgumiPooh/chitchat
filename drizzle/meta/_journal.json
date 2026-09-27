@@ -512,6 +512,13 @@
       "when": 1790443000000,
       "tag": "0072_aspiring_songbird",
       "breakpoints": true
+    },
+    {
+      "idx": 73,
+      "version": "7",
+      "when": 1790444000000,
+      "tag": "0073_voca_completed_system_action",
+      "breakpoints": true
     }
   ]
 }

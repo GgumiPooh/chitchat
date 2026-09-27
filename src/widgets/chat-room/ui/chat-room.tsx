@@ -1045,13 +1045,20 @@ export function ChatRoom({
       fontFamily: scroller ? getComputedStyle(scroller).fontFamily : "",
       readPreview,
       // INFO: REQUIREMENTS.md § 11.5. The same composition `SystemNotice` renders, so the estimate wraps the sentence the row will actually show.
-      readNotice: (message: ChatMessage) =>
-        composeEventNotice(
+      readNotice: (message: ChatMessage) => {
+        if (message.systemAction === "voca_completed") {
+          const actor = participantById.get(message.senderId)?.name ?? "파트너";
+          const count = message.text ?? "0";
+          return `${actor}님이 영단어 ${count}개 학습을 마쳤어요! 👏`;
+        }
+
+        return composeEventNotice(
           message.systemAction,
           message.eventTitle,
           message.eventStartsAt,
           participantById.get(message.senderId)?.name,
-        ),
+        );
+      },
       // INFO: REQUIREMENTS.md § 8.8. The same test `renderRow` uses, so the estimate knows the row has a column beside it.
       countUnreadReaders,
       // INFO: REQUIREMENTS.md § 8.19. The same `bookmarkedIds` test `renderRow` passes `MessageRow`/`AssistantMessageRow` as `isBookmarked`.

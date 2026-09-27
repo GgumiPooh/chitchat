@@ -1,6 +1,6 @@
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE } from "@/shared/config";
+import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE, VOCA_ROUTE } from "@/shared/config";
 import { cn, composeEventNotice, toDayKey, type Optional } from "@/shared/lib";
 import { Link } from "@/shared/ui";
 
@@ -14,6 +14,23 @@ export type SystemNoticeProps = {
 
 // INFO: DESIGN.md § 6.5. Date-divider treatment, so a calendar notice reads as timeline furniture rather than as someone speaking.
 export function SystemNotice({ className, message, sender, onOpenEvent }: SystemNoticeProps) {
+  const pillClassName =
+    "min-w-0 rounded-full bg-chat-pill px-md py-2xs text-center text-caption whitespace-pre-wrap text-chat-pill-ink transition-colors outline-none hover:bg-chat-pill-pressed focus-visible:ring-2 focus-visible:ring-primary active:bg-chat-pill-pressed";
+
+  if (message.systemAction === "voca_completed") {
+    const actor = sender?.name ?? "파트너";
+    const count = message.text ?? "0";
+    const notice = `${actor}님이 영단어 ${count}개 학습을 마쳤어요! 👏`;
+
+    return (
+      <div className={cn("flex justify-center px-md py-sm", className)}>
+        <Link className={pillClassName} href={VOCA_ROUTE}>
+          {notice}
+        </Link>
+      </div>
+    );
+  }
+
   // INFO: REQUIREMENTS.md § 11.5. Composed at render time from the live nickname, so a rename rewrites past notices too (§ 8.7.).
   const notice = composeEventNotice(
     message.systemAction,
@@ -21,9 +38,6 @@ export function SystemNotice({ className, message, sender, onOpenEvent }: System
     message.eventStartsAt,
     sender?.name,
   );
-
-  const pillClassName =
-    "min-w-0 rounded-full bg-chat-pill px-md py-2xs text-center text-caption whitespace-pre-wrap text-chat-pill-ink transition-colors outline-none hover:bg-chat-pill-pressed focus-visible:ring-2 focus-visible:ring-primary active:bg-chat-pill-pressed";
 
   return (
     <div className={cn("flex justify-center px-md py-sm", className)}>

@@ -13,7 +13,7 @@ import { cn, warmSpeechVoices } from "@/shared/lib";
 import { Button, Container, IconButton } from "@/shared/ui";
 import { ChevronLeft, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 export type VocaReviewPageProps = {
@@ -35,6 +35,7 @@ export function VocaReviewPage({
 }: VocaReviewPageProps) {
   const router = useRouter();
   const [extraStudyCount, setExtraStudyCount] = useState(0);
+  const hasNotifiedCompletionRef = useRef(false);
 
   const {
     queue,
@@ -74,6 +75,24 @@ export function VocaReviewPage({
 
     return () => cancelAnimationFrame(rafId);
   }, [currentIndex, isFlipped, isCompleted]);
+
+  useEffect(() => {
+    if (!isCompleted || isPractice || initialDueCards.length === 0) {
+      return;
+    }
+    if (hasNotifiedCompletionRef.current) {
+      return;
+    }
+    hasNotifiedCompletionRef.current = true;
+
+    void fetch("/api/voca/complete", {
+      body: JSON.stringify({ count: initialDueCards.length }),
+      headers: { "Content-Type": "application/json" },
+      method: "POST",
+    }).catch((err) => {
+      console.error("Failed to notify voca completion:", err);
+    });
+  }, [initialDueCards.length, isCompleted, isPractice]);
 
   const handleStudyMore = async () => {
     try {
