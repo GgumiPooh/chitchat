@@ -1,0 +1,17 @@
+[Unit]
+Description=GeekNews Discord Forwarder
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/opt/discord-forwarder
+ExecStart=/usr/bin/node index.js
+Restart=on-failure
+RestartSec=5
+
+Environment=BOT_TOKEN=여기에_봇_토큰
+Environment=CHANNEL_ID=여기에_채널_ID
+Environment=WEBHOOK_URL=https://chitchat.jeheecheon.com/api/webhooks/geeknews?token=geek-news-key-9876
+
+[Install]
+WantedBy=multi-user.target
