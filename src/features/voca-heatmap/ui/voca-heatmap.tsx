@@ -167,18 +167,18 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
                   {week.map((day) => (
                     <button
                       key={day.dayKey}
-                      aria-label={`${day.dayKey}: ${day.count}개 복습 완료`}
                       className={cn(
                         "h-3 w-3 rounded-[2px] border transition-transform duration-100 hover:scale-125 focus:scale-125 focus:outline-none",
                         levelColor(day.level),
                       )}
                       type="button"
-                      onBlur={() => setActiveTooltip(null)}
-                      onClick={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
-                      onFocus={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
+                      aria-label={`${day.dayKey}: ${day.count}개 복습 완료`}
                       onMouseEnter={() =>
                         setActiveTooltip({ dayKey: day.dayKey, count: day.count })
                       }
+                      onBlur={() => setActiveTooltip(null)}
+                      onClick={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
+                      onFocus={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
                       onMouseLeave={() => setActiveTooltip(null)}
                     />
                   ))}
