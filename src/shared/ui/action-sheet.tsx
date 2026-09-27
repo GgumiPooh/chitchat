@@ -3,6 +3,7 @@
 import { APP_HEADER_ID, BOTTOM_OVERLAY_ID } from "@/shared/config";
 import {
   A_SECOND,
+  GESTURE_SLOP,
   cn,
   useIsDesktop,
   useRovingTabIndex,
@@ -113,8 +114,7 @@ export function ActionSheet({
   });
   useEffect(() => {
     // WARN: No reset on close — the sheet stays mounted through its exit animation (`Presence`), and nulling the rect here would snap it to the top-left corner mid-close instead of holding its last position.
-    // INFO: A pointer anchor is a snapshot of where the gesture fired, not a live element with a rect to measure, so this effect only runs for the `anchorRef` case.
-    if (!isOpen || !isMenu || anchorPoint) {
+    if (!isOpen || !isMenu) {
       return;
     }
 
@@ -129,7 +129,7 @@ export function ActionSheet({
       window.visualViewport?.removeEventListener("resize", measure);
       window.visualViewport?.removeEventListener("scroll", measure);
     };
-  }, [isOpen, isMenu, anchorRef, anchorPoint]);
+  }, [isOpen, isMenu, anchorRef]);
   useEffect(() => {
     if (!isOpen || !isMenu) {
       return;
@@ -157,12 +157,34 @@ export function ActionSheet({
     };
     measure();
     window.addEventListener("resize", measure);
-    return () => window.removeEventListener("resize", measure);
+    window.visualViewport?.addEventListener("resize", measure);
+    return () => {
+      window.removeEventListener("resize", measure);
+      window.visualViewport?.removeEventListener("resize", measure);
+    };
   }, [isOpen, isMenu]);
   const virtualAnchorRef = useMemo(() => {
-    const rect = anchorPoint ? new DOMRect(anchorPoint.x, anchorPoint.y, 0, 0) : anchorRect;
-    return { current: { getBoundingClientRect: () => rect ?? new DOMRect() } };
-  }, [anchorPoint, anchorRect]);
+    return {
+      current: {
+        getBoundingClientRect: () => {
+          const element = anchorRef?.current;
+          if (element) {
+            const current = element.getBoundingClientRect();
+            if (anchorPoint && anchorRect) {
+              const dx = anchorPoint.x - anchorRect.left;
+              const dy = anchorPoint.y - anchorRect.top;
+              return new DOMRect(current.left + dx, current.top + dy, 0, 0);
+            }
+            return current;
+          }
+          if (anchorPoint) {
+            return new DOMRect(anchorPoint.x, anchorPoint.y, 0, 0);
+          }
+          return anchorRect ?? new DOMRect();
+        },
+      },
+    };
+  }, [anchorRef, anchorPoint, anchorRect]);
   const closeFromOutside = useEffectEvent(onClose);
   // INFO: Radix dismisses a touch on the outside only once its `click` lands, and a finger that moves never lands one — so the menu closes on the `pointerdown` itself.
   useEffect(() => {
@@ -181,7 +203,7 @@ export function ActionSheet({
     document.addEventListener("pointerdown", handlePointerDown, true);
     return () => document.removeEventListener("pointerdown", handlePointerDown, true);
   }, [isMenu, isOpen]);
-  // INFO: A scroll anywhere outside the popover — the chat room's own scroller, the document on other screens, a side panel — leaves the menu pinned to a bubble that has since moved out from under it, so any such scroll closes it instead.
+  // INFO: A scroll anywhere outside the popover — the chat room's own scroller, the document on other screens, a side panel — leaves the menu pinned to a bubble that has since moved out from under it, so any genuine user scroll closes it instead.
   useEffect(() => {
     if (!isMenu || !isOpen) {
       return;
@@ -193,16 +215,74 @@ export function ActionSheet({
       isArmed = true;
     });
 
+    let isUserScrolling = false;
+    let userScrollTimer: ReturnType<typeof setTimeout>;
+    let touchOrigin: Nullable<LongPressPoint> = null;
+
+    const markUserScroll = () => {
+      isUserScrolling = true;
+      clearTimeout(userScrollTimer);
+      userScrollTimer = setTimeout(() => {
+        isUserScrolling = false;
+      }, 400);
+    };
+
+    const handleTouchStart = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (touch) {
+        touchOrigin = { x: touch.clientX, y: touch.clientY };
+      }
+    };
+
+    const handleTouchMove = (event: TouchEvent) => {
+      const touch = event.touches[0];
+      if (!touch || !touchOrigin) {
+        return;
+      }
+      if (
+        Math.hypot(touch.clientX - touchOrigin.x, touch.clientY - touchOrigin.y) >= GESTURE_SLOP
+      ) {
+        markUserScroll();
+      }
+    };
+
+    const handleTouchEnd = () => {
+      touchOrigin = null;
+    };
+
+    const handleWheel = () => {
+      markUserScroll();
+    };
+
     const handleScroll = (event: Event) => {
       if (!isArmed || menuRef.current?.contains(event.target as Node)) {
         return;
       }
 
+      // WARN: Only dismiss on user-initiated scroll gestures (dragging past slop or mouse wheel).
+      // Programmatic scroll (pinToBottom, layout resize, FLIP settle) must not dismiss the menu.
+      if (!isUserScrolling) {
+        return;
+      }
+
       closeFromOutside();
     };
+
+    document.addEventListener("touchstart", handleTouchStart, { capture: true, passive: true });
+    document.addEventListener("touchmove", handleTouchMove, { capture: true, passive: true });
+    document.addEventListener("touchend", handleTouchEnd, { capture: true, passive: true });
+    document.addEventListener("touchcancel", handleTouchEnd, { capture: true, passive: true });
+    document.addEventListener("wheel", handleWheel, { capture: true, passive: true });
     document.addEventListener("scroll", handleScroll, true);
+
     return () => {
       cancelAnimationFrame(armFrame);
+      clearTimeout(userScrollTimer);
+      document.removeEventListener("touchstart", handleTouchStart, true);
+      document.removeEventListener("touchmove", handleTouchMove, true);
+      document.removeEventListener("touchend", handleTouchEnd, true);
+      document.removeEventListener("touchcancel", handleTouchEnd, true);
+      document.removeEventListener("wheel", handleWheel, true);
       document.removeEventListener("scroll", handleScroll, true);
     };
   }, [isMenu, isOpen]);
@@ -281,6 +361,8 @@ export function ActionSheet({
           onKeyDown={handleMenuKeyDown}
           // INFO: Suppress auto-focus so the first reaction/menuitem doesn't immediately get focused on open; keyboard navigation still works via Tab or arrow keys.
           onOpenAutoFocus={(event) => event.preventDefault()}
+          // WARN: Suppress dismiss on focus outside so activeElement blur / focus transfers during keyboard slide-down do not dismiss the menu.
+          onFocusOutside={(event) => event.preventDefault()}
         >
           {shownReactionSlot && <div className="w-full shrink-0">{shownReactionSlot}</div>}
           <div className="w-full rounded-2xl border border-hairline bg-canvas p-2xs shadow-floating">
