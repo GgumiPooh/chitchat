@@ -208,15 +208,7 @@ export function VocaDashboardPage({
           </div>
         </div>
 
-        {/* Weekly Streak Section */}
-        <VocaWeeklyStreak heatmap={heatmap} />
-
-        {/* Heatmap Section */}
-        <div className="space-y-2">
-          <VocaHeatmap heatmap={heatmap} />
-        </div>
-
-        {/* AI Vocabulary Recommendation Section (Option 1) */}
+        {/* AI Vocabulary Recommendation Section */}
         <div className="bg-surface relative overflow-hidden rounded-3xl border border-hairline p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="space-y-1.5">
@@ -254,6 +246,14 @@ export function VocaDashboardPage({
               단어 추천받기
             </Button>
           </div>
+        </div>
+
+        {/* Weekly Streak Section */}
+        <VocaWeeklyStreak heatmap={heatmap} />
+
+        {/* Heatmap Section */}
+        <div className="space-y-2">
+          <VocaHeatmap heatmap={heatmap} />
         </div>
       </Container>
 
