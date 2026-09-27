@@ -14,10 +14,33 @@ const TAGS: VocaRecommendTag[] = [
   "IT/개발",
 ];
 
-const GRADES: { dotColor: string; label: string; id: VocaRecommendGrade }[] = [
-  { dotColor: "bg-semantic-success", id: "essential", label: "기초/필수" },
-  { dotColor: "bg-semantic-warning", id: "core", label: "실전/최빈출" },
-  { dotColor: "bg-semantic-error", id: "killer", label: "고득점/심화" },
+const GRADES: {
+  activeClass: string;
+  dotColor: string;
+  label: string;
+  id: VocaRecommendGrade;
+}[] = [
+  {
+    activeClass:
+      "border-semantic-success/40 bg-semantic-success/15 font-bold text-semantic-success shadow-xs",
+    dotColor: "bg-semantic-success",
+    id: "essential",
+    label: "기초/필수",
+  },
+  {
+    activeClass:
+      "border-semantic-warning/40 bg-semantic-warning/15 font-bold text-semantic-warning shadow-xs",
+    dotColor: "bg-semantic-warning",
+    id: "core",
+    label: "실전/최빈출",
+  },
+  {
+    activeClass:
+      "border-semantic-error/40 bg-semantic-error/15 font-bold text-semantic-error shadow-xs",
+    dotColor: "bg-semantic-error",
+    id: "killer",
+    label: "고득점/심화",
+  },
 ];
 
 export type VocaRecommendFilterBarProps = {
@@ -123,28 +146,30 @@ export function VocaRecommendFilterBar({
         </div>
       )}
 
-      {/* Frequency Grade Segmented Bar - High contrast selection */}
-      <div className="flex gap-1.5 rounded-2xl border border-hairline bg-surface-soft p-1.5">
+      {/* Frequency Grade Segmented Bar */}
+      <div className="flex rounded-full border border-hairline bg-surface-soft p-1" role="group">
         {GRADES.map((g) => {
           const isSelected = selectedGrade === g.id;
           return (
             <button
               key={g.id}
               className={cn(
-                "flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-caption font-semibold transition-all select-none",
+                "flex flex-1 items-center justify-center gap-1.5 rounded-full py-1.5 text-caption transition-all select-none",
                 isSelected
-                  ? "border border-primary bg-primary font-bold text-on-primary shadow-xs"
-                  : "bg-surface border border-hairline text-meta hover:border-hairline-strong hover:text-ink",
+                  ? cn("border font-bold", g.activeClass)
+                  : "border border-transparent bg-transparent font-medium text-meta hover:text-ink active:bg-surface-pressed",
                 disabled && "cursor-not-allowed opacity-50",
               )}
               disabled={disabled}
               type="button"
+              aria-pressed={isSelected}
               onClick={() => onSelectGrade(g.id)}
             >
               <span
                 className={cn(
-                  "size-2 shrink-0 rounded-full transition-colors",
-                  isSelected ? "bg-on-primary ring-2 ring-on-primary/30" : g.dotColor,
+                  "size-2 shrink-0 rounded-full transition-all",
+                  g.dotColor,
+                  isSelected && "ring-2 ring-current/30",
                 )}
               />
               <span>{g.label}</span>

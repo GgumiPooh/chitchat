@@ -26,9 +26,11 @@ export function VocaRecommendSheet({
     generateCard,
     generationStatuses,
     grade,
+    handleCustomTopicChange,
     handleCustomTopicSubmit,
     handleSelectGrade,
     handleSelectTag,
+    handleToggleCustomInput,
     hasCreatedAny,
     hasFetched,
     isCustomInputOpen,
@@ -36,8 +38,6 @@ export function VocaRecommendSheet({
     isGeneratingAny,
     isLoading,
     items,
-    setCustomTopic,
-    setIsCustomInputOpen,
     tag,
   } = useVocaRecommendation({
     isOpen,
@@ -73,11 +73,11 @@ export function VocaRecommendSheet({
           isCustomInputOpen={isCustomInputOpen}
           selectedGrade={grade}
           selectedTag={tag}
-          onCustomTopicChange={setCustomTopic}
+          onCustomTopicChange={handleCustomTopicChange}
           onCustomTopicSubmit={handleCustomTopicSubmit}
           onSelectGrade={handleSelectGrade}
           onSelectTag={handleSelectTag}
-          onToggleCustomInput={() => setIsCustomInputOpen((prev) => !prev)}
+          onToggleCustomInput={handleToggleCustomInput}
         />
 
         {/* Content Area */}

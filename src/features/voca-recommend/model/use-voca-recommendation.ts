@@ -74,13 +74,37 @@ export function useVocaRecommendation({
     }
   }, [tag, grade, customTopic]);
 
-  // Pure selection updates: NO automatic network requests on filter click!
+  const resetList = useCallback(() => {
+    setItems([]);
+    setGenerationStatuses({});
+    setLastFetchedParams(null);
+  }, []);
+
+  // Pure selection updates: reset list immediately so stale recommendations are cleared
   const handleSelectTag = (nextTag: VocaRecommendTag) => {
-    setTag(nextTag);
+    if (nextTag !== tag) {
+      setTag(nextTag);
+      resetList();
+    }
   };
 
   const handleSelectGrade = (nextGrade: VocaRecommendGrade) => {
-    setGrade(nextGrade);
+    if (nextGrade !== grade) {
+      setGrade(nextGrade);
+      resetList();
+    }
+  };
+
+  const handleCustomTopicChange = (nextTopic: string) => {
+    setCustomTopic(nextTopic);
+    if (items.length > 0 || lastFetchedParams !== null) {
+      resetList();
+    }
+  };
+
+  const handleToggleCustomInput = () => {
+    setIsCustomInputOpen((prev) => !prev);
+    resetList();
   };
 
   const handleCustomTopicSubmit = () => {
@@ -134,9 +158,11 @@ export function useVocaRecommendation({
     generateCard,
     generationStatuses,
     grade,
+    handleCustomTopicChange,
     handleCustomTopicSubmit,
     handleSelectGrade,
     handleSelectTag,
+    handleToggleCustomInput,
     hasCreatedAny,
     hasFetched,
     isCustomInputOpen,
