@@ -1,7 +1,7 @@
 "use client";
 
 import { cn, type Nullable } from "@/shared/lib";
-import { Volume2 } from "lucide-react";
+import { Pause, Play, Volume2 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type VocaAudioButtonProps = {
@@ -12,14 +12,22 @@ export type VocaAudioButtonProps = {
   label?: string;
   autoPlay?: boolean;
   size?: "sm" | "md" | "lg";
+  variant?: "volume" | "play";
   isPlaying?: boolean;
   onTogglePlay?: () => void;
 };
 
 const SIZE_CLASSES = {
-  sm: "h-7 w-7 p-1.5",
-  md: "h-9 w-9 p-2",
-  lg: "h-11 w-11 p-2.5",
+  volume: {
+    sm: "h-7 w-7 p-1.5",
+    md: "h-9 w-9 p-2",
+    lg: "h-11 w-11 p-2.5",
+  },
+  play: {
+    sm: "h-8 w-8 p-1.5",
+    md: "h-10 w-10 p-2",
+    lg: "h-12 w-12 p-2.5",
+  },
 } as const;
 
 const ICON_SIZE_CLASSES = {
@@ -36,6 +44,7 @@ export function VocaAudioButton({
   label = "발음 듣기",
   autoPlay = false,
   size = "md",
+  variant = "volume",
   isPlaying: isPlayingProp,
   onTogglePlay,
 }: VocaAudioButtonProps) {
@@ -145,12 +154,19 @@ export function VocaAudioButton({
   return (
     <button
       className={cn(
-        "inline-flex items-center justify-center rounded-full transition-all duration-150",
-        "hover:bg-surface bg-surface-soft active:scale-95",
-        "text-body hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none",
+        "inline-flex items-center justify-center rounded-full transition-all duration-150 select-none",
+        "focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:scale-95",
         "disabled:pointer-events-none disabled:opacity-40",
-        isPlaying && "bg-primary/10 text-primary ring-2 ring-primary/30",
-        SIZE_CLASSES[size],
+        variant === "play"
+          ? [
+              "bg-surface border border-hairline-strong text-ink shadow-2xs hover:border-ink hover:bg-surface-soft active:bg-surface-pressed",
+              isPlaying && "border-primary bg-primary/10 text-primary ring-2 ring-primary/30",
+            ]
+          : [
+              "hover:bg-surface bg-surface-soft text-body hover:text-ink",
+              isPlaying && "bg-primary/10 text-primary ring-2 ring-primary/30",
+            ],
+        SIZE_CLASSES[variant][size],
         className,
       )}
       type="button"
@@ -159,9 +175,17 @@ export function VocaAudioButton({
       aria-label={label}
       onClick={handleClick}
     >
-      <Volume2
-        className={cn(ICON_SIZE_CLASSES[size], isPlaying && "animate-pulse", iconClassName)}
-      />
+      {variant === "play" ? (
+        isPlaying ? (
+          <Pause className={cn(ICON_SIZE_CLASSES[size], "fill-current", iconClassName)} />
+        ) : (
+          <Play className={cn(ICON_SIZE_CLASSES[size], "ml-0.5 fill-current", iconClassName)} />
+        )
+      ) : (
+        <Volume2
+          className={cn(ICON_SIZE_CLASSES[size], isPlaying && "animate-pulse", iconClassName)}
+        />
+      )}
     </button>
   );
 }

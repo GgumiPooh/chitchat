@@ -77,7 +77,7 @@ function renderBlankSentence(sentence: string, targetWord: string): ReactNode {
       return (
         <b
           key={index}
-          className="font-bold tracking-wider text-primary underline underline-offset-4"
+          className="font-bold tracking-wider text-ink underline decoration-primary decoration-2 underline-offset-4"
         >
           __________
         </b>
@@ -96,6 +96,33 @@ function renderBlankSentence(sentence: string, targetWord: string): ReactNode {
     const clean = part.replace(/<\/?b>/gi, "");
     return <span key={index}>{clean}</span>;
   });
+}
+
+function formatPos(pos: string): string {
+  if (!pos) {
+    return "";
+  }
+  const clean = pos.trim().toLowerCase().replace(/\.$/, "");
+  const map: Record<string, string> = {
+    n: "NOUN",
+    noun: "NOUN",
+    v: "VERB",
+    verb: "VERB",
+    adj: "ADJ",
+    adjective: "ADJ",
+    adv: "ADV",
+    adverb: "ADV",
+    prep: "PREP",
+    preposition: "PREP",
+    conj: "CONJ",
+    conjunction: "CONJ",
+    pron: "PRON",
+    pronoun: "PRON",
+    phr: "PHRASE",
+    phrase: "PHRASE",
+    idiom: "IDIOM",
+  };
+  return map[clean] ?? clean.toUpperCase();
 }
 
 /**
@@ -123,7 +150,7 @@ function renderFilledSentence(sentence: string, targetWord: string): ReactNode {
   return parts.map((part, index) => {
     if (part === wordMarker) {
       return (
-        <b key={index} className="font-bold text-primary">
+        <b key={index} className="font-bold text-primary underline decoration-2 underline-offset-4">
           {targetWord}
         </b>
       );
@@ -132,7 +159,7 @@ function renderFilledSentence(sentence: string, targetWord: string): ReactNode {
     const boldMatch = /^<b>([\s\S]*?)<\/b>$/i.exec(part);
     if (boldMatch) {
       return (
-        <b key={index} className="font-semibold text-primary">
+        <b key={index} className="font-semibold text-ink">
           {boldMatch[1]}
         </b>
       );
@@ -328,31 +355,32 @@ export function CardFace({
     return (
       <div
         className={cn(
-          "bg-surface flex min-h-[260px] flex-col justify-between rounded-2xl border border-hairline p-6 shadow-sm sm:min-h-[300px]",
+          "bg-surface flex min-h-[260px] flex-col justify-between rounded-2xl border border-hairline p-6 shadow-sm sm:min-h-[300px] sm:rounded-3xl sm:p-8",
           className,
         )}
       >
-        <div className={cn("flex flex-1 flex-col justify-center space-y-6", contentClassName)}>
-          <div className="space-y-2">
-            <span className="text-caption font-semibold tracking-wider text-meta uppercase">
-              빈칸 문장 (Context)
-            </span>
-            <div className="text-title-sm leading-relaxed font-medium text-ink">
-              {renderBlankSentence(card.sentence, card.targetWord)}
-            </div>
+        <div
+          className={cn(
+            "flex flex-1 flex-col items-center justify-center space-y-6 py-4 text-center",
+            contentClassName,
+          )}
+        >
+          {/* Main Sentence with blank */}
+          <div className="mx-auto max-w-xl text-display-sm leading-relaxed font-medium text-ink sm:text-display-md">
+            {renderBlankSentence(card.sentence, card.targetWord)}
           </div>
 
-          <div className="space-y-1.5 rounded-xl border border-hairline/80 bg-surface-soft/60 p-4">
-            <span className="text-caption font-semibold tracking-wider text-meta uppercase">
-              영문 정의 (Definition)
-            </span>
-            <p className="text-body-sm leading-relaxed text-body italic">
-              {card.englishDefinition}
-            </p>
-          </div>
+          {/* Definition box */}
+          {card.englishDefinition && (
+            <div className="mx-auto max-w-xl rounded-2xl bg-surface-soft/80 px-6 py-4 text-center">
+              <p className="text-body-sm leading-relaxed text-body italic sm:text-body-md">
+                {card.englishDefinition}
+              </p>
+            </div>
+          )}
         </div>
 
-        <div className="pt-4 text-center text-caption text-meta">
+        <div className="pt-4 text-center text-caption text-meta select-none">
           카드를 탭하여 정답과 해설 보기
         </div>
       </div>
@@ -362,104 +390,109 @@ export function CardFace({
   return (
     <div
       className={cn(
-        "bg-surface flex min-h-[260px] flex-col rounded-2xl border border-hairline p-6 shadow-sm sm:min-h-[300px]",
+        "bg-surface flex min-h-[300px] flex-col rounded-2xl border border-hairline p-6 shadow-sm sm:rounded-3xl sm:p-8",
         className,
       )}
     >
-      <div className={cn("space-y-5", contentClassName)}>
-        {/* Header: Target word, POS, IPA, pronunciation audio button */}
-        <div className="flex items-center justify-between gap-3">
-          <div className="flex flex-wrap items-baseline gap-2.5">
-            <h2 className="text-display-sm font-bold tracking-tight text-ink">{card.targetWord}</h2>
-            <span className="rounded-md border border-hairline bg-surface-soft px-2 py-0.5 text-caption font-medium text-meta">
-              {card.pos}
+      <div className={cn("space-y-6", contentClassName)}>
+        {/* Header: Target word, POS badge + Pronunciation, word audio, Korean meaning */}
+        <div className="flex flex-col items-center space-y-3 pt-1 text-center">
+          <h2 className="text-display-md font-bold tracking-tight text-ink sm:text-display-lg">
+            {card.targetWord}
+          </h2>
+
+          <div className="flex items-center justify-center gap-2">
+            <span className="text-white inline-flex items-center justify-center rounded-full bg-ai px-2.5 py-0.5 text-micro font-bold tracking-wider uppercase dark:text-canvas">
+              {formatPos(card.pos)}
             </span>
-            <span className="font-mono text-body-sm text-meta-soft">{card.pronunciation}</span>
+            {card.pronunciation && (
+              <span className="font-mono text-body-sm text-meta">{card.pronunciation}</span>
+            )}
           </div>
-          <VocaAudioButton
-            audioUrl={card.audioUrl}
-            isPlaying={activeTrack === "word"}
-            label={`${card.targetWord} 발음 듣기`}
-            size="md"
-            textToSpeak={card.targetWord}
-            onTogglePlay={handleToggleWord}
-          />
+
+          <div className="pt-0.5">
+            <VocaAudioButton
+              audioUrl={card.audioUrl}
+              isPlaying={activeTrack === "word"}
+              label={`${card.targetWord} 발음 듣기`}
+              size="md"
+              variant="play"
+              textToSpeak={card.targetWord}
+              onTogglePlay={handleToggleWord}
+            />
+          </div>
+
+          <div className="pt-1 text-display-sm font-bold text-ink sm:text-display-md">
+            {card.koreanMeaning}
+          </div>
         </div>
 
-        {/* Korean meaning */}
-        <div className="text-title-sm font-semibold text-primary">{card.koreanMeaning}</div>
-
-        {/* English definition */}
-        <p className="text-body-sm leading-relaxed text-body">{card.englishDefinition}</p>
-
         {/* Divider */}
-        <div className="h-px w-full bg-hairline" />
+        <hr className="my-2 w-full border-t border-hairline/80" />
 
         {/* Filled sentence with sentence audio */}
-        <div className="space-y-2">
-          <div className="flex items-center justify-between gap-2">
-            <span className="text-caption font-semibold tracking-wider text-meta uppercase">
-              예문 문맥
-            </span>
+        <div className="flex flex-col items-center space-y-3 text-center">
+          <div className="mx-auto max-w-xl text-body-md leading-relaxed font-normal text-ink sm:text-title-sm">
+            {renderFilledSentence(card.sentence, card.targetWord)}
+          </div>
+
+          <div className="pt-0.5">
             <VocaAudioButton
               audioUrl={card.sentenceAudioUrl}
               isPlaying={activeTrack === "sentence"}
               label="예문 전체 듣기"
-              size="sm"
+              size="md"
+              variant="play"
               textToSpeak={cleanSentenceForSpeech(card.sentence, card.targetWord)}
               onTogglePlay={handleToggleSentence}
             />
           </div>
-          <div className="text-body-md leading-relaxed text-ink">
-            {renderFilledSentence(card.sentence, card.targetWord)}
-          </div>
         </div>
 
-        {/* Divider */}
-        <div className="h-px w-full bg-hairline" />
-
-        {/* Detailed word properties */}
-        <div className="space-y-3 text-body-sm">
-          {card.collocations && (
-            <div>
-              <span className="font-semibold text-ink">연어 (Collocations): </span>
-              <span className="text-body">{card.collocations}</span>
+        {/* Section Cards: Confusable, Collocations, Word Family, Examples */}
+        <div className="space-y-3 pt-2">
+          {card.confusable && (
+            <div className="space-y-1.5 rounded-2xl border border-hairline/80 bg-surface-soft/40 p-4 shadow-2xs">
+              <span className="block text-micro font-bold tracking-widest text-ai uppercase">
+                Confusable
+              </span>
+              <div className="text-body-sm leading-relaxed text-ink">{card.confusable}</div>
             </div>
           )}
 
-          {card.confusable && (
-            <div>
-              <span className="font-semibold text-ink">혼동 주의: </span>
-              <span className="text-body">{card.confusable}</span>
+          {card.collocations && (
+            <div className="space-y-1.5 rounded-2xl border border-hairline/80 bg-surface-soft/40 p-4 shadow-2xs">
+              <span className="block text-micro font-bold tracking-widest text-ai uppercase">
+                Collocations
+              </span>
+              <div className="text-body-sm leading-relaxed text-ink">{card.collocations}</div>
             </div>
           )}
 
           {card.wordFamily && (
-            <div>
-              <span className="font-semibold text-ink">어휘 계열: </span>
-              <span className="text-body">{card.wordFamily}</span>
+            <div className="space-y-1.5 rounded-2xl border border-hairline/80 bg-surface-soft/40 p-4 shadow-2xs">
+              <span className="block text-micro font-bold tracking-widest text-ai uppercase">
+                Word Family
+              </span>
+              <div className="text-body-sm leading-relaxed text-ink">{card.wordFamily}</div>
+            </div>
+          )}
+
+          {card.examples && card.examples.length > 0 && (
+            <div className="space-y-2 rounded-2xl border border-hairline/80 bg-surface-soft/40 p-4 shadow-2xs">
+              <span className="block text-micro font-bold tracking-widest text-ai uppercase">
+                Examples
+              </span>
+              <ul className="divide-y divide-hairline/50 text-body-sm text-ink">
+                {card.examples.slice(0, 3).map((example, idx) => (
+                  <li key={idx} className={cn("leading-relaxed", idx > 0 && "pt-2.5")}>
+                    {renderRichText(example, "font-bold text-primary")}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
         </div>
-
-        {/* 3 Example sentences */}
-        {card.examples.length > 0 && (
-          <div className="space-y-2 pt-2">
-            <span className="text-caption font-semibold tracking-wider text-meta uppercase">
-              추가 예문
-            </span>
-            <ul className="space-y-2 text-body-sm text-body">
-              {card.examples.slice(0, 3).map((example, idx) => (
-                <li
-                  key={idx}
-                  className="rounded-lg border border-hairline/60 bg-surface-soft/60 px-3 py-2 leading-relaxed"
-                >
-                  {renderRichText(example, "font-semibold text-primary")}
-                </li>
-              ))}
-            </ul>
-          </div>
-        )}
       </div>
     </div>
   );
