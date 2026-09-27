@@ -96,23 +96,53 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
 
   const markReadOptimistic = useCallback(
     (articleId: NewsArticleId) => {
-      setReadState((prev) => ({ ...prev, [articleId]: true }));
+      setReadState((prev) => (prev[articleId] ? prev : { ...prev, [articleId]: true }));
       void markRead(articleId);
     },
     [markRead],
   );
 
-  // INFO: Mark initial deep-linked or selected article on mount via API
+  const markedInitialIdRef = useRef<string | null>(null);
+
+  // INFO: REQUIREMENTS.md § 19. 데스크톱(lg)에서 진입하거나 뷰포트 확대 시 리딩 페인에 노출되는 기사 및 딥링크된 기사를 읽음 처리
   useEffect(() => {
     if (initialArticleId) {
-      void markRead(initialArticleId as NewsArticleId);
-    } else if (typeof window !== "undefined" && window.matchMedia(SIDE_PANEL_MEDIA_QUERY).matches) {
-      const target = initialArticles[initialIndex];
-      if (target && !target.isRead) {
-        void markRead(target.id);
+      if (markedInitialIdRef.current !== initialArticleId) {
+        markedInitialIdRef.current = initialArticleId;
+        void markRead(initialArticleId as NewsArticleId);
       }
+      return;
     }
-  }, [initialArticleId, initialIndex, initialArticles, markRead]);
+
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const query = window.matchMedia(SIDE_PANEL_MEDIA_QUERY);
+
+    const markVisibleArticleRead = () => {
+      if (query.matches) {
+        const target = articles[selectedIndex] ?? initialArticles[initialIndex];
+        if (target && !(readState[target.id] ?? target.isRead)) {
+          markReadOptimistic(target.id);
+        }
+      }
+    };
+
+    markVisibleArticleRead();
+
+    query.addEventListener("change", markVisibleArticleRead);
+    return () => query.removeEventListener("change", markVisibleArticleRead);
+  }, [
+    initialArticleId,
+    initialIndex,
+    initialArticles,
+    selectedIndex,
+    articles,
+    markRead,
+    markReadOptimistic,
+    readState,
+  ]);
 
   const handleSelectArticle = useCallback(
     (index: number) => {

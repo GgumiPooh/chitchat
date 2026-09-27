@@ -2332,7 +2332,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 - **Playground Hub & GeekNews Reader (Phase 3)**:
   - `PlaygroundPage` in `src/pages/playground` with responsive feature card linking to `/playground/news`, hover states, semantic tokens.
   - `GeeknewsPage` in `src/pages/geeknews`:
-    - Responsive two-pane layout: Mobile views flow on the document scroller with card tap opening `BottomSheet` for full details; Desktop views render a sticky `SidePanel` with roving tabindex and reading pane.
+    - Responsive two-pane layout: Mobile views flow on the document scroller with card tap opening `BottomSheet` for full details; Desktop views render a sticky `SidePanel` with roving tabindex and reading pane. On desktop (`lg`), the article immediately displayed in the reading pane on entry (or upon widening to desktop) is automatically marked as read in local optimistic state and via API.
     - Keyset infinite scroll pagination: `GET /api/geeknews/articles?before={snowflakeId}&limit={limit}` connected with `LoadMoreSentinel` at the bottom of both mobile document scroller and desktop `SidePanel` (via `TwoPane`'s `panelScrollerRef`).
     - Strict external link discipline: pure `<a>` tags with `target="_blank"` and `rel="noopener noreferrer"`, no `<Link>`, no `haptic`, online reachability check with toast refusal.
     - Accessible desktop shortcuts: `ArrowUp`/`K`, `ArrowDown`/`J`, `Enter`/`O` with `isComposing` guard.
