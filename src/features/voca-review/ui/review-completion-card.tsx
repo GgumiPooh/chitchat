@@ -39,7 +39,7 @@ export function ReviewCompletionCard({
           : "오늘 복습할 단어를 모두 마쳤어요! 훌륭해요."}
       </p>
 
-      <div className="mt-8 flex w-full max-w-xs flex-col items-stretch gap-2.5">
+      <div className="mt-8 flex w-full max-w-[320px] flex-col items-stretch gap-2.5">
         {hasMoreNew ? (
           <Button className="w-full" variant="primary" haptic onClick={onStudyMore}>
             <PlusCircle className="h-4 w-4" />
