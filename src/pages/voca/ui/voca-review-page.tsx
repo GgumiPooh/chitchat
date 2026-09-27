@@ -5,11 +5,12 @@ import {
   ReviewCardFrame,
   ReviewCompletionCard,
   ReviewRatingBar,
+  VocaStudyCounts,
   useReviewSession,
 } from "@/features/voca-review";
 import { VOCA_ACTION_ADD, VOCA_ACTION_PARAM, VOCA_REVIEW_ROUTE, VOCA_ROUTE } from "@/shared/config";
-import { cn } from "@/shared/lib";
-import { Container, IconButton } from "@/shared/ui";
+import { cn, warmSpeechVoices } from "@/shared/lib";
+import { Button, Container, IconButton } from "@/shared/ui";
 import { ChevronLeft, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
@@ -42,6 +43,7 @@ export function VocaReviewPage({
     isFlipped,
     isSubmitting,
     isCompleted,
+    counts,
     canGoBack,
     progress,
     flip,
@@ -53,6 +55,11 @@ export function VocaReviewPage({
     desiredRetention,
     isSimulation: isPractice,
   });
+
+  const handleFlip = () => {
+    warmSpeechVoices();
+    flip();
+  };
 
   useEffect(() => {
     window.scrollTo({ top: 0, behavior: "instant" });
@@ -124,7 +131,7 @@ export function VocaReviewPage({
       </header>
 
       {/* Main Review Body */}
-      <main className={cn("flex-1 pt-4 sm:pt-6", isFlipped ? "pb-36 sm:pb-40" : "pb-16 sm:pb-24")}>
+      <main className="flex-1 pt-4 pb-36 sm:pt-6 sm:pb-40">
         <Container className="flex flex-col gap-6" size="md">
           {isCompleted ? (
             <ReviewCompletionCard
@@ -157,16 +164,34 @@ export function VocaReviewPage({
       </main>
 
       {/* INFO: 하단 탭바가 숨겨지므로 바닥 안전 여백(--bar-lift) 위에 바로 배치한다. */}
-      {!isCompleted && isFlipped && currentCard && (
+      {!isCompleted && currentCard && (
         <div className="pointer-events-none fixed right-0 bottom-[calc(var(--bar-lift)+12px)] left-(--rail-width) z-20 animate-in duration-200 fade-in slide-in-from-bottom-2">
           <Container className="pointer-events-auto px-4" size="md">
-            <div className="rounded-2xl border border-hairline bg-canvas p-2 shadow-floating">
-              <ReviewRatingBar
-                card={currentCard}
-                desiredRetention={desiredRetention}
-                disabled={isSubmitting}
-                onRate={rate}
+            <div className="flex flex-col gap-2 rounded-2xl border border-hairline bg-canvas/95 p-2.5 shadow-floating backdrop-blur-md">
+              <VocaStudyCounts
+                learningCount={counts.learningCount}
+                newCount={counts.newCount}
+                reviewCount={counts.reviewCount}
               />
+
+              {!isFlipped ? (
+                <Button
+                  className="w-full"
+                  buttonClassName="rounded-xl h-14 bg-surface-soft text-ink hover:bg-surface-strong border border-hairline text-body-sm font-semibold"
+                  haptic
+                  onClick={handleFlip}
+                >
+                  <span>정답 보기</span>
+                  <span className="text-caption font-normal text-meta">(Space)</span>
+                </Button>
+              ) : (
+                <ReviewRatingBar
+                  card={currentCard}
+                  desiredRetention={desiredRetention}
+                  disabled={isSubmitting}
+                  onRate={rate}
+                />
+              )}
             </div>
           </Container>
         </div>
