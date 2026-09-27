@@ -2,7 +2,7 @@ import "server-only";
 
 import { geeknewsArticles, getDb, nextSnowflake, type GeeknewsArticle } from "@/shared/db";
 import type { NewsArticleId, Nullable } from "@/shared/lib";
-import { count, eq, inArray, isNull, like, or } from "drizzle-orm";
+import { count, eq, inArray, isNull, like, not, or } from "drizzle-orm";
 
 export type IngestArticleInput = {
   geeknewsId: string;
@@ -50,13 +50,18 @@ function normalizeSourceUrl(rawUrl: string | null | undefined, geeknewsId: strin
   return trimmed;
 }
 
+type TopicDetails = {
+  sourceUrl: string | null;
+  summary: string | null;
+};
+
 /**
- * Resolves the real external article URL from the GeekNews topic page.
+ * Resolves the genuine external article URL and the bulleted summary from the GeekNews topic page.
  *
- * For link-type topics, the real source URL (e.g. bloomberg, github) lives inside
- * `<a class="... topic-title-link" href="...">`. For self-posts, returns null.
+ * For link-type topics, the real source URL lives inside `<a class="... topic-title-link" href="...">`.
+ * For GN⁺ curated topics, the bulleted summary lives inside the first `<ul>` of `<section id="topic_contents">`.
  */
-async function fetchOriginalUrl(geeknewsId: string): Promise<string | null> {
+async function fetchTopicDetails(geeknewsId: string): Promise<TopicDetails> {
   try {
     const res = await fetch(`https://news.hada.io/topic?id=${geeknewsId}`, {
       headers: {
@@ -66,18 +71,31 @@ async function fetchOriginalUrl(geeknewsId: string): Promise<string | null> {
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) {
-      return null;
+      return { sourceUrl: null, summary: null };
     }
     const html = await res.text();
     const match =
       html.match(/<a\s+[^>]*href=["']([^"']+)["'][^>]*class=["'][^"']*topic-title-link/i) ||
       html.match(/class=["'][^"']*topic-title-link[^"']*["'][^>]*href=["']([^"']+)["']/i);
-    if (!match) {
-      return null;
+    const sourceUrl = match ? normalizeSourceUrl(match[1], geeknewsId) : null;
+
+    let summary: string | null = null;
+    const sectionMatch = html.match(
+      /<section[^>]*id=["']topic_contents["'][^>]*>([\s\S]*?)<\/section>/i,
+    );
+    if (sectionMatch) {
+      const ulMatch = sectionMatch[1].match(/<ul>([\s\S]*?)<\/ul>/i);
+      if (ulMatch) {
+        const items = [...ulMatch[1].matchAll(/<li>([\s\S]*?)<\/li>/gi)];
+        if (items.length > 0) {
+          summary = items.map((m) => `• ${stripHtmlAndCdata(m[1])}`).join("\n");
+        }
+      }
     }
-    return normalizeSourceUrl(match[1], geeknewsId);
+
+    return { sourceUrl, summary };
   } catch {
-    return null;
+    return { sourceUrl: null, summary: null };
   }
 }
 
@@ -88,7 +106,8 @@ async function fetchOriginalUrl(geeknewsId: string): Promise<string | null> {
  * inserts all incoming articles as backfill and reports `isInitialBackfill: true`.
  * Canonical GeekNews topic URL is saved to `url`, and genuine external source URL
  * (Bloomberg, GitHub, etc.) is saved to `source_url` (or null if self-post).
- * Also self-heals any existing articles whose `source_url` is null or invalid.
+ * Also self-heals any existing articles whose `source_url` is null/invalid or whose
+ * summary is still the unbulleted preview.
  */
 export async function syncBatchArticles(
   articles: IngestArticleInput[],
@@ -108,27 +127,32 @@ export async function syncBatchArticles(
       ),
     );
 
-  // INFO: Self-heal stored rows whose `source_url` was missing.
-  const unlinkedExisting = await db
+  // INFO: Self-heal stored rows whose source_url is missing or summary is still an unbulleted preview
+  const unhealedExisting = await db
     .select({
       id: geeknewsArticles.id,
       geeknewsId: geeknewsArticles.geeknewsId,
       url: geeknewsArticles.url,
       sourceUrl: geeknewsArticles.sourceUrl,
+      summary: geeknewsArticles.summary,
     })
     .from(geeknewsArticles)
-    .where(isNull(geeknewsArticles.sourceUrl))
-    .limit(50);
+    .where(or(isNull(geeknewsArticles.sourceUrl), not(like(geeknewsArticles.summary, "•%"))))
+    .limit(30);
 
-  if (unlinkedExisting.length > 0) {
+  if (unhealedExisting.length > 0) {
     await Promise.all(
-      unlinkedExisting.map(async (row) => {
-        const fetchedUrl = await fetchOriginalUrl(row.geeknewsId);
-        if (fetchedUrl && fetchedUrl !== row.url) {
-          await db
-            .update(geeknewsArticles)
-            .set({ sourceUrl: fetchedUrl })
-            .where(eq(geeknewsArticles.id, row.id));
+      unhealedExisting.map(async (row) => {
+        const details = await fetchTopicDetails(row.geeknewsId);
+        const updates: { sourceUrl?: string; summary?: string } = {};
+        if (!row.sourceUrl && details.sourceUrl && details.sourceUrl !== row.url) {
+          updates.sourceUrl = details.sourceUrl;
+        }
+        if (details.summary && !row.summary.startsWith("•")) {
+          updates.summary = details.summary;
+        }
+        if (Object.keys(updates).length > 0) {
+          await db.update(geeknewsArticles).set(updates).where(eq(geeknewsArticles.id, row.id));
         }
       }),
     );
@@ -172,14 +196,22 @@ export async function syncBatchArticles(
         normalizeSourceUrl(item.sourceUrl, item.geeknewsId) ??
         normalizeSourceUrl(item.url !== canonicalTopicUrl ? item.url : null, item.geeknewsId);
 
-      if (!resolvedSourceUrl) {
-        resolvedSourceUrl = await fetchOriginalUrl(item.geeknewsId);
+      let resolvedSummary: string | null = null;
+
+      // INFO: Fetch details from topic page to resolve genuine external URL and bulleted summary
+      const details = await fetchTopicDetails(item.geeknewsId);
+      if (!resolvedSourceUrl && details.sourceUrl) {
+        resolvedSourceUrl = details.sourceUrl;
+      }
+      if (details.summary) {
+        resolvedSummary = details.summary;
       }
 
       return {
         ...item,
         url: canonicalTopicUrl,
         sourceUrl: resolvedSourceUrl,
+        summary: resolvedSummary || item.summary,
       };
     }),
   );

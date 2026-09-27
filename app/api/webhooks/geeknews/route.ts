@@ -70,7 +70,12 @@ function normalizeSourceUrl(rawUrl: string | null | undefined, geeknewsId: strin
   return trimmed;
 }
 
-async function fetchOriginalUrl(geeknewsId: string): Promise<string | null> {
+type TopicDetails = {
+  sourceUrl: string | null;
+  summary: string | null;
+};
+
+async function fetchTopicDetails(geeknewsId: string): Promise<TopicDetails> {
   try {
     const res = await fetch(`https://news.hada.io/topic?id=${geeknewsId}`, {
       headers: {
@@ -80,18 +85,31 @@ async function fetchOriginalUrl(geeknewsId: string): Promise<string | null> {
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) {
-      return null;
+      return { sourceUrl: null, summary: null };
     }
     const html = await res.text();
     const match =
       html.match(/<a\s+[^>]*href=["']([^"']+)["'][^>]*class=["'][^"']*topic-title-link/i) ||
       html.match(/class=["'][^"']*topic-title-link[^"']*["'][^>]*href=["']([^"']+)["']/i);
-    if (!match) {
-      return null;
+    const sourceUrl = match ? normalizeSourceUrl(match[1], geeknewsId) : null;
+
+    let summary: string | null = null;
+    const sectionMatch = html.match(
+      /<section[^>]*id=["']topic_contents["'][^>]*>([\s\S]*?)<\/section>/i,
+    );
+    if (sectionMatch) {
+      const ulMatch = sectionMatch[1].match(/<ul>([\s\S]*?)<\/ul>/i);
+      if (ulMatch) {
+        const items = [...ulMatch[1].matchAll(/<li>([\s\S]*?)<\/li>/gi)];
+        if (items.length > 0) {
+          summary = items.map((m) => `• ${stripHtmlAndCdata(m[1])}`).join("\n");
+        }
+      }
     }
-    return normalizeSourceUrl(match[1], geeknewsId);
+
+    return { sourceUrl, summary };
   } catch {
-    return null;
+    return { sourceUrl: null, summary: null };
   }
 }
 
@@ -190,8 +208,14 @@ export async function POST(request: Request) {
     url && url !== canonicalUrl ? url : null,
     geeknewsId,
   );
-  if (!sourceUrl) {
-    sourceUrl = await fetchOriginalUrl(geeknewsId);
+  if (!sourceUrl || !summary || !summary.startsWith("•")) {
+    const details = await fetchTopicDetails(geeknewsId);
+    if (!sourceUrl && details.sourceUrl) {
+      sourceUrl = details.sourceUrl;
+    }
+    if ((!summary || !summary.startsWith("•")) && details.summary) {
+      summary = details.summary;
+    }
   }
 
   const db = getDb();

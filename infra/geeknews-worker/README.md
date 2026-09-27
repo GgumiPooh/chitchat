@@ -1,6 +1,6 @@
 # geeknews-worker
 
-Fetches the GeekNews curated front page (`https://news.hada.io/`) every 5 minutes, parses the 20 curated/upvoted articles,
+Fetches the GeekNews GN⁺ curated feed (`https://news.hada.io/plus`) every 5 minutes, parses the 20 curated articles,
 and sends them in a single batch POST request to `POST /api/ops/sync-geeknews`.
 
 The pass itself runs inside the app, which is the only thing that can reach the database.

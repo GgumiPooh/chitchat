@@ -1,11 +1,11 @@
 /**
- * Fetches GeekNews curated front page (https://news.hada.io/) every five minutes,
- * parses the 20 curated/upvoted articles, and delivers them in a single batch
+ * Fetches GeekNews GN⁺ curated feed (https://news.hada.io/plus) every five minutes,
+ * parses the 20 curated articles, and delivers them in a single batch
  * to the app via POST /api/ops/sync-geeknews.
  */
 
 const DEFAULT_ORIGIN = "https://jandh.jeheecheon.com";
-const CURATED_NEWS_URL = "https://news.hada.io/";
+const CURATED_NEWS_URL = "https://news.hada.io/plus";
 const SYNC_PATH = "/api/ops/sync-geeknews";
 const USER_AGENT =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36";
