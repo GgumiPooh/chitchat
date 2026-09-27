@@ -366,13 +366,13 @@ export function CardFace({
           )}
         >
           {/* Main Sentence with blank */}
-          <div className="w-full max-w-xl text-display-sm leading-relaxed font-medium text-ink sm:text-display-md">
+          <div className="w-full max-w-[560px] text-display-sm leading-relaxed font-medium text-ink sm:text-display-md">
             {renderBlankSentence(card.sentence, card.targetWord)}
           </div>
 
           {/* Definition box */}
           {card.englishDefinition && (
-            <div className="w-full max-w-xl rounded-2xl bg-surface-soft/80 px-6 py-4 text-center">
+            <div className="w-full max-w-[560px] rounded-2xl bg-surface-soft/80 px-6 py-4 text-center">
               <p className="text-body-sm leading-relaxed text-body italic sm:text-body-md">
                 {card.englishDefinition}
               </p>
@@ -432,7 +432,7 @@ export function CardFace({
 
         {/* Filled sentence with sentence audio */}
         <div className="flex w-full flex-col items-center space-y-3 text-center">
-          <div className="w-full max-w-xl text-body-md leading-relaxed font-normal text-ink sm:text-title-sm">
+          <div className="w-full max-w-[560px] text-body-md leading-relaxed font-normal text-ink sm:text-title-sm">
             {renderFilledSentence(card.sentence, card.targetWord)}
           </div>
 
