@@ -1,4 +1,4 @@
-import type { ChatMedia } from "@/entities/media/@x/time-letter";
+import type { ChatMedia, MediaUpload } from "@/entities/media/@x/time-letter";
 import type { TimeLetter as DbTimeLetter } from "@/shared/db";
 import {
   idToDate,
@@ -69,6 +69,7 @@ export type TimeLetterInput = {
   showTeaser?: boolean;
   onlyMe?: boolean;
   mediaIds?: MediaId[];
+  media?: MediaUpload[];
 };
 
 export function toTimeLetterMedia(m: ChatMedia): TimeLetterMedia {

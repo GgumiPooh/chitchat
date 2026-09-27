@@ -1,5 +1,6 @@
 import "server-only";
 
+import { mediaUploadSchema, validateMediaUpload, type ValidatedMedia } from "@/entities/media";
 import { createTimeLetter, listTimeLetters, type TimeLetterStatus } from "@/entities/time-letter";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
@@ -25,6 +26,7 @@ const createSchema = z.object({
   showTeaser: z.boolean().default(false),
   onlyMe: z.boolean().default(false),
   mediaIds: z.array(snowflakeSchema<MediaId>()).optional(),
+  media: z.array(mediaUploadSchema).optional(),
 });
 
 export async function GET(request: Request) {
@@ -68,6 +70,21 @@ export async function POST(request: Request) {
   }
 
   try {
+    let validatedMedia: ValidatedMedia[] | undefined;
+    if (parsed.data.media && parsed.data.media.length > 0) {
+      const validated = await Promise.all(
+        parsed.data.media.map((item) =>
+          validateMediaUpload({ ownerId: user.id, upload: item, scope: "chat" }),
+        ),
+      );
+
+      if (validated.some((item) => item === null)) {
+        return apiError("unprocessable");
+      }
+
+      validatedMedia = validated as ValidatedMedia[];
+    }
+
     const letter = await createTimeLetter({
       senderId: user.id,
       recipientId: parsed.data.recipientId,
@@ -78,6 +95,7 @@ export async function POST(request: Request) {
       showTeaser: parsed.data.showTeaser,
       onlyMe: parsed.data.onlyMe,
       mediaIds: parsed.data.mediaIds,
+      validatedMedia,
     });
 
     return NextResponse.json({ letter }, { status: 201 });

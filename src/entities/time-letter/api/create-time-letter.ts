@@ -1,5 +1,6 @@
 import "server-only";
 
+import { insertMedia, type ValidatedMedia } from "@/entities/media/@x/time-letter";
 import { getDb, letterMedia, nextSnowflake, timeLetters, users } from "@/shared/db";
 import type { MediaId, Nullable, TimeLetterId, UserId } from "@/shared/lib";
 import type { DbTransaction } from "@/shared/storage";
@@ -21,6 +22,7 @@ export type CreateTimeLetterParams = {
   showTeaser?: boolean;
   onlyMe?: boolean;
   mediaIds?: MediaId[];
+  validatedMedia?: ValidatedMedia[];
   tx?: DbTransaction;
 };
 
@@ -35,6 +37,7 @@ export async function createTimeLetter({
   showTeaser = false,
   onlyMe = false,
   mediaIds = [],
+  validatedMedia = [],
   tx,
 }: CreateTimeLetterParams): Promise<TimeLetter> {
   const scheduledDate = typeof scheduledAt === "string" ? new Date(scheduledAt) : scheduledAt;
@@ -91,9 +94,21 @@ export async function createTimeLetter({
       })
       .returning();
 
-    if (mediaIds.length > 0) {
+    const resolvedMediaIds: MediaId[] = [...mediaIds];
+
+    if (validatedMedia.length > 0) {
+      for (const item of validatedMedia) {
+        const row = await insertMedia(database as DbTransaction, item);
+        if (!row) {
+          throw new Error("Failed to insert media");
+        }
+        resolvedMediaIds.push(row.id);
+      }
+    }
+
+    if (resolvedMediaIds.length > 0) {
       await database.insert(letterMedia).values(
-        mediaIds.map((mediaId, sortOrder) => ({
+        resolvedMediaIds.map((mediaId, sortOrder) => ({
           letterId,
           mediaId,
           sortOrder,

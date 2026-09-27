@@ -1,13 +1,15 @@
 "use client";
 
 import type { TimeLetterTheme } from "@/entities/time-letter";
-import { cn } from "@/shared/lib";
+import { cn, type Nullable } from "@/shared/lib";
 import { Check, Mail } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 
 export type WaxSealStampProps = {
   className?: string;
   isSealing: boolean;
+  isCompleted?: boolean;
   theme?: TimeLetterTheme;
   onAnimationComplete?: () => void;
 };
@@ -15,12 +17,12 @@ export type WaxSealStampProps = {
 export function WaxSealStamp({
   className,
   isSealing,
+  isCompleted = false,
   theme = "classic",
   onAnimationComplete,
 }: WaxSealStampProps) {
-  const [step, setStep] = useState<"finished" | "folding" | "idle" | "stamped">(() =>
-    isSealing ? "folding" : "idle",
-  );
+  const [isStamped, setIsStamped] = useState(false);
+  const body = useSyncExternalStore(subscribe, readBody, readServerBody);
 
   useEffect(() => {
     if (!isSealing) {
@@ -37,7 +39,7 @@ export function WaxSealStamp({
     }
 
     const stampTimer = setTimeout(() => {
-      setStep("stamped");
+      setIsStamped(true);
       // INFO: Stronger impact vibration when wax seal stamps down
       if (typeof navigator !== "undefined" && "vibrate" in navigator) {
         try {
@@ -48,27 +50,50 @@ export function WaxSealStamp({
       }
     }, 600);
 
-    const finishTimer = setTimeout(() => {
-      setStep("finished");
-      onAnimationComplete?.();
-    }, 1400);
-
     return () => {
       clearTimeout(stampTimer);
+      setIsStamped(false);
+    };
+  }, [isSealing]);
+
+  useEffect(() => {
+    if (!isCompleted) {
+      return;
+    }
+
+    if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+      try {
+        navigator.vibrate?.(60);
+      } catch {
+        // INFO: Ignore
+      }
+    }
+
+    const finishTimer = setTimeout(() => {
+      onAnimationComplete?.();
+    }, 600);
+
+    return () => {
       clearTimeout(finishTimer);
     };
-  }, [isSealing, onAnimationComplete]);
+  }, [isCompleted, onAnimationComplete]);
 
-  const activeStep = isSealing ? step : "idle";
+  const activeStep: "finished" | "folding" | "idle" | "stamped" = !isSealing
+    ? "idle"
+    : isCompleted
+      ? "finished"
+      : isStamped
+        ? "stamped"
+        : "folding";
 
-  if (!isSealing && activeStep === "idle") {
+  if (!isSealing || !body || activeStep === "idle") {
     return null;
   }
 
-  return (
+  return createPortal(
     <div
       className={cn(
-        "fixed inset-0 z-50 flex flex-col items-center justify-center bg-scrim/60 p-md backdrop-blur-xs transition-opacity duration-300",
+        "fixed inset-0 z-[70] flex flex-col items-center justify-center bg-scrim/60 p-md backdrop-blur-xs transition-opacity duration-300",
         className,
       )}
       aria-label="편지 봉인 진행 중"
@@ -146,6 +171,17 @@ export function WaxSealStamp({
           {activeStep === "finished" && "편지가 안전하게 봉인되었어요!"}
         </p>
       </div>
-    </div>
+    </div>,
+    body,
   );
+}
+
+const subscribe = () => () => {};
+
+function readBody(): Nullable<HTMLElement> {
+  return typeof document !== "undefined" ? document.body : null;
+}
+
+function readServerBody(): Nullable<HTMLElement> {
+  return null;
 }

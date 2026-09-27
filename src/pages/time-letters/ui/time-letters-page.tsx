@@ -36,7 +36,6 @@ import {
 import {
   ChevronLeft,
   Clock,
-  ImageIcon,
   Lock,
   Mail,
   MailOpen,
@@ -44,6 +43,7 @@ import {
   RotateCw,
   Sparkles,
   Trash2,
+  Video,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -89,6 +89,7 @@ export function TimeLettersPage({
     refresh,
     handleFilterChange,
     cancelLetter,
+    addLetterOptimistic,
   } = useTimeLetters({
     initialLetters,
     initialNextCursor,
@@ -442,8 +443,17 @@ export function TimeLettersPage({
                       <div className="flex items-center gap-2 text-caption text-meta">
                         <Clock className="size-3.5" />
                         <span>
-                          도착 예정: {formatDate(selectedLetter.scheduledAt)}{" "}
-                          {formatTime(selectedLetter.scheduledAt)}
+                          {isScheduled ? "도착 예정: " : "전송 완료: "}
+                          {formatDate(
+                            isScheduled
+                              ? selectedLetter.scheduledAt
+                              : (selectedLetter.sentAt ?? selectedLetter.scheduledAt),
+                          )}{" "}
+                          {formatTime(
+                            isScheduled
+                              ? selectedLetter.scheduledAt
+                              : (selectedLetter.sentAt ?? selectedLetter.scheduledAt),
+                          )}
                         </span>
                       </div>
                       <h1
@@ -472,7 +482,7 @@ export function TimeLettersPage({
                     {selectedLetter.media && selectedLetter.media.length > 0 && (
                       <div className="mt-md flex flex-col gap-xs">
                         <span className="text-caption font-semibold text-meta">
-                          첨부된 사진 ({selectedLetter.media.length})
+                          첨부된 추억 ({selectedLetter.media.length}장)
                         </span>
                         <div className="grid grid-cols-3 gap-xs sm:grid-cols-4">
                           {selectedLetter.media.map((mediaItem, idx) => (
@@ -490,7 +500,7 @@ export function TimeLettersPage({
                               />
                               {mediaItem.isVideo && (
                                 <div className="absolute inset-0 flex items-center justify-center bg-scrim/30 text-on-primary">
-                                  <ImageIcon className="size-6" />
+                                  <Video className="size-6" />
                                 </div>
                               )}
                             </button>
@@ -537,8 +547,10 @@ export function TimeLettersPage({
       <TimeLetterComposeSheet
         isOpen={isComposeOpen}
         partnerName={partnerName}
-        onSuccess={() => {
+        onSuccess={(letter) => {
           setIsComposeOpen(false);
+          addLetterOptimistic(letter);
+          setSelectedIndex(0);
           void refresh();
         }}
         onClose={() => setIsComposeOpen(false)}

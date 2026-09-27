@@ -1,4 +1,4 @@
-import type { TimeLetter, TimeLetterInput, TimeLetterStatus } from "@/entities/time-letter";
+import type { TimeLetter, TimeLetterStatus } from "@/entities/time-letter";
 import { request } from "@/shared/api";
 import { TIME_LETTERS_PATH } from "@/shared/config";
 import type { Nullable, TimeLetterId } from "@/shared/lib";
@@ -43,20 +43,7 @@ export async function fetchTimeLetters({
   return (await response.json()) as FetchTimeLettersResponse;
 }
 
-export async function createTimeLetterRequest(input: TimeLetterInput): Promise<TimeLetter> {
-  const response = await request(TIME_LETTERS_PATH, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(input),
-  });
-
-  if (!response.ok) {
-    throw new Error(`POST ${TIME_LETTERS_PATH} failed: ${response.status}`);
-  }
-
-  const data = (await response.json()) as { letter: TimeLetter };
-  return data.letter;
-}
+export { postTimeLetter as createTimeLetterRequest } from "@/features/time-letter-compose";
 
 export async function cancelTimeLetterRequest(id: TimeLetterId): Promise<boolean> {
   const response = await request(`${TIME_LETTERS_PATH}/${id}`, {

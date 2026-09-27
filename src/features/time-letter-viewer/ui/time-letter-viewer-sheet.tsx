@@ -21,7 +21,7 @@ export function TimeLetterViewerSheet({
   className,
   isOpen,
   letter,
-  partnerName = "지희님",
+  partnerName = "상대방",
   onClose,
   onReply,
 }: TimeLetterViewerSheetProps) {
@@ -141,7 +141,8 @@ export function TimeLetterViewerSheet({
                     themeStyle.body,
                   )}
                 >
-                  {letter.content}
+                  {letter.content ??
+                    "개봉일까지 본문과 사진은 안전하게 암호화 및 봉인 처리되어 보호돼요."}
                 </div>
 
                 {/* Photo gallery grid (tap opens MediaViewer) */}
@@ -181,12 +182,14 @@ export function TimeLetterViewerSheet({
                 )}
               </div>
 
-              {/* Bottom action button */}
-              <div className="pt-xs">
-                <Button variant="primary" haptic onClick={handleReply}>
-                  {replyButtonLabel}
-                </Button>
-              </div>
+              {/* Bottom action button (only for delivered letters) */}
+              {letter.status === "sent" && onReply && (
+                <div className="pt-xs">
+                  <Button variant="primary" haptic onClick={handleReply}>
+                    {replyButtonLabel}
+                  </Button>
+                </div>
+              )}
             </div>
           )}
         </div>

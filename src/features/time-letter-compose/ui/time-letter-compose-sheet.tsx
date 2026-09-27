@@ -1,7 +1,8 @@
 "use client";
 
-import type { MediaDraft } from "@/entities/media";
+import type { MediaDraft, MediaUpload } from "@/entities/media";
 import type {
+  TimeLetter,
   TimeLetterDraft,
   TimeLetterRecipientMode,
   TimeLetterTheme,
@@ -9,6 +10,7 @@ import type {
 import {
   revokePreview,
   toMediaDraft,
+  uploadDraft,
   validateFile,
 } from "@/features/upload-media/@x/time-letter-compose";
 import { TIME_LETTER_THEMES } from "@/shared/config";
@@ -17,6 +19,7 @@ import { BottomSheet, Button, Chip, Input, Switch, Textarea, toast } from "@/sha
 import { josa } from "es-hangul";
 import { History, ImagePlus, Video, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState, type ChangeEvent } from "react";
+import { postTimeLetter } from "../api/post-time-letter";
 import {
   DATE_PRESETS,
   getDefaultScheduledDateTime,
@@ -42,7 +45,7 @@ export type TimeLetterComposeSheetProps = {
   isOpen: boolean;
   partnerName?: string;
   onClose: () => void;
-  onSuccess?: (draft: TimeLetterDraft & { media: MediaDraft[] }) => void;
+  onSuccess?: (letter: TimeLetter) => void;
 };
 
 export function TimeLetterComposeSheet({
@@ -70,6 +73,8 @@ export function TimeLetterComposeSheet({
     loadStoredDraft(),
   );
   const [isSealing, setIsSealing] = useState<boolean>(false);
+  const [isSealCompleted, setIsSealCompleted] = useState<boolean>(false);
+  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -77,11 +82,11 @@ export function TimeLetterComposeSheet({
   // Validation
   const dateValidation = validateLetterDate(scheduledDayKey, scheduledTime);
   const isContentEmpty = content.trim().length === 0;
-  const isSubmittable = !isContentEmpty && dateValidation.isValid && !isSealing;
+  const isSubmittable = !isContentEmpty && dateValidation.isValid && !isSealing && !isSubmitting;
 
   // INFO: Debounced 500ms auto-save to localStorage
   useEffect(() => {
-    if (!isOpen || isSealing) {
+    if (!isOpen || isSealing || isSubmitting) {
       return;
     }
 
@@ -204,34 +209,76 @@ export function TimeLetterComposeSheet({
     }
   };
 
-  const handleSubmit = () => {
-    if (!isSubmittable) {
+  const handleSubmit = async () => {
+    if (!isSubmittable || isSubmitting) {
       return;
     }
 
+    setIsSubmitting(true);
     setIsSealing(true);
-  };
+    setIsSealCompleted(false);
 
-  const handleSealingComplete = () => {
-    const finalDraft: TimeLetterDraft = {
-      content,
-      recipientMode,
-      savedAt: Date.now(),
-      scheduledDayKey,
-      scheduledTime,
-      showTeaser,
-      theme,
-      title,
-    };
+    // Minimum animation time to let the envelope fold and the wax seal stamp down
+    const minAnimationPromise = new Promise((resolve) => setTimeout(resolve, 1400));
 
-    clearStoredDraft();
-    setIsSealing(false);
-    onSuccess?.({ ...finalDraft, media: mediaList });
-    onClose();
+    try {
+      // 1. Upload media drafts to R2 if any
+      let uploadedMedia: MediaUpload[] = [];
+      if (mediaList.length > 0) {
+        uploadedMedia = await Promise.all(
+          mediaList.map((draft) => uploadDraft(draft, { scope: "chat" })),
+        );
+      }
+
+      // 2. Format scheduledAt Date
+      const scheduledDate = new Date(`${scheduledDayKey}T${scheduledTime}:00`);
+      if (Number.isNaN(scheduledDate.getTime())) {
+        throw new Error("도착 일시를 올바르게 선택해 주세요");
+      }
+
+      // 3. Request server to create and store the time letter
+      const createdLetter = await postTimeLetter({
+        content: content.trim(),
+        media: uploadedMedia,
+        onlyMe: recipientMode === "me",
+        recipientId: null,
+        scheduledAt: scheduledDate.toISOString(),
+        showTeaser: recipientMode === "me" ? false : showTeaser,
+        theme,
+        title: title.trim() || null,
+      });
+
+      // 4. Ensure minimum animation has finished
+      await minAnimationPromise;
+
+      // 5. Trigger completed state for the stamp (shows green checkmark)
+      setIsSealCompleted(true);
+
+      // 6. Give user brief moment to enjoy the completed seal animation
+      await new Promise((resolve) => setTimeout(resolve, 700));
+
+      clearStoredDraft();
+      toast.success("편지가 소중히 봉인되었어요. 약속한 시간에 전송할게요!");
+      setIsSealing(false);
+      setIsSubmitting(false);
+      onSuccess?.(createdLetter);
+      onClose();
+    } catch (error) {
+      setIsSealing(false);
+      setIsSubmitting(false);
+      setIsSealCompleted(false);
+      const message =
+        error instanceof Error ? error.message : "편지를 봉인하지 못했어요. 다시 시도해 주세요";
+      toast.error(message);
+    }
   };
 
   const handleClose = () => {
+    if (isSubmitting) {
+      return;
+    }
     setIsSealing(false);
+    setIsSealCompleted(false);
     onClose();
   };
 
@@ -497,7 +544,11 @@ export function TimeLetterComposeSheet({
 
           {/* 7. Submit button */}
           <div className="pt-sm">
-            <Button disabled={!isSubmittable} haptic onClick={handleSubmit}>
+            <Button
+              disabled={!isSubmittable || isSubmitting}
+              haptic
+              onClick={() => void handleSubmit()}
+            >
               편지 봉인하기
             </Button>
           </div>
@@ -505,11 +556,7 @@ export function TimeLetterComposeSheet({
       </BottomSheet>
 
       {/* Wax seal stamp animation modal overlay */}
-      <WaxSealStamp
-        isSealing={isSealing}
-        theme={theme}
-        onAnimationComplete={handleSealingComplete}
-      />
+      <WaxSealStamp isCompleted={isSealCompleted} isSealing={isSealing} theme={theme} />
     </>
   );
 }
