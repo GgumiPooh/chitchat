@@ -135,9 +135,9 @@ export function VocaReviewPage({
         </Container>
       </main>
 
-      {/* Fixed Bottom Rating Bar above TabBar */}
+      {/* INFO: 하단 탭바가 숨겨지므로 바닥 안전 여백(--bar-lift) 위에 바로 배치한다. */}
       {!isCompleted && isFlipped && currentCard && (
-        <div className="pointer-events-none fixed right-0 bottom-[calc(var(--bottom-inset)+12px)] left-(--rail-width) z-20 animate-in duration-200 fade-in slide-in-from-bottom-2">
+        <div className="pointer-events-none fixed right-0 bottom-[calc(var(--bar-lift)+12px)] left-(--rail-width) z-20 animate-in duration-200 fade-in slide-in-from-bottom-2">
           <Container className="pointer-events-auto px-4" size="md">
             <div className="bg-surface/95 rounded-2xl border border-hairline/80 p-2 shadow-floating backdrop-blur-md">
               <ReviewRatingBar

@@ -28,7 +28,7 @@ export function VocaBatchActions({
   return (
     <div
       className={cn(
-        "bg-surface/95 fixed bottom-20 left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-hairline px-4 py-2.5 shadow-lg backdrop-blur-md",
+        "bg-surface/95 fixed bottom-[calc(var(--bar-lift)+12px)] left-1/2 z-30 flex -translate-x-1/2 items-center gap-2 rounded-2xl border border-hairline px-4 py-2.5 shadow-lg backdrop-blur-md",
         className,
       )}
     >

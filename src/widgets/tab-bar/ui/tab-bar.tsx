@@ -1,7 +1,13 @@
 "use client";
 
 import { useChatStream } from "@/features/chat-stream";
-import { CALENDAR_ROUTE, CHAT_ROUTE, isUnderRoute } from "@/shared/config";
+import {
+  CALENDAR_ROUTE,
+  CHAT_ROUTE,
+  GEEKNEWS_ROUTE,
+  isUnderRoute,
+  VOCA_ROUTE,
+} from "@/shared/config";
 import { cn, usePendingTab } from "@/shared/lib";
 import { Badge, Link } from "@/shared/ui";
 import { usePathname } from "next/navigation";
@@ -27,8 +33,11 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
   // INFO: DESIGN.md § 7.3. Every tab screen is dynamic, so the click is held for a server round trip; the fill moves on the tap instead of when the route commits.
   const { pendingTab, setPendingTab } = usePendingTab(pathname);
 
-  // INFO: 채팅 화면은 전용 헤더·뒤로가기 버튼을 갖는 독립 뷰이므로 탭바를 노출하지 않는다.
-  const isLeaving = isUnderRoute(pathname, CHAT_ROUTE);
+  // INFO: 채팅 화면 및 놀이터 하위 독립 뷰(개발자 뉴스, 영단어)는 전용 헤더·뒤로가기 버튼을 가지므로 탭바를 노출하지 않는다.
+  const isLeaving =
+    isUnderRoute(pathname, CHAT_ROUTE) ||
+    isUnderRoute(pathname, GEEKNEWS_ROUTE) ||
+    isUnderRoute(pathname, VOCA_ROUTE);
 
   const activePath = pendingTab?.route ?? pathname;
   const activeIndex = TABS.findIndex(({ route }) => isUnderRoute(activePath, route));
