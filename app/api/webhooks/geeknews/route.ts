@@ -180,15 +180,23 @@ export async function POST(request: Request) {
       publishedAt = new Date(emb.timestamp);
     }
   } else if (payload.content) {
-    // Discord plain-text message format: **[title]** [<https://news.hada.io/topic?id=xxx>]
+    // Discord plain-text format: **[title](<https://news.hada.io/topic?id=xxx&...>)**
     const content = payload.content;
-    const urlMatch = content.match(/https?:\/\/news\.hada\.io\/topic\?[^\s>"')]+/);
-    if (urlMatch) {
-      geeknewsUrl = urlMatch[0];
+    // Extract title and URL from Discord markdown link **[title](<url>)**
+    const mdLinkMatch = content.match(/\*\*\[([^\]]+)\]\(<?( ?https?:\/\/[^>)\s]+)>?\)\*\*/);
+    if (mdLinkMatch) {
+      title = mdLinkMatch[1].trim();
+      geeknewsUrl = mdLinkMatch[2].trim();
+    } else {
+      const urlMatch = content.match(/https?:\/\/news\.hada\.io\/topic\?[^\s>"')]+/);
+      if (urlMatch) {
+        geeknewsUrl = urlMatch[0];
+      }
+      const boldMatch = content.match(/\*\*([^*\n[]+)\*\*/);
+      if (boldMatch) {
+        title = boldMatch[1].trim();
+      }
     }
-    const boldBracketMatch = content.match(/\*\*\[([^\]]+)\]\*\*/);
-    const boldMatch = content.match(/\*\*([^*\n[]+)\*\*/);
-    title = boldBracketMatch ? boldBracketMatch[1].trim() : boldMatch ? boldMatch[1].trim() : "";
     if (payload.timestamp) {
       publishedAt = new Date(payload.timestamp);
     }
