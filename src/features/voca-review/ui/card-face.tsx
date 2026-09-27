@@ -77,7 +77,7 @@ function renderBlankSentence(sentence: string, targetWord: string): ReactNode {
       return (
         <b
           key={index}
-          className="font-bold tracking-wider text-ink underline decoration-primary decoration-2 underline-offset-4"
+          className="inline-block font-bold tracking-wider whitespace-nowrap text-ink underline decoration-primary decoration-2 underline-offset-4"
         >
           __________
         </b>
@@ -361,18 +361,18 @@ export function CardFace({
       >
         <div
           className={cn(
-            "flex flex-1 flex-col items-center justify-center space-y-6 py-4 text-center",
+            "flex w-full flex-1 flex-col items-center justify-center space-y-6 py-4 text-center",
             contentClassName,
           )}
         >
           {/* Main Sentence with blank */}
-          <div className="mx-auto max-w-xl text-display-sm leading-relaxed font-medium text-ink sm:text-display-md">
+          <div className="w-full max-w-xl text-display-sm leading-relaxed font-medium text-ink sm:text-display-md">
             {renderBlankSentence(card.sentence, card.targetWord)}
           </div>
 
           {/* Definition box */}
           {card.englishDefinition && (
-            <div className="mx-auto max-w-xl rounded-2xl bg-surface-soft/80 px-6 py-4 text-center">
+            <div className="w-full max-w-xl rounded-2xl bg-surface-soft/80 px-6 py-4 text-center">
               <p className="text-body-sm leading-relaxed text-body italic sm:text-body-md">
                 {card.englishDefinition}
               </p>
@@ -431,8 +431,8 @@ export function CardFace({
         <hr className="my-2 w-full border-t border-hairline/80" />
 
         {/* Filled sentence with sentence audio */}
-        <div className="flex flex-col items-center space-y-3 text-center">
-          <div className="mx-auto max-w-xl text-body-md leading-relaxed font-normal text-ink sm:text-title-sm">
+        <div className="flex w-full flex-col items-center space-y-3 text-center">
+          <div className="w-full max-w-xl text-body-md leading-relaxed font-normal text-ink sm:text-title-sm">
             {renderFilledSentence(card.sentence, card.targetWord)}
           </div>
 
