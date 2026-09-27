@@ -70,7 +70,7 @@ export function MirrorTimeLetters({ className, onBack }: MirrorTimeLettersProps)
                           ) : (
                             <MailOpen className="size-3 text-meta" />
                           )}
-                          <span>{isScheduled ? "봉인됨" : "도착함"}</span>
+                          <span>{isScheduled ? "봉인됨" : "전송됨"}</span>
                         </span>
                         <span className="inline-flex items-center gap-1">
                           <Clock className="size-3" />

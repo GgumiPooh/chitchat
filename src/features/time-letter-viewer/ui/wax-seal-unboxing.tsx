@@ -75,7 +75,7 @@ export function WaxSealUnboxing({
         {/* Top header on envelope */}
         <div className="z-10 flex items-center gap-1.5 text-caption text-meta">
           <Sparkles className="size-3.5 text-primary" aria-hidden />
-          <span>도착한 타임머신 편지</span>
+          <span>전송된 타임머신 편지</span>
         </div>
 
         {/* Letter preview peek */}

@@ -63,7 +63,7 @@ export type TimeLettersPageProps = {
 const FILTER_TABS: readonly { label: string; id: TimeLetterFilter }[] = [
   { id: "all", label: "전체" },
   { id: "scheduled", label: "봉인된 편지" },
-  { id: "sent", label: "도착한 편지" },
+  { id: "sent", label: "전송된 편지" },
 ] as const;
 
 export function TimeLettersPage({

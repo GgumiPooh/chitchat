@@ -64,12 +64,12 @@ export function TimeLetterCard({
           {isScheduled ? (
             <span className="inline-flex items-center gap-0.5 rounded-full bg-surface-soft px-2 py-0.5 text-primary">
               <Lock className="size-3" />
-              <span>{isSender ? "봉인됨" : "도착 예정"}</span>
+              <span>{isSender ? "봉인됨" : "전송 예정"}</span>
             </span>
           ) : (
             <span className="inline-flex items-center gap-0.5 rounded-full bg-surface-soft px-2 py-0.5 text-meta">
               <MailOpen className="size-3" />
-              <span>도착함</span>
+              <span>전송됨</span>
             </span>
           )}
           <span>·</span>
