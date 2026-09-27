@@ -115,59 +115,29 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
   const levelColor = (level: number) => {
     switch (level) {
       case 1:
-        return "bg-primary/25 border-primary/30";
+        return "bg-semantic-success/25 border-semantic-success/35";
       case 2:
-        return "bg-primary/50 border-primary/60";
+        return "bg-semantic-success/50 border-semantic-success/60";
       case 3:
-        return "bg-primary/75 border-primary/80";
+        return "bg-semantic-success/75 border-semantic-success/80";
       case 4:
-        return "bg-primary border-primary";
+        return "bg-semantic-success border-semantic-success";
       default:
-        return "bg-surface-soft border-hairline/40";
+        return "bg-surface-soft border-hairline/60";
     }
   };
 
   return (
     <div className={cn("bg-surface rounded-2xl border border-hairline p-4 shadow-sm", className)}>
-      <div className="flex items-center justify-between pb-3">
-        <h4 className="text-body-sm font-semibold text-ink">학습 잔디</h4>
-        <div className="flex items-center gap-1.5 text-caption text-meta">
-          <span>적음</span>
-          <div className="flex gap-1">
-            <span className="h-2.5 w-2.5 rounded-sm border border-hairline/40 bg-surface-soft" />
-            <span className="h-2.5 w-2.5 rounded-sm border border-primary/30 bg-primary/25" />
-            <span className="h-2.5 w-2.5 rounded-sm border border-primary/60 bg-primary/50" />
-            <span className="h-2.5 w-2.5 rounded-sm border border-primary/80 bg-primary/75" />
-            <span className="h-2.5 w-2.5 rounded-sm border border-primary bg-primary" />
-          </div>
-          <span>많음</span>
-        </div>
-      </div>
-
-      <div className="mb-2 flex h-5 items-center justify-center text-caption">
-        {activeTooltip ? (
-          <span className="animate-in font-semibold text-primary duration-100 fade-in-50">
-            {activeTooltip.dayKey}: {activeTooltip.count}개 복습 완료
-          </span>
-        ) : (
-          <span className="text-meta">
-            {totalReviews > 0
-              ? `최근 1년간 총 ${totalReviews.toLocaleString()}개 복습 완료`
-              : "날짜를 누르거나 마우스를 올리면 복습량을 확인할 수 있어요"}
-          </span>
-        )}
-      </div>
-
       {/* Heatmap Row: Fixed Day Labels + Auto-Scrolled Week Grid */}
       <div className="flex items-start">
         {/* Day labels column: stays fixed on left when scrolling */}
-        <div className="flex shrink-0 flex-col gap-1 py-1 pr-1.5 select-none" aria-hidden>
-          {/* Spacer matching month row height */}
+        <div className="flex shrink-0 flex-col gap-1 pr-2 select-none" aria-hidden>
           <div className="mb-1 h-4" />
           {DAY_LABELS.map((label, idx) => (
             <span
               key={idx}
-              className="flex h-3.5 w-3.5 items-center justify-center text-[9px] font-medium text-meta"
+              className="flex h-3 w-4 items-center justify-start text-[10px] font-medium text-meta"
             >
               {idx % 2 === 1 ? label : ""}
             </span>
@@ -175,7 +145,7 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
         </div>
 
         {/* Responsive scroll container: auto-scrolled to today on mount */}
-        <div ref={scrollerRef} className="scrollbar-hidden flex-1 overflow-x-auto px-1 py-1">
+        <div ref={scrollerRef} className="scrollbar-hidden flex-1 overflow-x-auto px-1 pb-1">
           <div className="flex min-w-max flex-col">
             {/* Month labels row */}
             <div className="relative mb-1 h-4 select-none">
@@ -183,32 +153,32 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
                 <span
                   key={m.key}
                   className="absolute text-[10px] font-medium text-meta"
-                  style={{ left: `${m.weekIndex * 20}px` }}
+                  style={{ left: `${m.weekIndex * 16}px` }}
                 >
                   {m.label}
                 </span>
               ))}
             </div>
 
-            {/* Week columns */}
-            <div className="flex gap-1.5">
+            {/* Week columns: 12px cells with 4px gap */}
+            <div className="flex gap-1">
               {gridWeeks.map((week, wIdx) => (
                 <div key={wIdx} className="flex flex-col gap-1">
                   {week.map((day) => (
                     <button
                       key={day.dayKey}
+                      aria-label={`${day.dayKey}: ${day.count}개 복습 완료`}
                       className={cn(
-                        "h-3.5 w-3.5 rounded-sm border transition-transform duration-100 hover:scale-125 focus:scale-125 focus:outline-none",
+                        "h-3 w-3 rounded-[2px] border transition-transform duration-100 hover:scale-125 focus:scale-125 focus:outline-none",
                         levelColor(day.level),
                       )}
                       type="button"
-                      aria-label={`${day.dayKey}: ${day.count}개 복습 완료`}
-                      onMouseEnter={() =>
-                        setActiveTooltip({ dayKey: day.dayKey, count: day.count })
-                      }
                       onBlur={() => setActiveTooltip(null)}
                       onClick={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
                       onFocus={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
+                      onMouseEnter={() =>
+                        setActiveTooltip({ dayKey: day.dayKey, count: day.count })
+                      }
                       onMouseLeave={() => setActiveTooltip(null)}
                     />
                   ))}
@@ -216,6 +186,35 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
               ))}
             </div>
           </div>
+        </div>
+      </div>
+
+      {/* Bottom Row: Summary / Tooltip on Left, Legend on Right (GitHub standard) */}
+      <div className="mt-3 flex items-center justify-between border-t border-hairline-soft pt-3 text-caption text-meta">
+        <div className="flex h-5 items-center">
+          {activeTooltip ? (
+            <span className="animate-in font-semibold text-semantic-success duration-100 fade-in-50">
+              {activeTooltip.dayKey}: {activeTooltip.count}개 복습 완료
+            </span>
+          ) : (
+            <span>
+              {totalReviews > 0
+                ? `최근 1년간 총 ${totalReviews.toLocaleString()}개 복습 완료`
+                : "날짜를 누르거나 마우스를 올리면 복습량을 확인할 수 있어요"}
+            </span>
+          )}
+        </div>
+
+        <div className="flex items-center gap-1.5">
+          <span>적음</span>
+          <div className="flex gap-1">
+            <span className="h-2.5 w-2.5 rounded-[2px] border border-hairline/60 bg-surface-soft" />
+            <span className="h-2.5 w-2.5 rounded-[2px] border border-semantic-success/35 bg-semantic-success/25" />
+            <span className="h-2.5 w-2.5 rounded-[2px] border border-semantic-success/60 bg-semantic-success/50" />
+            <span className="h-2.5 w-2.5 rounded-[2px] border border-semantic-success/80 bg-semantic-success/75" />
+            <span className="h-2.5 w-2.5 rounded-[2px] border border-semantic-success bg-semantic-success" />
+          </div>
+          <span>많음</span>
         </div>
       </div>
     </div>
