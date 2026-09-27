@@ -2,7 +2,7 @@
 
 import type { VocaDueSummary, VocaHeatmapDay, VocaUserSettings } from "@/entities/voca";
 import { AiVocaInputDialog } from "@/features/voca-ai-create";
-import { calculateVocaStreak, VocaHeatmap, VocaWeeklyStreak } from "@/features/voca-heatmap";
+import { calculateVocaStreak, VocaHeatmap } from "@/features/voca-heatmap";
 import { VocaRecommendSheet } from "@/features/voca-recommend";
 import {
   PLAYGROUND_ROUTE,
@@ -247,9 +247,6 @@ export function VocaDashboardPage({
             </Button>
           </div>
         </div>
-
-        {/* Weekly Streak Section */}
-        <VocaWeeklyStreak heatmap={heatmap} />
 
         {/* Heatmap Section */}
         <div className="space-y-2">
