@@ -7,23 +7,30 @@ import {
   ReviewRatingBar,
   useReviewSession,
 } from "@/features/voca-review";
-import { VOCA_ACTION_ADD, VOCA_ACTION_PARAM, VOCA_ROUTE } from "@/shared/config";
+import { VOCA_ACTION_ADD, VOCA_ACTION_PARAM, VOCA_REVIEW_ROUTE, VOCA_ROUTE } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { Container, IconButton } from "@/shared/ui";
 import { ChevronLeft, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { toast } from "sonner";
 
 export type VocaReviewPageProps = {
   className?: string;
   initialDueCards: VocaCard[];
   desiredRetention?: number;
+  isPractice?: boolean;
+  newCardsRemaining?: number;
+  canReviewAhead?: boolean;
 };
 
 export function VocaReviewPage({
   className,
   initialDueCards,
   desiredRetention = 0.9,
+  isPractice = false,
+  newCardsRemaining = 0,
+  canReviewAhead = true,
 }: VocaReviewPageProps) {
   const router = useRouter();
   const [extraStudyCount, setExtraStudyCount] = useState(0);
@@ -40,9 +47,11 @@ export function VocaReviewPage({
     flip,
     rate,
     goBack,
+    restart,
   } = useReviewSession({
     initialCards: initialDueCards,
     desiredRetention,
+    isSimulation: isPractice,
   });
 
   useEffect(() => {
@@ -91,7 +100,12 @@ export function VocaReviewPage({
             />
           </div>
 
-          <div className="flex items-center justify-center text-body-sm font-semibold text-ink">
+          <div className="flex items-center justify-center gap-2 text-body-sm font-semibold text-ink">
+            {isPractice && (
+              <span className="rounded-full bg-semantic-warning/15 px-2 py-0.5 text-caption font-medium text-semantic-warning">
+                연습 모드
+              </span>
+            )}
             <span>
               {isCompleted ? queue.length : progress.current} / {queue.length}
             </span>
@@ -114,9 +128,18 @@ export function VocaReviewPage({
         <Container className="flex flex-col gap-6" size="md">
           {isCompleted ? (
             <ReviewCompletionCard
-              newCardsRemaining={0}
+              canReviewAhead={canReviewAhead}
+              isPractice={isPractice}
+              newCardsRemaining={newCardsRemaining}
+              onReviewAhead={() => {
+                if (canReviewAhead) {
+                  router.push(`${VOCA_REVIEW_ROUTE}?mode=ahead`);
+                } else {
+                  toast.info("미리 복습할 수 있는 단어가 없어요. 새로운 단어를 추가해보세요!");
+                }
+              }}
               onAddWord={() => router.push(`${VOCA_ROUTE}?${VOCA_ACTION_PARAM}=${VOCA_ACTION_ADD}`)}
-              onReviewAhead={() => router.refresh()}
+              onRestartPractice={isPractice ? restart : undefined}
               onStudyMore={handleStudyMore}
             />
           ) : currentCard ? (

@@ -8,6 +8,7 @@ import { Rating } from "./fsrs";
 export type UseReviewSessionOptions = {
   initialCards: VocaCard[];
   desiredRetention?: number;
+  isSimulation?: boolean;
 };
 
 export type UndoEntry = {
@@ -16,7 +17,7 @@ export type UndoEntry = {
   index: number;
 };
 
-export function useReviewSession({ initialCards }: UseReviewSessionOptions) {
+export function useReviewSession({ initialCards, isSimulation = false }: UseReviewSessionOptions) {
   const [queue, setQueue] = useState<VocaCard[]>(initialCards);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isFlipped, setIsFlipped] = useState(false);
@@ -53,20 +54,21 @@ export function useReviewSession({ initialCards }: UseReviewSessionOptions) {
           setQueue((prev) => [...prev, currentCard]);
         }
 
-        // Call server review API
-        const response = await fetch("/api/voca/review", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            cardId: currentCard.id,
-            rating,
-            timeSpentMs,
-          }),
-        });
+        // Call server review API only when not in simulation mode
+        if (!isSimulation) {
+          const response = await fetch("/api/voca/review", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              cardId: currentCard.id,
+              rating,
+              timeSpentMs,
+            }),
+          });
 
-        if (!response.ok) {
-          // If offline or request fails, save to offline outbox if supported
-          console.warn("[reviewSession] Server sync failed, response status:", response.status);
+          if (!response.ok) {
+            console.warn("[reviewSession] Server sync failed, response status:", response.status);
+          }
         }
       } catch (error) {
         console.warn("[reviewSession] Network error during review:", error);
@@ -77,7 +79,7 @@ export function useReviewSession({ initialCards }: UseReviewSessionOptions) {
         setCardStartTime(Date.now());
       }
     },
-    [currentCard, isSubmitting, cardStartTime, queue, currentIndex],
+    [currentCard, isSubmitting, cardStartTime, queue, currentIndex, isSimulation],
   );
 
   const undo = useCallback(async () => {
@@ -90,14 +92,18 @@ export function useReviewSession({ initialCards }: UseReviewSessionOptions) {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/voca/undo", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ cardId: last.card.id }),
-      });
+      if (!isSimulation) {
+        const response = await fetch("/api/voca/undo", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ cardId: last.card.id }),
+        });
 
-      if (!response.ok) {
-        toast.error("되돌리기를 완료하지 못했어요.");
+        if (!response.ok) {
+          toast.error("되돌리기를 완료하지 못했어요.");
+        } else {
+          toast.info("이전 카드로 되돌렸어요.");
+        }
       } else {
         toast.info("이전 카드로 되돌렸어요.");
       }
@@ -110,7 +116,16 @@ export function useReviewSession({ initialCards }: UseReviewSessionOptions) {
       setIsSubmitting(false);
       setCardStartTime(Date.now());
     }
-  }, [undoStack, isSubmitting]);
+  }, [undoStack, isSubmitting, isSimulation]);
+
+  const restart = useCallback(() => {
+    setQueue(initialCards);
+    setCurrentIndex(0);
+    setIsFlipped(false);
+    setIsSubmitting(false);
+    setUndoStack([]);
+    setCardStartTime(Date.now());
+  }, [initialCards]);
 
   const unflip = useCallback(() => {
     setIsFlipped(false);
@@ -147,5 +162,6 @@ export function useReviewSession({ initialCards }: UseReviewSessionOptions) {
     goBack,
     rate,
     undo,
+    restart,
   };
 }

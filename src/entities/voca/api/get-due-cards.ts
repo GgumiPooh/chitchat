@@ -11,6 +11,7 @@ export type DueCardsResult = {
   dueCards: VocaCard[];
   summary: VocaDueSummary;
   sessionDayKey: string;
+  newCardsRemaining: number;
 };
 
 export async function getDueCards(userId: UserId, now: Date = new Date()): Promise<DueCardsResult> {
@@ -117,9 +118,24 @@ export async function getDueCards(userId: UserId, now: Date = new Date()): Promi
     totalDue: dueCards.length,
   };
 
+  const [totalNewCountRow] = await db
+    .select({ count: count() })
+    .from(vocaCards)
+    .where(
+      and(
+        eq(vocaCards.userId, userId),
+        isNull(vocaCards.deletedAt),
+        eq(vocaCards.suspended, false),
+        eq(vocaCards.state, "new"),
+      ),
+    );
+  const totalNewInDeck = Number(totalNewCountRow?.count ?? 0);
+  const newCardsRemaining = Math.max(0, totalNewInDeck - newCards.length);
+
   return {
     dueCards,
     summary,
     sessionDayKey,
+    newCardsRemaining,
   };
 }

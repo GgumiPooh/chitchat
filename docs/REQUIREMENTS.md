@@ -2393,7 +2393,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 ## 17.5. Performance & Pagination
 
 - **Card Browser Pagination**: Keyset pagination (`before={snowflakeId}&limit={limit}`) connected with `LoadMoreSentinel` at the bottom of both mobile document scroller and desktop `TwoPane` scroller.
-- **Bounded Review Queue**: Review sessions load bounded daily quotas (`dailyNewCards` + due review cards), with dynamic Scenario A completion card (`+5장 더 배우기` if new cards remain in deck; switches to `미리 복습하기` or `AI로 새 단어 추가하기` when 0 new cards remain; tapping `AI로 새 단어 추가하기` navigates to `${VOCA_ROUTE}?action=add-word`, auto-opening the `AiVocaInputDialog` on entry and clearing the search param).
+- **Bounded Review Queue**: Review sessions load bounded daily quotas (`dailyNewCards` + due review cards), with dynamic Scenario A completion card (`+5장 더 배우기` if new cards remain in deck; switches to `미리 복습하기` or `AI로 새 단어 추가하기` when 0 new cards remain; `미리 복습하기` navigates to `${VOCA_REVIEW_ROUTE}?mode=ahead` for practice simulation without mutating card schedules, or toast fallback if 0 ahead cards; tapping `AI로 새 단어 추가하기` navigates to `${VOCA_ROUTE}?action=add-word`, auto-opening the `AiVocaInputDialog` on entry and clearing the search param).
 
 ## 17.6. Daily 08:00 AM KST Push Reminder
 

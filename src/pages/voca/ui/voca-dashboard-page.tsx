@@ -27,6 +27,7 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
+import { toast } from "sonner";
 
 export type VocaDashboardPageProps = {
   className?: string;
@@ -35,6 +36,7 @@ export type VocaDashboardPageProps = {
   initialOpenAiDialog?: boolean;
   initialSettings: VocaUserSettings;
   totalCardsCount?: number;
+  aheadCardsCount?: number;
 };
 
 export function VocaDashboardPage({
@@ -43,11 +45,21 @@ export function VocaDashboardPage({
   initialHeatmap,
   initialOpenAiDialog = false,
   totalCardsCount = 0,
+  aheadCardsCount = 0,
 }: VocaDashboardPageProps) {
   const router = useRouter();
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(initialOpenAiDialog);
   const [isRecommendOpen, setIsRecommendOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  const handleReviewAhead = () => {
+    if (aheadCardsCount > 0) {
+      router.push(`${VOCA_REVIEW_ROUTE}?mode=ahead`);
+    } else {
+      toast.info("미리 복습할 수 있는 단어가 없어요. 새로운 단어를 추가해보세요!");
+      setIsAiDialogOpen(true);
+    }
+  };
 
   useEffect(() => {
     if (initialOpenAiDialog && typeof window !== "undefined") {
@@ -170,7 +182,7 @@ export function VocaDashboardPage({
                   buttonClassName="rounded-2xl"
                   variant="secondary"
                   haptic
-                  onClick={() => router.push(VOCA_REVIEW_ROUTE)}
+                  onClick={handleReviewAhead}
                 >
                   <CheckCircle2 className="h-4 w-4 text-semantic-success" />
                   미리 복습하기

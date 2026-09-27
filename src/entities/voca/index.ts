@@ -5,6 +5,7 @@ export {
 } from "./api/create-card";
 export { deleteVocaCard as deleteCard, deleteVocaCard } from "./api/delete-card";
 export { generateVocaCard, type GeneratedVocaCard } from "./api/generate-voca-card";
+export { countAheadCards, getAheadCards } from "./api/get-ahead-cards";
 export { getVocaCard as getCard, getVocaCard } from "./api/get-card";
 export { getDueCards, type DueCardsResult } from "./api/get-due-cards";
 export { getVocaHeatmap as getHeatmap, getVocaHeatmap } from "./api/get-heatmap";
