@@ -1,7 +1,11 @@
 /**
- * Fetches GeekNews GN⁺ curated feed (https://news.hada.io/plus) every five minutes,
- * parses the 20 curated articles, and delivers them in a single batch
+ * Fetches GeekNews articles and delivers them in a single batch
  * to the app via POST /api/ops/sync-geeknews.
+ *
+ * Ingestion sources (prioritized):
+ * 1. Discord Channel REST API (if DISCORD_BOT_TOKEN & DISCORD_CHANNEL_ID are set)
+ *    Reads the exact messages posted by the GeekNews bot in your Discord server.
+ * 2. GeekNews GN⁺ curated feed (https://news.hada.io/plus) HTML scraping fallback.
  */
 
 const DEFAULT_ORIGIN = "https://jandh.jeheecheon.com";
@@ -34,6 +38,89 @@ function stripHtmlAndCdata(text) {
     .replace(/&#39;/g, "'")
     .replace(/\s+/g, " ")
     .trim();
+}
+
+function parseDiscordMessages(messages) {
+  const articles = [];
+  for (const msg of messages) {
+    if (!msg) {
+      continue;
+    }
+    let title = "";
+    let geeknewsUrl = "";
+    let geeknewsId = null;
+    let summary = "";
+    let publishedAt = msg.timestamp || new Date().toISOString();
+
+    if (msg.embeds && msg.embeds.length > 0) {
+      const emb = msg.embeds[0];
+      title = stripHtmlAndCdata(emb.title || "");
+      geeknewsUrl = (emb.url || "").trim();
+      summary = stripHtmlAndCdata(emb.description || "");
+    } else if (msg.content) {
+      const content = msg.content;
+      const mdLinkMatch = content.match(/\*\*\[([^\]]+)\]\(<?( ?https?:\/\/[^>)\s]+)>?\)\*\*/);
+      if (mdLinkMatch) {
+        title = stripHtmlAndCdata(mdLinkMatch[1]);
+        geeknewsUrl = mdLinkMatch[2].trim();
+      } else {
+        const urlMatch = content.match(/https?:\/\/news\.hada\.io\/topic\?[^\s>"')]+/);
+        if (urlMatch) {
+          geeknewsUrl = urlMatch[0];
+        }
+        const boldMatch = content.match(/\*\*([^*\n[]+)\*\*/);
+        if (boldMatch) {
+          title = stripHtmlAndCdata(boldMatch[1]);
+        }
+      }
+      const lines = content
+        .split("\n")
+        .slice(1)
+        .map((l) => l.trim())
+        .filter(Boolean);
+      summary = lines.map((l) => (l.startsWith("- ") ? "• " + l.slice(2).trim() : l)).join("\n");
+    }
+
+    if (geeknewsUrl) {
+      const idMatch = geeknewsUrl.match(/[?&]id=(\d+)/);
+      if (idMatch) {
+        geeknewsId = idMatch[1];
+      }
+    }
+
+    if (geeknewsId && title) {
+      articles.push({
+        geeknewsId,
+        title,
+        url: `https://news.hada.io/topic?id=${geeknewsId}`,
+        sourceUrl: null,
+        summary: summary || title,
+        publishedAt,
+      });
+    }
+  }
+  return articles;
+}
+
+async function fetchFromDiscord(env) {
+  const res = await fetch(
+    `https://discord.com/api/v10/channels/${env.DISCORD_CHANNEL_ID}/messages?limit=20`,
+    {
+      headers: {
+        Authorization: `Bot ${env.DISCORD_BOT_TOKEN}`,
+        "User-Agent": "chitchat-geeknews-worker",
+      },
+    },
+  );
+  if (!res.ok) {
+    const errorText = await res.text().catch(() => "");
+    throw new Error(`Discord API status ${res.status}: ${errorText}`);
+  }
+  const messages = await res.json();
+  if (!Array.isArray(messages)) {
+    throw new Error("Discord API response is not an array");
+  }
+  return parseDiscordMessages(messages);
 }
 
 function parseCuratedPage(html) {
@@ -105,6 +192,21 @@ function normalizeSourceUrl(rawUrl, geeknewsId) {
   return trimmed;
 }
 
+async function fetchCuratedHtmlArticles() {
+  const res = await fetch(CURATED_NEWS_URL, {
+    headers: {
+      "User-Agent": USER_AGENT,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
+    },
+  });
+  if (!res.ok) {
+    throw new Error(`Curated page status ${res.status}`);
+  }
+  const html = await res.text();
+  return parseCuratedPage(html);
+}
+
 async function syncGeeknews(env) {
   if (!env.OPS_CRON_TOKEN) {
     console.error(
@@ -113,28 +215,30 @@ async function syncGeeknews(env) {
     return;
   }
 
-  let html = "";
-  try {
-    const res = await fetch(CURATED_NEWS_URL, {
-      headers: {
-        "User-Agent": USER_AGENT,
-        Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7",
-      },
-    });
-    if (!res.ok) {
-      console.error(`[geeknews] page answered status ${res.status}`);
-      return;
+  let articles = [];
+  if (env.DISCORD_BOT_TOKEN && env.DISCORD_CHANNEL_ID) {
+    try {
+      articles = await fetchFromDiscord(env);
+      console.log(
+        `[geeknews] fetched ${articles.length} article(s) from Discord channel ${env.DISCORD_CHANNEL_ID}`,
+      );
+    } catch (error) {
+      console.error("[geeknews] Discord fetch failed, falling back to HTML:", error);
     }
-    html = await res.text();
-  } catch (error) {
-    console.error("[geeknews] page fetch failed:", error);
-    return;
   }
 
-  const articles = parseCuratedPage(html);
   if (articles.length === 0) {
-    console.warn("[geeknews] no articles parsed from curated page");
+    try {
+      articles = await fetchCuratedHtmlArticles();
+      console.log(`[geeknews] fetched ${articles.length} article(s) from curated HTML`);
+    } catch (error) {
+      console.error("[geeknews] HTML fetch failed:", error);
+      return;
+    }
+  }
+
+  if (articles.length === 0) {
+    console.warn("[geeknews] no articles available to sync");
     return;
   }
 
