@@ -10,7 +10,7 @@ import {
 } from "@/features/voca-browser";
 import { VocaRecommendSheet } from "@/features/voca-recommend";
 import { VOCA_ROUTE } from "@/shared/config";
-import { cn, type VocaCardId } from "@/shared/lib";
+import { cn, type Nullable, type VocaCardId } from "@/shared/lib";
 import {
   AppHeader,
   BottomSheet,
@@ -30,13 +30,13 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 export type VocaCardsPageProps = {
   className?: string;
   initialCards: VocaCard[];
-  initialNextCursor?: VocaCardId | null;
+  initialNextCursor?: Nullable<VocaCardId>;
   initialHasMore?: boolean;
 };
 
@@ -55,7 +55,10 @@ export function VocaCardsPage({
   initialHasMore,
 }: VocaCardsPageProps) {
   const router = useRouter();
-  const [selectedCard, setSelectedCard] = useState<VocaCard | null>(() => initialCards[0] ?? null);
+  const desktopScrollerRef = useRef<Nullable<HTMLDivElement>>(null);
+  const [selectedCard, setSelectedCard] = useState<Nullable<VocaCard>>(
+    () => initialCards[0] ?? null,
+  );
   const [isMobileSheetOpen, setIsMobileSheetOpen] = useState(false);
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
   const [isRecommendOpen, setIsRecommendOpen] = useState(false);
@@ -163,7 +166,7 @@ export function VocaCardsPage({
   };
 
   const rosterHeaderAndControls = (
-    <div className="space-y-3 p-4">
+    <div className="space-y-3 p-0 lg:p-4">
       {/* Search Input */}
       <div className="relative">
         <Search className="absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-meta" />
@@ -199,57 +202,13 @@ export function VocaCardsPage({
 
   return (
     <div className={cn("flex flex-1 flex-col", className)}>
-      <AppHeader
-        hasSidePanel
-        title="단어장"
-        trailingFadesOnScroll
-        leading={
-          <IconButton
-            Icon={ChevronLeft}
-            haptic
-            variant="floating"
-            aria-label="영단어로 돌아가기"
-            onClick={() => router.push(VOCA_ROUTE)}
-          />
-        }
-        trailing={
-          <div className="flex items-center gap-xs">
-            <IconButton
-              className={cn(isSelectionMode && "border-primary text-primary")}
-              Icon={CheckSquare}
-              haptic
-              variant="floating"
-              aria-label="선택 모드"
-              onClick={() => {
-                setIsSelectionMode((prev) => !prev);
-                setSelectedIds(new Set());
-              }}
-            />
-            <IconButton
-              Icon={Compass}
-              haptic
-              variant="floating"
-              aria-label="AI 단어 추천"
-              onClick={() => setIsRecommendOpen(true)}
-            />
-            <IconButton
-              Icon={Sparkles}
-              haptic
-              variant="floating"
-              aria-label="AI로 단어 추가"
-              onClick={() => setIsAiDialogOpen(true)}
-            />
-          </div>
-        }
-      />
-
       {/* Responsive layout with TwoPane on desktop */}
       <TwoPane
-        className="pt-[calc(var(--app-header-inset)+var(--spacing-xs))] pb-2xl"
+        className="flex-1"
         panel={
           <div className="flex h-full flex-col">
             {rosterHeaderAndControls}
-            <div className="flex-1 overflow-y-auto">
+            <div ref={desktopScrollerRef} className="flex-1 overflow-y-auto">
               <VocaCardRoster
                 cards={cards}
                 selectedCardId={selectedCard?.id}
@@ -258,7 +217,7 @@ export function VocaCardsPage({
                 onSelectCard={handleSelectDesktopCard}
                 onToggleSelect={handleToggleSelectId}
               />
-              {hasMore && <LoadMoreSentinel onVisible={loadMore} />}
+              {hasMore && <LoadMoreSentinel rootRef={desktopScrollerRef} onVisible={loadMore} />}
               {isLoading && (
                 <div className="flex justify-center p-4">
                   <RotateCw className="h-4 w-4 animate-spin text-meta" />
@@ -268,8 +227,55 @@ export function VocaCardsPage({
           </div>
         }
       >
+        <AppHeader
+          hasSidePanel
+          title="단어장"
+          trailingFadesOnScroll
+          leading={
+            <IconButton
+              Icon={ChevronLeft}
+              haptic
+              variant="floating"
+              aria-label="영단어로 돌아가기"
+              onClick={() => router.push(VOCA_ROUTE)}
+            />
+          }
+          trailing={
+            <div className="flex items-center gap-xs">
+              <IconButton
+                className={cn(isSelectionMode && "border-primary text-primary")}
+                Icon={CheckSquare}
+                haptic
+                variant="floating"
+                aria-label="선택 모드"
+                onClick={() => {
+                  setIsSelectionMode((prev) => !prev);
+                  setSelectedIds(new Set());
+                }}
+              />
+              <IconButton
+                Icon={Compass}
+                haptic
+                variant="floating"
+                aria-label="AI 단어 추천"
+                onClick={() => setIsRecommendOpen(true)}
+              />
+              <IconButton
+                Icon={Sparkles}
+                haptic
+                variant="floating"
+                aria-label="AI로 단어 추가"
+                onClick={() => setIsAiDialogOpen(true)}
+              />
+            </div>
+          }
+        />
+
         {/* Desktop inline editor pane */}
-        <Container className="hidden lg:block" size="md">
+        <Container
+          className="hidden pt-[calc(var(--app-header-inset)+var(--spacing-xs))] pb-2xl lg:block"
+          size="md"
+        >
           {selectedCard ? (
             <div className="bg-surface rounded-2xl border border-hairline shadow-sm">
               <VocaInlineEditor
@@ -284,7 +290,10 @@ export function VocaCardsPage({
         </Container>
 
         {/* Mobile View: list shown in main flow when not on desktop */}
-        <Container className="space-y-md lg:hidden" size="md">
+        <Container
+          className="space-y-md pt-[calc(var(--app-header-inset)+var(--spacing-xs))] pb-2xl lg:hidden"
+          size="md"
+        >
           {rosterHeaderAndControls}
           <div className="bg-surface overflow-hidden rounded-2xl border border-hairline shadow-sm">
             <VocaCardRoster

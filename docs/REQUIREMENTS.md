@@ -2407,8 +2407,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 
 - **Stateless Architecture**: Built as a 100% stateless API (`POST /api/voca/recommend`), supporting horizontal scale-out with zero shared cache locks or database churn.
 - **Categorization & Frequency Grades**: Supports category tags (`전체`, `토익`, `수능`, `공무원`, `비즈니스`, `일상 회화`, `IT/개발`, custom topic) and 3 frequency/difficulty grades (`essential`, `core`, `killer`).
-- **Guaranteed Deduplication**: Pre-generates 12~15 candidate words via Gemini Flash and deterministically prunes duplicates against the user's active `voca_cards` table via indexed lookup (`voca_cards_user_target_word_idx`), returning 6~8 clean, net-new words.
+- **Guaranteed Deduplication**: Pre-generates 12~~15 candidate words via Gemini Flash and deterministically prunes duplicates against the user's active `voca_cards` table via indexed lookup (`voca_cards_user_target_word_idx`), returning 6~~8 clean, net-new words.
 - **Real-time Spinner & Progress Feedback**: Per-word `[생성하기]` button switches to an animated circular spinner (`RotateCw`) during synthesis, updating synchronously to `[✓ 추가됨]` upon card and audio creation.
 - **Transactional Push Notifications**: Sends immediate push notifications on both completion (`josa(word, "이/가") + " 카드가 추가되었어요."`) and failure (`josa(word, "을/를") + " 생성하지 못했어요. 다시 시도해주세요."`).
 - **Responsive BottomSheet & Dashboard Section**: Integrated as a dedicated recommendation card beneath the heatmap on `VocaDashboardPage` and header action on `VocaCardsPage`, presenting a native mobile drawer and desktop dialog via `BottomSheet`.
-
