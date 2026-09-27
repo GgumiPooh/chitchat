@@ -2447,3 +2447,11 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
   - Multi-line letter body preserving line breaks and full emoji support.
   - Photo gallery grid integrating with `MediaViewer` for full-screen zoom and inspection.
 - **Chat Reply Action**: Bottom action button `[{partner}에게 답장 보내기]` triggering `onReply(letter)` to quote reply directly in the chat room.
+
+## 18.3. Delivery Engine & 1-Minute Cron Worker (`dispatch-letters-worker`)
+
+- **Dedicated Cloudflare Worker**: `infra/dispatch-letters-worker` (`chitchat-dispatch-letters`) runs on a reliable 1-minute cron (`* * * * *`) trigger, delivering time letters with minute-level precision without relying on unreliable multi-minute GitHub Actions schedules.
+- **Atomic Concurrency Protection**: The worker calls `POST /api/ops/dispatch-letters` authenticated with `OPS_CRON_TOKEN`. The route uses PostgreSQL `SELECT ... WHERE status = 'scheduled' AND scheduled_at <= NOW() FOR UPDATE SKIP LOCKED` inside a transaction, ensuring that concurrent runs never double-dispatch letters.
+- **Timeline & Media Transition**: Within the claim transaction, transitions the letter status to `delivering`, synthesizes a `time_letter_delivered` action notice into `messages`, links all `letter_media` rows into `message_media` to make attached photos publicly visible in chat and archive, and commits with status `sent`.
+- **Transactional Push Notifications**: Dispatches transactional Web Push notifications outside the DB commit so external APNs/FCM delays do not impact delivery persistence.
+

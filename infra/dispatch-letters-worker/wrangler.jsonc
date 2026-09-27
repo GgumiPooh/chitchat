@@ -1,0 +1,9 @@
+{
+  "name": "chitchat-dispatch-letters",
+  "main": "worker.js",
+  "compatibility_date": "2026-08-24",
+  // INFO: REQUIREMENTS.md § 18. Runs every minute to deliver scheduled time letters into the chat room.
+  "triggers": { "crons": ["* * * * *"] },
+  // INFO: A failed pass surfaces here and nowhere else.
+  "observability": { "enabled": true },
+}
