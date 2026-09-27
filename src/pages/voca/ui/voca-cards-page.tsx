@@ -9,8 +9,8 @@ import {
   VocaInlineEditor,
 } from "@/features/voca-browser";
 import { VocaRecommendSheet } from "@/features/voca-recommend";
-import { VOCA_ROUTE } from "@/shared/config";
-import { cn, type Nullable, type VocaCardId } from "@/shared/lib";
+import { SIDE_PANEL_MEDIA_QUERY, VOCA_ROUTE } from "@/shared/config";
+import { cn, useSidePanel, type Nullable, type VocaCardId } from "@/shared/lib";
 import {
   AppHeader,
   BottomSheet,
@@ -30,7 +30,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 
 export type VocaCardsPageProps = {
@@ -55,6 +55,7 @@ export function VocaCardsPage({
   initialHasMore,
 }: VocaCardsPageProps) {
   const router = useRouter();
+  const { isOpen: isSidePanelOpen, open: openSidePanel } = useSidePanel();
   const desktopScrollerRef = useRef<Nullable<HTMLDivElement>>(null);
   const [selectedCard, setSelectedCard] = useState<Nullable<VocaCard>>(
     () => initialCards[0] ?? null,
@@ -64,6 +65,19 @@ export function VocaCardsPage({
   const [isRecommendOpen, setIsRecommendOpen] = useState(false);
   const [isSelectionMode, setIsSelectionMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<Set<VocaCardId>>(new Set());
+
+  const handleBack = useCallback(() => {
+    // INFO: 데스크톱(lg)에서 사이드패널이 닫혀있는 상태라면, 카드 목록을 먼저 열고 이미 열려 있을 때 영단어 홈으로 이동한다.
+    if (
+      typeof window !== "undefined" &&
+      window.matchMedia(SIDE_PANEL_MEDIA_QUERY).matches &&
+      !isSidePanelOpen
+    ) {
+      openSidePanel();
+      return;
+    }
+    router.push(VOCA_ROUTE);
+  }, [isSidePanelOpen, openSidePanel, router]);
 
   const {
     cards,
@@ -236,8 +250,8 @@ export function VocaCardsPage({
               Icon={ChevronLeft}
               haptic
               variant="floating"
-              aria-label="영단어로 돌아가기"
-              onClick={() => router.push(VOCA_ROUTE)}
+              aria-label="뒤로"
+              onClick={handleBack}
             />
           }
           trailing={

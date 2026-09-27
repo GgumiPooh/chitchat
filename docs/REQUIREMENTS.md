@@ -2345,6 +2345,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 ## 17.1. Architecture & Model
 
 - **Deck Structure & Tag Semantics**: 1 User = 1 Personal Deck directly bound to `users.id` on `voca_cards` and `voca_user_settings`. Categorization and difficulty/frequency grading are handled via tags (e.g. `토익,core`, `IT/개발,essential`, `#business`) rather than redundant `voca,{word}` prefixes.
+- **Hierarchical Desktop Back Navigation**: When the side panel is collapsed on desktop (`lg`), the header back button (`<`) expands the side panel (card list) first instead of leaving the page; clicking back while open navigates to `/playground/voca`.
 - **FSRS Algorithm**: Anki's official Free Spaced Repetition Scheduler (`ts-fsrs`), supporting 4 rating options (`Again`, `Hard`, `Good`, `Easy`) with dynamic interval estimation (`< 10분`, `1일`, `3일`, `7일`).
 - **Session Boundary**: Daily boundary rolls over at 04:00 AM KST (`toVocaSessionDayKey`), partitioning reviews and daily quotas cleanly.
 - **Card Note Specification (12 Fields)**: Conforms strictly to `/anki-voca` specification:
