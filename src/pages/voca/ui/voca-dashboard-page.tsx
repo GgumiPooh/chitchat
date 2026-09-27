@@ -178,36 +178,6 @@ export function VocaDashboardPage({
           </div>
         </div>
 
-        {/* Stats Row */}
-        <div className="grid grid-cols-3 gap-3">
-          <div className="bg-surface flex flex-col items-center justify-center rounded-2xl border border-hairline p-4 text-center">
-            <span className="text-caption text-meta">오늘 학습</span>
-            <div className="mt-1 flex items-baseline gap-1 text-title-md font-bold text-ink">
-              <Calendar className="h-4 w-4 text-primary" />
-              <span>{studiedToday}</span>
-              <span className="text-caption font-normal text-meta">개</span>
-            </div>
-          </div>
-
-          <div className="bg-surface flex flex-col items-center justify-center rounded-2xl border border-hairline p-4 text-center">
-            <span className="text-caption text-meta">전체 카드</span>
-            <div className="mt-1 flex items-baseline gap-1 text-title-md font-bold text-ink">
-              <BookOpen className="h-4 w-4 text-meta" />
-              <span>{totalCardsCount}</span>
-              <span className="text-caption font-normal text-meta">장</span>
-            </div>
-          </div>
-
-          <div className="bg-surface flex flex-col items-center justify-center rounded-2xl border border-hairline p-4 text-center">
-            <span className="text-caption text-meta">연속 학습</span>
-            <div className="mt-1 flex items-baseline gap-1 text-title-md font-bold text-ink">
-              <Flame className="h-4 w-4 text-semantic-warning" />
-              <span>{streak}</span>
-              <span className="text-caption font-normal text-meta">일</span>
-            </div>
-          </div>
-        </div>
-
         {/* AI Vocabulary Recommendation Section */}
         <div className="bg-surface relative overflow-hidden rounded-3xl border border-hairline p-6 shadow-sm">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -245,6 +215,36 @@ export function VocaDashboardPage({
               <Compass className="h-4 w-4" />
               단어 추천받기
             </Button>
+          </div>
+        </div>
+
+        {/* Stats Row */}
+        <div className="grid grid-cols-3 gap-3">
+          <div className="bg-surface flex flex-col items-center justify-center rounded-2xl border border-hairline p-4 text-center">
+            <span className="text-caption text-meta">오늘 학습</span>
+            <div className="mt-1 flex items-baseline gap-1 text-title-md font-bold text-ink">
+              <Calendar className="h-4 w-4 text-primary" />
+              <span>{studiedToday}</span>
+              <span className="text-caption font-normal text-meta">개</span>
+            </div>
+          </div>
+
+          <div className="bg-surface flex flex-col items-center justify-center rounded-2xl border border-hairline p-4 text-center">
+            <span className="text-caption text-meta">전체 카드</span>
+            <div className="mt-1 flex items-baseline gap-1 text-title-md font-bold text-ink">
+              <BookOpen className="h-4 w-4 text-meta" />
+              <span>{totalCardsCount}</span>
+              <span className="text-caption font-normal text-meta">장</span>
+            </div>
+          </div>
+
+          <div className="bg-surface flex flex-col items-center justify-center rounded-2xl border border-hairline p-4 text-center">
+            <span className="text-caption text-meta">연속 학습</span>
+            <div className="mt-1 flex items-baseline gap-1 text-title-md font-bold text-ink">
+              <Flame className="h-4 w-4 text-semantic-warning" />
+              <span>{streak}</span>
+              <span className="text-caption font-normal text-meta">일</span>
+            </div>
           </div>
         </div>
 
