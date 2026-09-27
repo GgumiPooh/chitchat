@@ -119,9 +119,7 @@ export function useVocaRecommendation({
     }
   };
 
-  const isGeneratingAny = Object.values(generationStatuses).some(
-    (status) => status === "loading",
-  );
+  const isGeneratingAny = Object.values(generationStatuses).some((status) => status === "loading");
 
   const hasFetched = lastFetchedParams !== null;
   const isFilterChanged =

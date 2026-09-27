@@ -54,13 +54,13 @@ export function VocaRecommendSheet({
   return (
     <BottomSheet
       className={className}
+      isOpen={isOpen}
+      isTall
+      keepsHeightUnderKeyboard={isCustomInputOpen}
       header={{
         description: "시험 및 난이도별로 엄선된 새로운 단어를 추천해드려요.",
         title: "✨ AI 맞춤 단어 추천",
       }}
-      isOpen={isOpen}
-      isTall
-      keepsHeightUnderKeyboard={isCustomInputOpen}
       onClose={handleClose}
     >
       <div className="space-y-4 pt-1 pb-6">
@@ -88,23 +88,23 @@ export function VocaRecommendSheet({
                   className="bg-surface flex items-center justify-between rounded-2xl border border-hairline p-4"
                 >
                   <div className="space-y-2">
-                    <div className="bg-surface-soft h-5 w-28 animate-pulse rounded-md" />
-                    <div className="bg-surface-soft h-4 w-44 animate-pulse rounded-md" />
+                    <div className="h-5 w-28 animate-pulse rounded-md bg-surface-soft" />
+                    <div className="h-4 w-44 animate-pulse rounded-md bg-surface-soft" />
                   </div>
-                  <div className="bg-surface-soft h-8 w-20 animate-pulse rounded-xl" />
+                  <div className="h-8 w-20 animate-pulse rounded-xl bg-surface-soft" />
                 </div>
               ))}
             </div>
           ) : !hasFetched ? (
             /* Initial State: Waiting for user to configure and trigger recommendation */
             <div className="bg-surface flex flex-col items-center justify-center rounded-2xl border border-hairline p-8 text-center">
-              <div className="bg-primary-tint text-primary flex h-14 w-14 items-center justify-center rounded-full">
+              <div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary-tint text-primary">
                 <Compass className="h-7 w-7" />
               </div>
-              <h4 className="text-title-sm font-bold text-ink mt-4">
+              <h4 className="mt-4 text-title-sm font-bold text-ink">
                 {tag === "전체" ? "맞춤 영단어 추천" : `${tag} 단어 추천`}
               </h4>
-              <p className="text-body-sm text-meta mt-1.5 max-w-[280px]">
+              <p className="mt-1.5 max-w-[280px] text-body-sm text-meta">
                 위에서 목표와 빈출 난이도를 선택한 후 아래 버튼을 누르면 AI가 엄선한 단어들을
                 가져옵니다.
               </p>
@@ -163,7 +163,7 @@ export function VocaRecommendSheet({
             </Button>
 
             {isGeneratingAny && (
-              <p className="text-caption text-meta text-center">
+              <p className="text-center text-caption text-meta">
                 단어를 생성하고 있어요. 잠시만 기다려주세요...
               </p>
             )}

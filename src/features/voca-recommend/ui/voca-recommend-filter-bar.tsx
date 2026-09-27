@@ -14,7 +14,7 @@ const TAGS: VocaRecommendTag[] = [
   "IT/개발",
 ];
 
-const GRADES: { dotColor: string; id: VocaRecommendGrade; label: string }[] = [
+const GRADES: { dotColor: string; label: string; id: VocaRecommendGrade }[] = [
   { dotColor: "bg-semantic-success", id: "essential", label: "기초/필수" },
   { dotColor: "bg-semantic-warning", id: "core", label: "실전/최빈출" },
   { dotColor: "bg-semantic-error", id: "killer", label: "고득점/심화" },
@@ -25,13 +25,13 @@ export type VocaRecommendFilterBarProps = {
   customTopic: string;
   disabled?: boolean;
   isCustomInputOpen: boolean;
+  selectedGrade: VocaRecommendGrade;
+  selectedTag: VocaRecommendTag;
   onCustomTopicChange: (topic: string) => void;
   onCustomTopicSubmit: () => void;
   onSelectGrade: (grade: VocaRecommendGrade) => void;
   onSelectTag: (tag: VocaRecommendTag) => void;
   onToggleCustomInput: () => void;
-  selectedGrade: VocaRecommendGrade;
-  selectedTag: VocaRecommendTag;
 };
 
 export function VocaRecommendFilterBar({
@@ -39,13 +39,13 @@ export function VocaRecommendFilterBar({
   customTopic,
   disabled = false,
   isCustomInputOpen,
+  selectedGrade,
+  selectedTag,
   onCustomTopicChange,
   onCustomTopicSubmit,
   onSelectGrade,
   onSelectTag,
   onToggleCustomInput,
-  selectedGrade,
-  selectedTag,
 }: VocaRecommendFilterBarProps) {
   return (
     <div className={cn("space-y-3", className)}>
@@ -103,13 +103,13 @@ export function VocaRecommendFilterBar({
               placeholder="예: 공항 입국심사, 스타트업 IR, 환경 보호"
               type="text"
               value={customTopic}
-              onChange={(e) => onCustomTopicChange(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
                   onCustomTopicSubmit();
                 }
               }}
+              onChange={(e) => onCustomTopicChange(e.target.value)}
             />
             <button
               className="absolute top-1/2 right-2.5 -translate-y-1/2 text-meta hover:text-ink disabled:opacity-40"
@@ -134,7 +134,7 @@ export function VocaRecommendFilterBar({
                 "flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-caption font-semibold transition-all select-none",
                 isSelected
                   ? "border border-primary bg-primary font-bold text-on-primary shadow-xs"
-                  : "border border-hairline bg-surface text-meta hover:border-hairline-strong hover:text-ink",
+                  : "bg-surface border border-hairline text-meta hover:border-hairline-strong hover:text-ink",
                 disabled && "cursor-not-allowed opacity-50",
               )}
               disabled={disabled}
