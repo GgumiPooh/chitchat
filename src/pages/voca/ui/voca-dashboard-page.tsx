@@ -16,7 +16,6 @@ import { AppHeader, Button, Container, IconButton } from "@/shared/ui";
 import {
   BookOpen,
   Calendar,
-  CheckCircle2,
   ChevronLeft,
   Compass,
   Flame,
@@ -27,8 +26,6 @@ import {
 } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { toast } from "sonner";
-
 export type VocaDashboardPageProps = {
   className?: string;
   initialDueSummary: VocaDueSummary;
@@ -36,7 +33,6 @@ export type VocaDashboardPageProps = {
   initialOpenAiDialog?: boolean;
   initialSettings: VocaUserSettings;
   totalCardsCount?: number;
-  aheadCardsCount?: number;
 };
 
 export function VocaDashboardPage({
@@ -45,21 +41,11 @@ export function VocaDashboardPage({
   initialHeatmap,
   initialOpenAiDialog = false,
   totalCardsCount = 0,
-  aheadCardsCount = 0,
 }: VocaDashboardPageProps) {
   const router = useRouter();
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(initialOpenAiDialog);
   const [isRecommendOpen, setIsRecommendOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
-
-  const handleReviewAhead = () => {
-    if (aheadCardsCount > 0) {
-      router.push(`${VOCA_REVIEW_ROUTE}?mode=ahead`);
-    } else {
-      toast.info("미리 복습할 수 있는 단어가 없어요. 새로운 단어를 추가해보세요!");
-      setIsAiDialogOpen(true);
-    }
-  };
 
   useEffect(() => {
     if (initialOpenAiDialog && typeof window !== "undefined") {
@@ -166,39 +152,41 @@ export function VocaDashboardPage({
 
             <div className="flex items-center gap-2 pt-1 sm:pt-0">
               {hasDueCards ? (
+                <>
+                  <Button
+                    className="flex-1 sm:w-auto"
+                    buttonClassName="rounded-2xl"
+                    variant="primary"
+                    haptic
+                    onClick={() => router.push(VOCA_REVIEW_ROUTE)}
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    학습 시작하기
+                  </Button>
+
+                  <Button
+                    className="w-auto shrink-0"
+                    buttonClassName="rounded-2xl px-3.5 sm:px-4"
+                    variant="secondary"
+                    haptic
+                    onClick={() => setIsAiDialogOpen(true)}
+                  >
+                    <Sparkles className="h-4 w-4 text-primary" />
+                    <span>단어 추가</span>
+                  </Button>
+                </>
+              ) : (
                 <Button
                   className="flex-1 sm:w-auto"
                   buttonClassName="rounded-2xl"
                   variant="primary"
                   haptic
-                  onClick={() => router.push(VOCA_REVIEW_ROUTE)}
+                  onClick={() => setIsAiDialogOpen(true)}
                 >
-                  <BookOpen className="h-4 w-4" />
-                  학습 시작하기
-                </Button>
-              ) : (
-                <Button
-                  className="flex-1 sm:w-auto"
-                  buttonClassName="rounded-2xl"
-                  variant="secondary"
-                  haptic
-                  onClick={handleReviewAhead}
-                >
-                  <CheckCircle2 className="h-4 w-4 text-semantic-success" />
-                  미리 복습하기
+                  <Sparkles className="h-4 w-4" />
+                  <span>새 단어 추가하기</span>
                 </Button>
               )}
-
-              <Button
-                className="w-auto shrink-0"
-                buttonClassName="rounded-2xl px-3.5 sm:px-4"
-                variant="secondary"
-                haptic
-                onClick={() => setIsAiDialogOpen(true)}
-              >
-                <Sparkles className="h-4 w-4 text-primary" />
-                <span>단어 추가</span>
-              </Button>
             </div>
           </div>
         </div>

@@ -126,13 +126,7 @@ function MirrorVocaSession({ className, snapshot, savedAt, onBack }: MirrorVocaS
         size="md"
       >
         {isCompleted ? (
-          <ReviewCompletionCard
-            newCardsRemaining={0}
-            onReviewAhead={() => {
-              setCurrentIndex(0);
-              setIsFlipped(false);
-            }}
-          />
+          <ReviewCompletionCard newCardsRemaining={0} onBrowseCards={onBack} />
         ) : currentCard ? (
           <div className="space-y-6">
             <div className="text-center text-body-sm font-semibold text-meta">

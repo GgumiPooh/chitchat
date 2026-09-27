@@ -1,4 +1,4 @@
-import { countAheadCards, getDueCards, getVocaHeatmap, getVocaUserSettings } from "@/entities/voca";
+import { getDueCards, getVocaHeatmap, getVocaUserSettings } from "@/entities/voca";
 import { VocaDashboardPage } from "@/pages/voca";
 import { requireUserOrRedirect } from "@/shared/auth";
 import { VOCA_ACTION_ADD, VOCA_ACTION_PARAM, VOCA_REMINDER_COOKIE_NAME } from "@/shared/config";
@@ -14,19 +14,17 @@ type PageProps = {
 export default async function Page({ searchParams }: PageProps) {
   const user = await requireUserOrRedirect();
 
-  const [params, { summary }, heatmap, settings, [totalCardsRow], cookieStore, aheadCardsCount] =
-    await Promise.all([
-      searchParams,
-      getDueCards(user.id),
-      getVocaHeatmap(user.id),
-      getVocaUserSettings(user.id),
-      getDb()
-        .select({ count: count() })
-        .from(vocaCards)
-        .where(and(eq(vocaCards.userId, user.id), isNull(vocaCards.deletedAt))),
-      cookies(),
-      countAheadCards(user.id),
-    ]);
+  const [params, { summary }, heatmap, settings, [totalCardsRow], cookieStore] = await Promise.all([
+    searchParams,
+    getDueCards(user.id),
+    getVocaHeatmap(user.id),
+    getVocaUserSettings(user.id),
+    getDb()
+      .select({ count: count() })
+      .from(vocaCards)
+      .where(and(eq(vocaCards.userId, user.id), isNull(vocaCards.deletedAt))),
+    cookies(),
+  ]);
 
   const reminderCookie = cookieStore.get(VOCA_REMINDER_COOKIE_NAME)?.value;
   const effectiveSettings =
@@ -38,7 +36,6 @@ export default async function Page({ searchParams }: PageProps) {
 
   return (
     <VocaDashboardPage
-      aheadCardsCount={aheadCardsCount}
       initialDueSummary={summary}
       initialHeatmap={heatmap}
       initialOpenAiDialog={initialOpenAiDialog}

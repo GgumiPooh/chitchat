@@ -8,30 +8,25 @@ import {
   VocaStudyCounts,
   useReviewSession,
 } from "@/features/voca-review";
-import { VOCA_ACTION_ADD, VOCA_ACTION_PARAM, VOCA_REVIEW_ROUTE, VOCA_ROUTE } from "@/shared/config";
+import { VOCA_ACTION_ADD, VOCA_ACTION_PARAM, VOCA_CARDS_ROUTE, VOCA_ROUTE } from "@/shared/config";
 import { cn, warmSpeechVoices } from "@/shared/lib";
 import { Button, Container, IconButton } from "@/shared/ui";
 import { ChevronLeft, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { toast } from "sonner";
 
 export type VocaReviewPageProps = {
   className?: string;
   initialDueCards: VocaCard[];
   desiredRetention?: number;
-  isPractice?: boolean;
   newCardsRemaining?: number;
-  canReviewAhead?: boolean;
 };
 
 export function VocaReviewPage({
   className,
   initialDueCards,
   desiredRetention = 0.9,
-  isPractice = false,
   newCardsRemaining = 0,
-  canReviewAhead = true,
 }: VocaReviewPageProps) {
   const router = useRouter();
   const [extraStudyCount, setExtraStudyCount] = useState(0);
@@ -50,11 +45,9 @@ export function VocaReviewPage({
     flip,
     rate,
     goBack,
-    restart,
   } = useReviewSession({
     initialCards: initialDueCards,
     desiredRetention,
-    isSimulation: isPractice,
   });
 
   const handleFlip = () => {
@@ -77,7 +70,7 @@ export function VocaReviewPage({
   }, [currentIndex, isFlipped, isCompleted]);
 
   useEffect(() => {
-    if (!isCompleted || isPractice || initialDueCards.length === 0) {
+    if (!isCompleted || initialDueCards.length === 0) {
       return;
     }
     if (hasNotifiedCompletionRef.current) {
@@ -92,7 +85,7 @@ export function VocaReviewPage({
     }).catch((err) => {
       console.error("Failed to notify voca completion:", err);
     });
-  }, [initialDueCards.length, isCompleted, isPractice]);
+  }, [initialDueCards.length, isCompleted]);
 
   const handleStudyMore = async () => {
     try {
@@ -127,11 +120,6 @@ export function VocaReviewPage({
           </div>
 
           <div className="flex items-center justify-center gap-2 text-body-sm font-semibold text-ink">
-            {isPractice && (
-              <span className="rounded-full bg-semantic-warning/15 px-2 py-0.5 text-caption font-medium text-semantic-warning">
-                연습 모드
-              </span>
-            )}
             <span>
               {isCompleted ? queue.length : progress.current} / {queue.length}
             </span>
@@ -142,7 +130,7 @@ export function VocaReviewPage({
               Icon={X}
               haptic
               variant="plain"
-              aria-label={isPractice ? "연습 종료" : "학습 종료"}
+              aria-label="학습 종료"
               onClick={() => router.push(VOCA_ROUTE)}
             />
           </div>
@@ -154,18 +142,9 @@ export function VocaReviewPage({
         <Container className="flex flex-col gap-6" size="md">
           {isCompleted ? (
             <ReviewCompletionCard
-              canReviewAhead={canReviewAhead}
-              isPractice={isPractice}
               newCardsRemaining={newCardsRemaining}
-              onReviewAhead={() => {
-                if (canReviewAhead) {
-                  router.push(`${VOCA_REVIEW_ROUTE}?mode=ahead`);
-                } else {
-                  toast.info("미리 복습할 수 있는 단어가 없어요. 새로운 단어를 추가해보세요!");
-                }
-              }}
               onAddWord={() => router.push(`${VOCA_ROUTE}?${VOCA_ACTION_PARAM}=${VOCA_ACTION_ADD}`)}
-              onRestartPractice={isPractice ? restart : undefined}
+              onBrowseCards={() => router.push(VOCA_CARDS_ROUTE)}
               onStudyMore={handleStudyMore}
             />
           ) : currentCard ? (
