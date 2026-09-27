@@ -43,7 +43,7 @@ export function ReviewRatingBar({
     },
     {
       rating: Rating.Good,
-      label: "알맞음",
+      label: "보통",
       interval: intervals[Rating.Good]?.intervalString ?? "3일",
       shortcut: "3",
       textColor: "text-primary",
@@ -67,7 +67,7 @@ export function ReviewRatingBar({
         <HapticTarget key={btn.rating} className="flex w-full" isTicking={!disabled} keepsScroll>
           <button
             className={cn(
-              "bg-surface flex h-14 w-full cursor-pointer flex-col items-center justify-center rounded-xl border border-hairline p-2 shadow-xs transition-all duration-150",
+              "flex h-14 w-full cursor-pointer flex-col items-center justify-center rounded-xl border border-hairline bg-surface-soft p-2 shadow-xs transition-all duration-150",
               "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:outline-none",
               "active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40",
               btn.hoverClass,

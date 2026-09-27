@@ -78,7 +78,7 @@ export function VocaReviewPage({
   return (
     <div className={cn("flex min-h-dvh flex-col bg-canvas", className)}>
       {/* Immersive Top Bar */}
-      <header className="bg-surface/80 sticky top-0 z-20 h-14 border-b border-hairline/60 backdrop-blur-md">
+      <header className="sticky top-0 z-20 h-14 border-b border-hairline bg-canvas/80 backdrop-blur-md">
         <Container className="grid h-full grid-cols-[1fr_auto_1fr] items-center" size="md">
           <div className="flex items-center justify-self-start">
             <IconButton
@@ -139,7 +139,7 @@ export function VocaReviewPage({
       {!isCompleted && isFlipped && currentCard && (
         <div className="pointer-events-none fixed right-0 bottom-[calc(var(--bar-lift)+12px)] left-(--rail-width) z-20 animate-in duration-200 fade-in slide-in-from-bottom-2">
           <Container className="pointer-events-auto px-4" size="md">
-            <div className="bg-surface/95 rounded-2xl border border-hairline/80 p-2 shadow-floating backdrop-blur-md">
+            <div className="rounded-2xl border border-hairline bg-canvas p-2 shadow-floating">
               <ReviewRatingBar
                 card={currentCard}
                 desiredRetention={desiredRetention}

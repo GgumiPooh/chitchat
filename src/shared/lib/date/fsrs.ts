@@ -158,7 +158,7 @@ export function computeAllNextIntervals(
   const ratings: { label: string; rating: Rating }[] = [
     { rating: Rating.Again, label: "다시" },
     { rating: Rating.Hard, label: "어려움" },
-    { rating: Rating.Good, label: "알맞음" },
+    { rating: Rating.Good, label: "보통" },
     { rating: Rating.Easy, label: "쉬움" },
   ];
 

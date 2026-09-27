@@ -1,7 +1,14 @@
 "use client";
 
 import type { VocaCard } from "@/entities/voca";
-import { cn, isCommandKey } from "@/shared/lib";
+import {
+  cn,
+  isCommandKey,
+  isValidAudioUrl,
+  speakVocaText,
+  stopVocaSpeech,
+  warmSpeechVoices,
+} from "@/shared/lib";
 import { VocaAudioButton } from "@/shared/ui";
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 
@@ -191,10 +198,10 @@ export function CardFace({
       audioRef.current.onended = null;
       audioRef.current.onerror = null;
       audioRef.current.onplay = null;
+      audioRef.current.removeAttribute("src");
+      audioRef.current.load();
     }
-    if (typeof window !== "undefined" && "speechSynthesis" in window) {
-      window.speechSynthesis.cancel();
-    }
+    stopVocaSpeech();
     setActiveTrack(null);
   }, []);
 
@@ -203,47 +210,39 @@ export function CardFace({
       stopAllAudio();
       setActiveTrack(track);
 
-      const audioUrl = track === "word" ? card.audioUrl : card.sentenceAudioUrl;
+      const rawAudioUrl = track === "word" ? card.audioUrl : card.sentenceAudioUrl;
       const fallbackText =
         track === "word" ? card.targetWord : cleanSentenceForSpeech(card.sentence, card.targetWord);
 
-      const speakFallback = () => {
-        if (!fallbackText || typeof window === "undefined" || !("speechSynthesis" in window)) {
+      const triggerSpeech = () => {
+        if (!fallbackText) {
           setActiveTrack(null);
           onEnd?.();
           return;
         }
 
-        try {
-          window.speechSynthesis.cancel();
-          const utterance = new SpeechSynthesisUtterance(fallbackText);
-          utterance.lang = "en-US";
-          utterance.rate = 0.9;
-          utterance.onstart = () => {
+        speakVocaText(fallbackText, {
+          onStart: () => {
             setActiveTrack(track);
-          };
-          utterance.onend = () => {
+          },
+          onEnd: () => {
             setActiveTrack(null);
             onEnd?.();
-          };
-          utterance.onerror = () => {
+          },
+          onError: () => {
             setActiveTrack(null);
             onEnd?.();
-          };
-          window.speechSynthesis.speak(utterance);
-        } catch {
-          setActiveTrack(null);
-          onEnd?.();
-        }
+          },
+        });
       };
 
-      if (audioUrl) {
+      if (isValidAudioUrl(rawAudioUrl)) {
         if (!audioRef.current && typeof Audio !== "undefined") {
           audioRef.current = new Audio();
         }
         const audio = audioRef.current;
         if (audio) {
-          audio.src = audioUrl;
+          audio.src = rawAudioUrl!;
           audio.onplay = () => {
             setActiveTrack(track);
           };
@@ -252,25 +251,20 @@ export function CardFace({
             onEnd?.();
           };
           audio.onerror = () => {
-            speakFallback();
+            triggerSpeech();
           };
 
           const playPromise = audio.play();
           if (playPromise !== undefined) {
             playPromise.catch(() => {
-              speakFallback();
+              triggerSpeech();
             });
           }
           return;
         }
       }
 
-      if (fallbackText) {
-        speakFallback();
-      } else {
-        setActiveTrack(null);
-        onEnd?.();
-      }
+      triggerSpeech();
     },
     [card.audioUrl, card.sentenceAudioUrl, card.sentence, card.targetWord, stopAllAudio],
   );
@@ -279,9 +273,14 @@ export function CardFace({
     playTrack("word", () => {
       timerRef.current = setTimeout(() => {
         playTrack("sentence");
-      }, 300);
+      }, 350);
     });
   }, [playTrack]);
+
+  // Pre-warm speech synthesis voices on mount
+  useEffect(() => {
+    warmSpeechVoices();
+  }, []);
 
   // Autoplay sequence when flipped to back
   useEffect(() => {
@@ -321,19 +320,12 @@ export function CardFace({
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      if (timerRef.current) {
-        clearTimeout(timerRef.current);
-      }
+      stopAllAudio();
       if (audioRef.current) {
-        audioRef.current.pause();
-        audioRef.current.src = "";
         audioRef.current = null;
       }
-      if (typeof window !== "undefined" && "speechSynthesis" in window) {
-        window.speechSynthesis.cancel();
-      }
     };
-  }, []);
+  }, [stopAllAudio]);
 
   const handleToggleWord = () => {
     if (activeTrack === "word") {
@@ -355,7 +347,7 @@ export function CardFace({
     return (
       <div
         className={cn(
-          "bg-surface flex min-h-[260px] flex-col justify-between rounded-2xl border border-hairline p-6 shadow-sm sm:min-h-[300px] sm:rounded-3xl sm:p-8",
+          "flex min-h-[260px] flex-col justify-between rounded-2xl border border-hairline bg-canvas p-6 shadow-sm sm:min-h-[300px] sm:rounded-3xl sm:p-8",
           className,
         )}
       >
@@ -390,7 +382,7 @@ export function CardFace({
   return (
     <div
       className={cn(
-        "bg-surface flex min-h-[300px] flex-col rounded-2xl border border-hairline p-6 shadow-sm sm:rounded-3xl sm:p-8",
+        "flex min-h-[300px] flex-col rounded-2xl border border-hairline bg-canvas p-6 shadow-sm sm:rounded-3xl sm:p-8",
         className,
       )}
     >
