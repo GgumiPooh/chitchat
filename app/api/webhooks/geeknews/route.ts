@@ -26,6 +26,9 @@ type DiscordEmbed = {
 type WebhookPayload = {
   attachments?: SlackAttachment[];
   embeds?: DiscordEmbed[];
+  // Discord plain-text message format
+  content?: string;
+  timestamp?: string;
   title?: string;
   url?: string;
   geeknewsUrl?: string;
@@ -73,6 +76,7 @@ function normalizeSourceUrl(rawUrl: string | null | undefined, geeknewsId: strin
 type TopicDetails = {
   sourceUrl: string | null;
   summary: string | null;
+  title: string | null;
 };
 
 async function fetchTopicDetails(geeknewsId: string): Promise<TopicDetails> {
@@ -85,13 +89,19 @@ async function fetchTopicDetails(geeknewsId: string): Promise<TopicDetails> {
       signal: AbortSignal.timeout(5000),
     });
     if (!res.ok) {
-      return { sourceUrl: null, summary: null };
+      return { sourceUrl: null, summary: null, title: null };
     }
     const html = await res.text();
-    const match =
+
+    const hrefMatch =
       html.match(/<a\s+[^>]*href=["']([^"']+)["'][^>]*class=["'][^"']*topic-title-link/i) ||
       html.match(/class=["'][^"']*topic-title-link[^"']*["'][^>]*href=["']([^"']+)["']/i);
-    const sourceUrl = match ? normalizeSourceUrl(match[1], geeknewsId) : null;
+    const sourceUrl = hrefMatch ? normalizeSourceUrl(hrefMatch[1], geeknewsId) : null;
+
+    const titleTagMatch = html.match(
+      /<a[^>]*class=["'][^"']*topic-title-link[^"']*["'][^>]*>([\s\S]*?)<\/a>/i,
+    );
+    const title = titleTagMatch ? stripHtmlAndCdata(titleTagMatch[1]) : null;
 
     let summary: string | null = null;
     const sectionMatch = html.match(
@@ -107,9 +117,9 @@ async function fetchTopicDetails(geeknewsId: string): Promise<TopicDetails> {
       }
     }
 
-    return { sourceUrl, summary };
+    return { sourceUrl, summary, title };
   } catch {
-    return { sourceUrl: null, summary: null };
+    return { sourceUrl: null, summary: null, title: null };
   }
 }
 
@@ -160,7 +170,7 @@ export async function POST(request: Request) {
       publishedAt = new Date(typeof att.ts === "number" ? att.ts * 1000 : att.ts);
     }
   } else if (payload.embeds && payload.embeds.length > 0) {
-    // Discord webhook format
+    // Discord embed format
     const emb = payload.embeds[0];
     title = emb.title ?? "";
     url = emb.url ?? "";
@@ -168,6 +178,19 @@ export async function POST(request: Request) {
     summary = emb.description ?? "";
     if (emb.timestamp) {
       publishedAt = new Date(emb.timestamp);
+    }
+  } else if (payload.content) {
+    // Discord plain-text message format: **[title]** [<https://news.hada.io/topic?id=xxx>]
+    const content = payload.content;
+    const urlMatch = content.match(/https?:\/\/news\.hada\.io\/topic\?[^\s>"')]+/);
+    if (urlMatch) {
+      geeknewsUrl = urlMatch[0];
+    }
+    const boldBracketMatch = content.match(/\*\*\[([^\]]+)\]\*\*/);
+    const boldMatch = content.match(/\*\*([^*\n[]+)\*\*/);
+    title = boldBracketMatch ? boldBracketMatch[1].trim() : boldMatch ? boldMatch[1].trim() : "";
+    if (payload.timestamp) {
+      publishedAt = new Date(payload.timestamp);
     }
   } else {
     // Raw JSON format
@@ -199,23 +222,26 @@ export async function POST(request: Request) {
   title = stripHtmlAndCdata(title);
   summary = stripHtmlAndCdata(summary);
 
-  if (!title) {
-    return apiError("invalid_request");
-  }
-
   const canonicalUrl = geeknewsUrl || `https://news.hada.io/topic?id=${geeknewsId}`;
   let sourceUrl: string | null = normalizeSourceUrl(
     url && url !== canonicalUrl ? url : null,
     geeknewsId,
   );
-  if (!sourceUrl || !summary || !summary.startsWith("•")) {
+  if (!title || !sourceUrl || !summary || !summary.startsWith("•")) {
     const details = await fetchTopicDetails(geeknewsId);
+    if (!title && details.title) {
+      title = details.title;
+    }
     if (!sourceUrl && details.sourceUrl) {
       sourceUrl = details.sourceUrl;
     }
     if ((!summary || !summary.startsWith("•")) && details.summary) {
       summary = details.summary;
     }
+  }
+
+  if (!title) {
+    return apiError("invalid_request");
   }
 
   const db = getDb();
