@@ -70,6 +70,48 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
     return weeksArray;
   }, [heatmapMap, weeks]);
 
+  const monthLabels = useMemo(() => {
+    const labels: { key: string; label: string; weekIndex: number }[] = [];
+    let lastMonth = "";
+    let lastWeekIdx = -999;
+
+    const now = new Date();
+    const effectiveNow = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+    const yyyy = effectiveNow.getFullYear();
+    const mm = String(effectiveNow.getMonth() + 1).padStart(2, "0");
+    const dd = String(effectiveNow.getDate()).padStart(2, "0");
+    const todayKey = `${yyyy}-${mm}-${dd}`;
+
+    gridWeeks.forEach((week, wIdx) => {
+      const validDays = week.filter((d) => d.dayKey <= todayKey);
+      if (validDays.length === 0) {
+        return;
+      }
+
+      const firstDayOfMonth = validDays.find((d) => d.dayKey.endsWith("-01"));
+      let monthToLabel = "";
+      if (firstDayOfMonth) {
+        monthToLabel = firstDayOfMonth.dayKey.slice(5, 7);
+      } else if (wIdx === 0) {
+        monthToLabel = week[0].dayKey.slice(5, 7);
+      }
+
+      if (monthToLabel && monthToLabel !== lastMonth) {
+        if (wIdx - lastWeekIdx >= 2) {
+          labels.push({
+            key: `${week[0].dayKey}-${monthToLabel}`,
+            label: `${parseInt(monthToLabel, 10)}월`,
+            weekIndex: wIdx,
+          });
+          lastMonth = monthToLabel;
+          lastWeekIdx = wIdx;
+        }
+      }
+    });
+
+    return labels;
+  }, [gridWeeks]);
+
   const levelColor = (level: number) => {
     switch (level) {
       case 1:
@@ -120,6 +162,8 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
       <div className="flex items-start">
         {/* Day labels column: stays fixed on left when scrolling */}
         <div className="flex shrink-0 flex-col gap-1 py-1 pr-1.5 select-none" aria-hidden>
+          {/* Spacer matching month row height */}
+          <div className="mb-1 h-4" />
           {DAY_LABELS.map((label, idx) => (
             <span
               key={idx}
@@ -132,27 +176,45 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
 
         {/* Responsive scroll container: auto-scrolled to today on mount */}
         <div ref={scrollerRef} className="scrollbar-hidden flex-1 overflow-x-auto px-1 py-1">
-          <div className="flex min-w-max gap-1.5">
-            {gridWeeks.map((week, wIdx) => (
-              <div key={wIdx} className="flex flex-col gap-1">
-                {week.map((day) => (
-                  <button
-                    key={day.dayKey}
-                    className={cn(
-                      "h-3.5 w-3.5 rounded-sm border transition-transform duration-100 hover:scale-125 focus:scale-125 focus:outline-none",
-                      levelColor(day.level),
-                    )}
-                    type="button"
-                    aria-label={`${day.dayKey}: ${day.count}개 복습 완료`}
-                    onBlur={() => setActiveTooltip(null)}
-                    onClick={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
-                    onFocus={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
-                    onMouseEnter={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
-                    onMouseLeave={() => setActiveTooltip(null)}
-                  />
-                ))}
-              </div>
-            ))}
+          <div className="flex min-w-max flex-col">
+            {/* Month labels row */}
+            <div className="relative mb-1 h-4 select-none">
+              {monthLabels.map((m) => (
+                <span
+                  key={m.key}
+                  className="absolute text-[10px] font-medium text-meta"
+                  style={{ left: `${m.weekIndex * 20}px` }}
+                >
+                  {m.label}
+                </span>
+              ))}
+            </div>
+
+            {/* Week columns */}
+            <div className="flex gap-1.5">
+              {gridWeeks.map((week, wIdx) => (
+                <div key={wIdx} className="flex flex-col gap-1">
+                  {week.map((day) => (
+                    <button
+                      key={day.dayKey}
+                      className={cn(
+                        "h-3.5 w-3.5 rounded-sm border transition-transform duration-100 hover:scale-125 focus:scale-125 focus:outline-none",
+                        levelColor(day.level),
+                      )}
+                      type="button"
+                      aria-label={`${day.dayKey}: ${day.count}개 복습 완료`}
+                      onMouseEnter={() =>
+                        setActiveTooltip({ dayKey: day.dayKey, count: day.count })
+                      }
+                      onBlur={() => setActiveTooltip(null)}
+                      onClick={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
+                      onFocus={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
+                      onMouseLeave={() => setActiveTooltip(null)}
+                    />
+                  ))}
+                </div>
+              ))}
+            </div>
           </div>
         </div>
       </div>
