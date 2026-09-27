@@ -207,7 +207,7 @@ export function VocaDashboardPage({
             </div>
 
             <Button
-              className="w-auto shrink-0 self-start sm:self-auto"
+              className="w-full shrink-0 sm:w-auto"
               buttonClassName="rounded-2xl px-5 gap-2"
               variant="primary"
               haptic
