@@ -12,7 +12,7 @@ import { cn } from "@/shared/lib";
 import { Container, IconButton } from "@/shared/ui";
 import { ChevronLeft, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 export type VocaReviewPageProps = {
   className?: string;
@@ -30,6 +30,7 @@ export function VocaReviewPage({
 
   const {
     queue,
+    currentIndex,
     currentCard,
     isFlipped,
     isSubmitting,
@@ -43,6 +44,20 @@ export function VocaReviewPage({
     initialCards: initialDueCards,
     desiredRetention,
   });
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+
+    const rafId = requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [currentIndex, isFlipped, isCompleted]);
 
   const handleStudyMore = async () => {
     try {

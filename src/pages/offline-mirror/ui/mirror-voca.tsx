@@ -14,7 +14,7 @@ import {
 import { AppHeader, Container, IconButton } from "@/shared/ui";
 import { SnapshotEmpty, SnapshotStamp } from "@/widgets/offline-shell";
 import { ChevronLeft, GraduationCap } from "lucide-react";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
 import { MirrorLoading } from "./mirror-loading";
 
@@ -52,6 +52,20 @@ function MirrorVocaSession({ className, snapshot, savedAt, onBack }: MirrorVocaS
 
   const currentCard = queue[currentIndex] ?? null;
   const isCompleted = queue.length === 0 || currentIndex >= queue.length;
+
+  useEffect(() => {
+    window.scrollTo({ top: 0, behavior: "instant" });
+    document.documentElement.scrollTop = 0;
+    document.body.scrollTop = 0;
+
+    const rafId = requestAnimationFrame(() => {
+      window.scrollTo({ top: 0, behavior: "instant" });
+      document.documentElement.scrollTop = 0;
+      document.body.scrollTop = 0;
+    });
+
+    return () => cancelAnimationFrame(rafId);
+  }, [currentIndex, isFlipped, isCompleted]);
 
   const handleRate = useCallback(
     async (rating: number) => {
