@@ -36,6 +36,16 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
     return map;
   }, [heatmap]);
 
+  const todayKey = useMemo(() => {
+    const now = new Date();
+    // Shift by 4 hours for 04:00 rollover
+    const effectiveNow = new Date(now.getTime() - 4 * 60 * 60 * 1000);
+    const yyyy = effectiveNow.getFullYear();
+    const mm = String(effectiveNow.getMonth() + 1).padStart(2, "0");
+    const dd = String(effectiveNow.getDate()).padStart(2, "0");
+    return `${yyyy}-${mm}-${dd}`;
+  }, []);
+
   // Build grid of days going backwards from today
   const gridWeeks = useMemo(() => {
     const now = new Date();
@@ -43,7 +53,7 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
     const effectiveNow = new Date(now.getTime() - 4 * 60 * 60 * 1000);
     const dayOfWeek = effectiveNow.getDay(); // 0 is Sunday
 
-    const days: { dayKey: string; count: number; level: number }[] = [];
+    const days: { dayKey: string; count: number; level: number; isFuture: boolean }[] = [];
     const totalDays = weeks * 7;
 
     for (let i = totalDays - 1; i >= 0; i--) {
@@ -59,6 +69,7 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
         dayKey,
         count: entry?.count ?? 0,
         level: entry?.level ?? 0,
+        isFuture: dayKey > todayKey,
       });
     }
 
@@ -68,22 +79,15 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
       weeksArray.push(days.slice(i, i + 7));
     }
     return weeksArray;
-  }, [heatmapMap, weeks]);
+  }, [heatmapMap, todayKey, weeks]);
 
   const monthLabels = useMemo(() => {
     const labels: { key: string; label: string; weekIndex: number }[] = [];
     let lastMonth = "";
     let lastWeekIdx = -999;
 
-    const now = new Date();
-    const effectiveNow = new Date(now.getTime() - 4 * 60 * 60 * 1000);
-    const yyyy = effectiveNow.getFullYear();
-    const mm = String(effectiveNow.getMonth() + 1).padStart(2, "0");
-    const dd = String(effectiveNow.getDate()).padStart(2, "0");
-    const todayKey = `${yyyy}-${mm}-${dd}`;
-
     gridWeeks.forEach((week, wIdx) => {
-      const validDays = week.filter((d) => d.dayKey <= todayKey);
+      const validDays = week.filter((d) => !d.isFuture);
       if (validDays.length === 0) {
         return;
       }
@@ -164,24 +168,28 @@ export function VocaHeatmap({ className, heatmap, weeks = 52 }: VocaHeatmapProps
             <div className="flex gap-1">
               {gridWeeks.map((week, wIdx) => (
                 <div key={wIdx} className="flex flex-col gap-1">
-                  {week.map((day) => (
-                    <button
-                      key={day.dayKey}
-                      className={cn(
-                        "h-3 w-3 rounded-[2px] border transition-transform duration-100 hover:scale-125 focus:scale-125 focus:outline-none",
-                        levelColor(day.level),
-                      )}
-                      type="button"
-                      aria-label={`${day.dayKey}: ${day.count}개 복습 완료`}
-                      onMouseEnter={() =>
-                        setActiveTooltip({ dayKey: day.dayKey, count: day.count })
-                      }
-                      onBlur={() => setActiveTooltip(null)}
-                      onClick={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
-                      onFocus={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
-                      onMouseLeave={() => setActiveTooltip(null)}
-                    />
-                  ))}
+                  {week.map((day) =>
+                    day.isFuture ? (
+                      <div key={day.dayKey} className="h-3 w-3" aria-hidden />
+                    ) : (
+                      <button
+                        key={day.dayKey}
+                        className={cn(
+                          "h-3 w-3 rounded-[2px] border transition-transform duration-100 hover:scale-125 focus:scale-125 focus:outline-none",
+                          levelColor(day.level),
+                        )}
+                        type="button"
+                        aria-label={`${day.dayKey}: ${day.count}개 복습 완료`}
+                        onMouseEnter={() =>
+                          setActiveTooltip({ dayKey: day.dayKey, count: day.count })
+                        }
+                        onBlur={() => setActiveTooltip(null)}
+                        onClick={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
+                        onFocus={() => setActiveTooltip({ dayKey: day.dayKey, count: day.count })}
+                        onMouseLeave={() => setActiveTooltip(null)}
+                      />
+                    ),
+                  )}
                 </div>
               ))}
             </div>
