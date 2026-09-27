@@ -30,7 +30,7 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
 export type VocaCardsPageProps = {
@@ -80,7 +80,22 @@ export function VocaCardsPage({
     initialHasMore,
   });
 
-  const handleSelectCard = (card: VocaCard) => {
+  useEffect(() => {
+    const mql = window.matchMedia("(min-width: 1024px)");
+    const handler = (e: MediaQueryListEvent) => {
+      if (e.matches) {
+        setIsMobileSheetOpen(false);
+      }
+    };
+    mql.addEventListener("change", handler);
+    return () => mql.removeEventListener("change", handler);
+  }, []);
+
+  const handleSelectDesktopCard = (card: VocaCard) => {
+    setSelectedCard(card);
+  };
+
+  const handleOpenMobileCard = (card: VocaCard) => {
     setSelectedCard(card);
     setIsMobileSheetOpen(true);
   };
@@ -240,7 +255,7 @@ export function VocaCardsPage({
                 selectedCardId={selectedCard?.id}
                 isSelectionMode={isSelectionMode}
                 selectedIds={selectedIds}
-                onSelectCard={handleSelectCard}
+                onSelectCard={handleSelectDesktopCard}
                 onToggleSelect={handleToggleSelectId}
               />
               {hasMore && <LoadMoreSentinel onVisible={loadMore} />}
@@ -277,7 +292,7 @@ export function VocaCardsPage({
               selectedCardId={selectedCard?.id}
               isSelectionMode={isSelectionMode}
               selectedIds={selectedIds}
-              onSelectCard={handleSelectCard}
+              onSelectCard={handleOpenMobileCard}
               onToggleSelect={handleToggleSelectId}
             />
           </div>
