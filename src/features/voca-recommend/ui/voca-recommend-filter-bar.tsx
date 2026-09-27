@@ -14,38 +14,38 @@ const TAGS: VocaRecommendTag[] = [
   "IT/개발",
 ];
 
-const GRADES: { label: string; dotColor: string; id: VocaRecommendGrade }[] = [
-  { id: "essential", label: "기초/필수", dotColor: "bg-semantic-success" },
-  { id: "core", label: "실전/최빈출", dotColor: "bg-semantic-warning" },
-  { id: "killer", label: "고득점/심화", dotColor: "bg-semantic-danger" },
+const GRADES: { dotColor: string; id: VocaRecommendGrade; label: string }[] = [
+  { dotColor: "bg-semantic-success", id: "essential", label: "기초/필수" },
+  { dotColor: "bg-semantic-warning", id: "core", label: "실전/최빈출" },
+  { dotColor: "bg-semantic-error", id: "killer", label: "고득점/심화" },
 ];
 
 export type VocaRecommendFilterBarProps = {
   className?: string;
-  selectedTag: VocaRecommendTag;
-  selectedGrade: VocaRecommendGrade;
   customTopic: string;
-  isCustomInputOpen: boolean;
   disabled?: boolean;
-  onSelectTag: (tag: VocaRecommendTag) => void;
-  onSelectGrade: (grade: VocaRecommendGrade) => void;
+  isCustomInputOpen: boolean;
   onCustomTopicChange: (topic: string) => void;
   onCustomTopicSubmit: () => void;
+  onSelectGrade: (grade: VocaRecommendGrade) => void;
+  onSelectTag: (tag: VocaRecommendTag) => void;
   onToggleCustomInput: () => void;
+  selectedGrade: VocaRecommendGrade;
+  selectedTag: VocaRecommendTag;
 };
 
 export function VocaRecommendFilterBar({
   className,
-  selectedTag,
-  selectedGrade,
   customTopic,
-  isCustomInputOpen,
   disabled = false,
-  onSelectTag,
-  onSelectGrade,
+  isCustomInputOpen,
   onCustomTopicChange,
   onCustomTopicSubmit,
+  onSelectGrade,
+  onSelectTag,
   onToggleCustomInput,
+  selectedGrade,
+  selectedTag,
 }: VocaRecommendFilterBarProps) {
   return (
     <div className={cn("space-y-3", className)}>
@@ -63,8 +63,8 @@ export function VocaRecommendFilterBar({
                   : "border border-hairline bg-surface-soft text-meta hover:text-ink",
                 disabled && "cursor-not-allowed opacity-50",
               )}
-              type="button"
               disabled={disabled}
+              type="button"
               onClick={() => {
                 if (isCustomInputOpen) {
                   onToggleCustomInput();
@@ -85,8 +85,8 @@ export function VocaRecommendFilterBar({
               : "border border-hairline bg-surface-soft text-meta hover:text-ink",
             disabled && "cursor-not-allowed opacity-50",
           )}
-          type="button"
           disabled={disabled}
+          type="button"
           onClick={onToggleCustomInput}
         >
           + 직접 입력
@@ -99,22 +99,22 @@ export function VocaRecommendFilterBar({
           <div className="relative flex-1">
             <input
               className="w-full rounded-xl border border-hairline bg-surface-soft py-2 pr-9 pl-3 text-body-sm text-ink placeholder:text-meta-soft focus:border-primary focus:outline-none"
-              type="text"
-              placeholder="예: 공항 입국심사, 스타트업 IR, 환경 보호"
-              value={customTopic}
               disabled={disabled}
+              placeholder="예: 공항 입국심사, 스타트업 IR, 환경 보호"
+              type="text"
+              value={customTopic}
+              onChange={(e) => onCustomTopicChange(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === "Enter") {
                   e.preventDefault();
                   onCustomTopicSubmit();
                 }
               }}
-              onChange={(e) => onCustomTopicChange(e.target.value)}
             />
             <button
               className="absolute top-1/2 right-2.5 -translate-y-1/2 text-meta hover:text-ink disabled:opacity-40"
-              type="button"
               disabled={disabled || !customTopic.trim()}
+              type="button"
               onClick={onCustomTopicSubmit}
             >
               <Search className="h-4 w-4" />
@@ -123,23 +123,30 @@ export function VocaRecommendFilterBar({
         </div>
       )}
 
-      {/* Frequency Grade Segmented Bar */}
-      <div className="flex rounded-xl border border-hairline bg-surface-soft p-1">
+      {/* Frequency Grade Segmented Bar - High contrast selection */}
+      <div className="flex gap-1.5 rounded-2xl border border-hairline bg-surface-soft p-1.5">
         {GRADES.map((g) => {
           const isSelected = selectedGrade === g.id;
           return (
             <button
               key={g.id}
               className={cn(
-                "flex flex-1 items-center justify-center gap-1.5 rounded-lg py-1.5 text-caption font-medium transition-all select-none",
-                isSelected ? "bg-surface text-ink shadow-xs" : "text-meta hover:text-ink",
+                "flex flex-1 items-center justify-center gap-1.5 rounded-xl py-2 text-caption font-semibold transition-all select-none",
+                isSelected
+                  ? "border border-primary bg-primary font-bold text-on-primary shadow-xs"
+                  : "border border-hairline bg-surface text-meta hover:border-hairline-strong hover:text-ink",
                 disabled && "cursor-not-allowed opacity-50",
               )}
-              type="button"
               disabled={disabled}
+              type="button"
               onClick={() => onSelectGrade(g.id)}
             >
-              <span className={cn("h-1.5 w-1.5 rounded-full", g.dotColor)} />
+              <span
+                className={cn(
+                  "size-2 shrink-0 rounded-full transition-colors",
+                  isSelected ? "bg-on-primary ring-2 ring-on-primary/30" : g.dotColor,
+                )}
+              />
               <span>{g.label}</span>
             </button>
           );
