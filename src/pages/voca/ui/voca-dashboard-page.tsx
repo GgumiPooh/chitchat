@@ -140,15 +140,15 @@ export function VocaDashboardPage({
             <div className="space-y-1">
               <span className="inline-flex items-center gap-1.5 text-caption font-semibold tracking-wider text-meta uppercase">
                 <GraduationCap className="h-4 w-4 text-primary" />
-                오늘의 플래시카드 복습
+                오늘의 플래시카드 학습
               </span>
               <h2 className="text-display-sm font-bold text-ink">
                 {hasDueCards ? (
                   <>
-                    오늘 복습할 단어 <span className="text-primary">{dueSummary.totalDue}</span>개
+                    오늘 학습할 단어 <span className="text-primary">{dueSummary.totalDue}</span>개
                   </>
                 ) : (
-                  <>오늘 복습 완료! 🎉</>
+                  <>오늘 학습 완료! 🎉</>
                 )}
               </h2>
               <div className="flex flex-wrap items-center gap-2 pt-1 text-caption text-meta">
@@ -174,7 +174,7 @@ export function VocaDashboardPage({
                   onClick={() => router.push(VOCA_REVIEW_ROUTE)}
                 >
                   <BookOpen className="h-4 w-4" />
-                  복습 시작하기
+                  학습 시작하기
                 </Button>
               ) : (
                 <Button

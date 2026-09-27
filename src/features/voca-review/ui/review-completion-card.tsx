@@ -73,11 +73,11 @@ export function ReviewCompletionCard({
         <CheckCircle2 className="h-9 w-9" />
       </div>
 
-      <h3 className="mt-5 text-title-md font-bold text-ink">오늘의 복습 완료! 🎉</h3>
+      <h3 className="mt-5 text-title-md font-bold text-ink">오늘의 학습 완료! 🎉</h3>
       <p className="mt-2 text-body-sm text-meta">
         {hasMoreNew
-          ? `오늘 할당된 복습을 모두 끝냈어요. 미학습 단어가 ${newCardsRemaining}장 더 있어요.`
-          : "오늘 복습할 단어를 모두 마쳤어요! 훌륭해요."}
+          ? `오늘 할당된 학습을 모두 끝냈어요. 미학습 단어가 ${newCardsRemaining}장 더 있어요.`
+          : "오늘 학습할 단어를 모두 마쳤어요! 훌륭해요."}
       </p>
 
       <div className="mt-8 flex w-full max-w-[320px] flex-col items-stretch gap-2.5">

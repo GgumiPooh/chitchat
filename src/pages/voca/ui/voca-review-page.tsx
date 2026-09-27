@@ -116,7 +116,7 @@ export function VocaReviewPage({
               Icon={X}
               haptic
               variant="plain"
-              aria-label="복습 종료"
+              aria-label={isPractice ? "연습 종료" : "학습 종료"}
               onClick={() => router.push(VOCA_ROUTE)}
             />
           </div>
