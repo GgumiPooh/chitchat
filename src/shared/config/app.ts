@@ -148,6 +148,10 @@ export const VOCA_REVIEW_ROUTE = "/playground/voca/review";
 export const VOCA_CARDS_ROUTE = "/playground/voca/cards";
 export const VOCA_SETTINGS_ROUTE = "/playground/voca/settings";
 
+/** REQUIREMENTS.md § 17.5. Deep-link action to automatically open the AI word input dialog. */
+export const VOCA_ACTION_PARAM = "action";
+export const VOCA_ACTION_ADD = "add-word";
+
 export const SETTINGS_ROUTE = "/settings";
 
 // INFO: REQUIREMENTS.md § 13.5. Nested under settings, so the tab bar keeps 설정 active while the management screens are open.

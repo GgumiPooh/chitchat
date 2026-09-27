@@ -7,7 +7,7 @@ import {
   ReviewRatingBar,
   useReviewSession,
 } from "@/features/voca-review";
-import { VOCA_ROUTE } from "@/shared/config";
+import { VOCA_ACTION_ADD, VOCA_ACTION_PARAM, VOCA_ROUTE } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { Container, IconButton } from "@/shared/ui";
 import { ChevronLeft, X } from "lucide-react";
@@ -115,7 +115,7 @@ export function VocaReviewPage({
           {isCompleted ? (
             <ReviewCompletionCard
               newCardsRemaining={0}
-              onAddWord={() => router.push(VOCA_ROUTE)}
+              onAddWord={() => router.push(`${VOCA_ROUTE}?${VOCA_ACTION_PARAM}=${VOCA_ACTION_ADD}`)}
               onReviewAhead={() => router.refresh()}
               onStudyMore={handleStudyMore}
             />

@@ -6,6 +6,7 @@ import { calculateVocaStreak, VocaHeatmap } from "@/features/voca-heatmap";
 import { VocaRecommendSheet } from "@/features/voca-recommend";
 import {
   PLAYGROUND_ROUTE,
+  VOCA_ACTION_PARAM,
   VOCA_CARDS_ROUTE,
   VOCA_REVIEW_ROUTE,
   VOCA_SETTINGS_ROUTE,
@@ -25,12 +26,13 @@ import {
   Sparkles,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 export type VocaDashboardPageProps = {
   className?: string;
   initialDueSummary: VocaDueSummary;
   initialHeatmap: VocaHeatmapDay[];
+  initialOpenAiDialog?: boolean;
   initialSettings: VocaUserSettings;
   totalCardsCount?: number;
 };
@@ -39,12 +41,23 @@ export function VocaDashboardPage({
   className,
   initialDueSummary,
   initialHeatmap,
+  initialOpenAiDialog = false,
   totalCardsCount = 0,
 }: VocaDashboardPageProps) {
   const router = useRouter();
-  const [isAiDialogOpen, setIsAiDialogOpen] = useState(false);
+  const [isAiDialogOpen, setIsAiDialogOpen] = useState(initialOpenAiDialog);
   const [isRecommendOpen, setIsRecommendOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+
+  useEffect(() => {
+    if (initialOpenAiDialog && typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has(VOCA_ACTION_PARAM)) {
+        url.searchParams.delete(VOCA_ACTION_PARAM);
+        window.history.replaceState(null, "", `${url.pathname}${url.search}`);
+      }
+    }
+  }, [initialOpenAiDialog]);
 
   const dueSummary = initialDueSummary;
   const heatmap = initialHeatmap;
