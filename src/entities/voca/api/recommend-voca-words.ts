@@ -68,8 +68,8 @@ export async function recommendVocaWords({
 
   const existingWordSet = new Set(existingCards.map((c) => c.targetWord.trim().toLowerCase()));
 
-  // 2. Fetch Gemini model configuration from DB or env
-  const [geminiAgent] = await db
+  // 2. Fetch candidate agents ordered by priority DESC (REQUIREMENTS.md § 8.15.)
+  const candidateAgents = await db
     .select()
     .from(llmAgents)
     .where(
@@ -79,21 +79,30 @@ export async function recommendVocaWords({
         or(isNull(llmAgents.disabledUntil), sql`${llmAgents.disabledUntil} <= now()`),
       ),
     )
-    .orderBy(desc(llmAgents.priority))
-    .limit(1);
+    .orderBy(desc(llmAgents.priority), llmAgents.model, llmAgents.apiKey);
 
-  const apiKey = geminiAgent?.apiKey || process.env.GEMINI_API_KEY || "";
-  const modelName = geminiAgent?.model || "gemini-2.5-flash";
+  const envKey = process.env.GEMINI_API_KEY;
+  if (envKey && !candidateAgents.some((a) => a.apiKey === envKey)) {
+    candidateAgents.push({
+      provider: "gemini",
+      model: "gemini-2.5-flash",
+      apiKey: envKey,
+      priority: -1,
+      enabled: true,
+      disabledUntil: null,
+      config: {},
+    });
+  }
 
   const prompt = buildRecommendPrompt(tag, grade, customTopic, count);
 
   let rawCandidates: RecommendedVocaItem[] = [];
 
-  if (apiKey) {
+  for (const agent of candidateAgents) {
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: agent.apiKey });
       const response = await ai.models.generateContent({
-        model: modelName,
+        model: agent.model || "gemini-2.5-flash",
         contents: prompt,
         config: {
           systemInstruction: VOCA_RECOMMEND_SYSTEM_PROMPT,
@@ -115,10 +124,34 @@ export async function recommendVocaWords({
               koreanMeaning: String(item.koreanMeaning ?? "").trim(),
             }))
             .filter((item) => item.targetWord.length > 0 && item.koreanMeaning.length > 0);
+
+          if (rawCandidates.length > 0) {
+            break;
+          }
         }
       }
     } catch (error) {
-      console.error("[recommendVocaWords] Gemini generation failed, using fallback:", error);
+      console.warn(
+        `[recommendVocaWords] Candidate agent ${agent.provider}/${agent.model} failed:`,
+        error,
+      );
+
+      const isRateLimit =
+        typeof error === "object" &&
+        error !== null &&
+        (error as { status?: number }).status === 429;
+      if (isRateLimit) {
+        await db
+          .update(llmAgents)
+          .set({ disabledUntil: new Date(Date.now() + 60_000) })
+          .where(
+            and(
+              eq(llmAgents.provider, agent.provider),
+              eq(llmAgents.model, agent.model),
+              eq(llmAgents.apiKey, agent.apiKey),
+            ),
+          );
+      }
     }
   }
 

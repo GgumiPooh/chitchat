@@ -17,13 +17,19 @@ export type GeneratedVocaCard = {
   examples: string[];
 };
 
+function isRateLimitError(error: unknown): boolean {
+  return (
+    typeof error === "object" && error !== null && (error as { status?: number }).status === 429
+  );
+}
+
 const VOCA_SYSTEM_PROMPT = `You are an expert English lexicographer and language tutor specializing in creating high-quality vocabulary flashcards for Korean adult learners of English.
 Follow these rules strictly:
 1. Target Word: exactly the word requested.
 2. POS: standard abbreviation (e.g. n., v., adj., adv., prep., phr.).
 3. Pronunciation: IPA with slashes, e.g. /dɪˈlɪb.ər.ət/.
 4. Korean Meaning: natural, concise Korean translation.
-5. English Definition: concise monolingual English definition.
+5. English Definition: concise monolingual English definition. IMPORTANT: Do NOT include the target word itself, its root, or its inflected forms in the definition.
 6. Sentence (1T principle): A single natural, authentic sentence where the target word is replaced by "<b>__________</b>". Every other word in the sentence must be common and easy to understand for the learner. The sentence must provide enough context to infer the target word.
 7. Confusable: commonly confused words in the format "≠ word (brief distinction)", or null if none.
 8. Collocations: 2-3 high-frequency natural collocations separated by " · ".
@@ -50,7 +56,9 @@ export async function generateVocaCard(
 ): Promise<GeneratedVocaCard> {
   const cleanWord = word.trim();
   const db = getDb();
-  const [geminiAgent] = await db
+
+  // INFO: REQUIREMENTS.md § 8.15. Try candidate agents in priority order
+  const candidateAgents = await db
     .select()
     .from(llmAgents)
     .where(
@@ -60,37 +68,57 @@ export async function generateVocaCard(
         or(isNull(llmAgents.disabledUntil), sql`${llmAgents.disabledUntil} <= now()`),
       ),
     )
-    .orderBy(desc(llmAgents.priority))
-    .limit(1);
-  const apiKey = geminiAgent?.apiKey || process.env.GEMINI_API_KEY || "";
-  const modelName = geminiAgent?.model || "gemini-2.5-flash";
+    .orderBy(desc(llmAgents.priority), llmAgents.model, llmAgents.apiKey);
+
+  const envKey = process.env.GEMINI_API_KEY;
+  if (envKey && !candidateAgents.some((a) => a.apiKey === envKey)) {
+    candidateAgents.push({
+      provider: "gemini",
+      model: "gemini-2.5-flash",
+      apiKey: envKey,
+      priority: -1,
+      enabled: true,
+      disabledUntil: null,
+      config: {},
+    });
+  }
 
   let prompt = `Create an English vocabulary flashcard for the word: "${cleanWord}".`;
   if (contextSentence && contextSentence.trim().length > 0) {
     prompt += ` Context sentence provided by learner: "${contextSentence.trim()}". Please use or adapt this sentence for the context/sentence field if suitable.`;
   }
 
-  if (apiKey) {
+  for (const agent of candidateAgents) {
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const ai = new GoogleGenAI({ apiKey: agent.apiKey });
       const response = await ai.models.generateContent({
-        model: modelName,
+        model: agent.model || "gemini-2.5-flash",
         contents: prompt,
         config: {
           systemInstruction: VOCA_SYSTEM_PROMPT,
           responseMimeType: "application/json",
+          temperature: 0.7,
         },
       });
 
       const text = response.text?.trim() ?? "";
       if (text) {
         const parsed = JSON.parse(text) as Partial<GeneratedVocaCard>;
+        const targetWord = parsed.targetWord || cleanWord;
+
+        let englishDefinition = parsed.englishDefinition || "";
+        const escaped = targetWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+        englishDefinition = englishDefinition.replace(
+          new RegExp(`\\b${escaped}\\w*`, "gi"),
+          "____",
+        );
+
         return {
-          targetWord: parsed.targetWord || cleanWord,
+          targetWord,
           pos: parsed.pos || "word",
           pronunciation: parsed.pronunciation || `/${cleanWord}/`,
           koreanMeaning: parsed.koreanMeaning || cleanWord,
-          englishDefinition: parsed.englishDefinition || "",
+          englishDefinition,
           sentence: parsed.sentence || `This is an example sentence with <b>__________</b>.`,
           confusable: parsed.confusable ?? null,
           collocations: parsed.collocations || "",
@@ -106,27 +134,28 @@ export async function generateVocaCard(
         };
       }
     } catch (error) {
-      console.error("[generateVocaCard] Gemini generation failed, using fallback:", error);
+      console.warn(
+        `[generateVocaCard] Candidate agent ${agent.provider}/${agent.model} failed:`,
+        error,
+      );
+
+      if (isRateLimitError(error)) {
+        await db
+          .update(llmAgents)
+          .set({ disabledUntil: new Date(Date.now() + 60_000) })
+          .where(
+            and(
+              eq(llmAgents.provider, agent.provider),
+              eq(llmAgents.model, agent.model),
+              eq(llmAgents.apiKey, agent.apiKey),
+            ),
+          );
+      }
     }
   }
 
-  // Graceful fallback when API key is missing or model request fails
-  return {
-    targetWord: cleanWord,
-    pos: "word",
-    pronunciation: `/${cleanWord}/`,
-    koreanMeaning: cleanWord,
-    englishDefinition: `Definition of ${cleanWord}`,
-    sentence: contextSentence
-      ? contextSentence.replace(new RegExp(`\\b${cleanWord}\\b`, "gi"), "<b>__________</b>")
-      : `He demonstrated a remarkable <b>__________</b> throughout the project.`,
-    confusable: null,
-    collocations: `${cleanWord} example · common ${cleanWord}`,
-    wordFamily: null,
-    examples: [
-      `We observed the <b>${cleanWord}</b> in action.`,
-      `She was known for her exceptional <b>${cleanWord}</b>.`,
-      `Understanding <b>${cleanWord}</b> is important in this context.`,
-    ],
-  };
+  // WARN: When all candidate agents are exhausted, throw so processCardCreation dispatches failure push
+  throw new Error(
+    `[generateVocaCard] Failed to generate vocabulary card for "${cleanWord}": all candidate agents failed.`,
+  );
 }

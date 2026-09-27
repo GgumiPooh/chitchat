@@ -82,12 +82,13 @@ function renderBlankSentence(sentence: string, targetWord: string): ReactNode {
   return parts.map((part, index) => {
     if (part === blankMarker) {
       return (
-        <b
+        <span
           key={index}
-          className="inline-block px-1 font-bold whitespace-nowrap text-primary underline decoration-primary decoration-2 underline-offset-4"
+          className="mx-1 inline-block min-w-[72px] border-b-2 border-primary align-baseline font-bold text-transparent select-none"
+          aria-label="빈칸"
         >
-          _______
-        </b>
+          ______
+        </span>
       );
     }
 
@@ -103,6 +104,20 @@ function renderBlankSentence(sentence: string, targetWord: string): ReactNode {
     const clean = part.replace(/<\/?b>/gi, "");
     return <span key={index}>{clean}</span>;
   });
+}
+
+function isPlaceholderDefinition(definition: string, targetWord: string): boolean {
+  const lower = definition.trim().toLowerCase();
+  const word = targetWord.trim().toLowerCase();
+  return lower === word || lower.startsWith("definition of");
+}
+
+function maskTargetWord(text: string, targetWord: string): string {
+  if (!text || !targetWord) {
+    return text;
+  }
+  const escaped = targetWord.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return text.replace(new RegExp(`\\b${escaped}\\w*`, "gi"), "____");
 }
 
 function formatPos(pos: string): string {
@@ -344,6 +359,13 @@ export function CardFace({
   };
 
   if (side === "front") {
+    const isPlaceholderDef =
+      card.englishDefinition && isPlaceholderDefinition(card.englishDefinition, card.targetWord);
+    const sanitizedDefinition =
+      card.englishDefinition && !isPlaceholderDef
+        ? maskTargetWord(card.englishDefinition, card.targetWord)
+        : null;
+
     return (
       <div
         className={cn(
@@ -363,10 +385,10 @@ export function CardFace({
           </div>
 
           {/* Definition box */}
-          {card.englishDefinition && (
+          {sanitizedDefinition && (
             <div className="w-full rounded-xl bg-surface-soft/80 px-4 py-3 text-center sm:rounded-2xl sm:px-6 sm:py-4">
               <p className="text-body-sm leading-relaxed text-body italic sm:text-body-md">
-                {card.englishDefinition}
+                {sanitizedDefinition}
               </p>
             </div>
           )}
