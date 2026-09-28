@@ -2436,7 +2436,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 - **Draft Auto-Save & Restoration**:
   - Debounced 500ms auto-save to `localStorage` under `jandh:draft:time-letter`.
   - Restoration prompt on open with `[불러오기]` and `[삭제]` options.
-- **Edit Mode & Debounced Auto-Save**: Senders can edit existing scheduled letters before delivery (`status === 'scheduled'`). In edit mode, modifications to title, content, theme, scheduled delivery, recipient mode, teaser, and attached photos/videos auto-save directly to the server via debounced 600ms `PATCH /api/time-letters/[id]` requests with real-time save status indicators ('저장 중...', '저장됨', '저장 실패') rather than requiring a manual save button. Closing or clicking `[완료]` flushes any pending debounced save immediately.
+- **Edit Mode & Debounced Auto-Save**: Senders can edit existing scheduled letters before delivery (`status === 'scheduled'`). In edit mode, modifications to title, content, theme, scheduled delivery, recipient mode, teaser, and attached photos/videos auto-save directly to the server via debounced 600ms `PATCH /api/time-letters/[id]` requests with real-time save status indicators ('저장 중...', '저장됨', '저장 실패') rather than requiring a manual save button. The bottom action button is omitted in edit mode, and closing the sheet flushes any pending debounced save immediately.
 - **Sealing Interaction**:
   - `[편지 봉인하기]` action button with `haptic`.
   - 3D envelope folding transition and physical wax seal stamp animation with visual ripple and tactile vibration feedback.

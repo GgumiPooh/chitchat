@@ -507,21 +507,13 @@ export function TimeLetterComposeSheet({
     }
   };
 
-  const handleFinishEdit = async () => {
-    if (autoSaveTimeoutRef.current) {
-      clearTimeout(autoSaveTimeoutRef.current);
-    }
-    await performAutoSave();
-    toast.success("편지 수정 내용이 저장되었어요");
-    onClose();
-  };
-
   const handleClose = async () => {
     if (isSubmitting) {
       return;
     }
     if (isEditMode && autoSaveTimeoutRef.current) {
       clearTimeout(autoSaveTimeoutRef.current);
+      autoSaveTimeoutRef.current = null;
       await performAutoSave();
     }
     setIsSealing(false);
@@ -855,13 +847,9 @@ export function TimeLetterComposeSheet({
             />
           </section>
 
-          {/* 7. Bottom action button */}
-          <div className="pt-sm">
-            {isEditMode ? (
-              <Button className="w-full" haptic variant="primary" onClick={handleFinishEdit}>
-                완료
-              </Button>
-            ) : (
+          {/* 7. Bottom action button (create mode only) */}
+          {!isEditMode && (
+            <div className="pt-sm">
               <Button
                 disabled={!isSubmittable || isSubmitting}
                 haptic
@@ -869,8 +857,8 @@ export function TimeLetterComposeSheet({
               >
                 편지 봉인하기
               </Button>
-            )}
-          </div>
+            </div>
+          )}
         </div>
       </BottomSheet>
 
