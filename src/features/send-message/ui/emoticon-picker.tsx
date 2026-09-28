@@ -31,8 +31,10 @@ import {
   HapticTarget,
   IconButton,
   Input,
+  LoadMoreSentinel,
   PreloadImage,
   RecentsAndFavoritesIcon,
+  Skeleton,
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { josa } from "es-hangul";
@@ -508,7 +510,10 @@ export function EmoticonPicker({
   const {
     results: searchResults,
     isPending: isSearchPending,
+    isLoadingMore: isSearchLoadingMore,
     hasFailed: hasSearchFailed,
+    hasMore: hasSearchMore,
+    loadMore: loadMoreSearch,
     // WARN: § 13.9. The reveal is handed over so the hook can drop the previous query's answer for it — a 따라하기 is a jump to an unrelated query, not a keystroke, and the row it lands in frames whatever is behind the tapped item as related to it.
   } = useEmoticonSearch(query, isSearching, revealed !== null);
   // INFO: § 13.6. The open tab's own items, which is what the summaries above no longer carry. 최근 사용 and 검색 are not packs and ask for nothing.
@@ -838,6 +843,8 @@ export function EmoticonPicker({
           packTypes={packTypes}
           isPending={isSearchPending}
           hasFailed={hasSearchFailed}
+          hasMore={hasSearchMore}
+          isLoadingMore={isSearchLoadingMore}
           revealedId={revealedId}
           revealToken={appliedRevealToken}
           focusableIndex={focusableIndex}
@@ -845,6 +852,7 @@ export function EmoticonPicker({
           fieldRef={searchFieldRef}
           rowRef={cellScrollerRef}
           skipAutofocusRef={skipSearchAutofocusRef}
+          onLoadMore={loadMoreSearch}
           onQueryChange={changeQuery}
           onSelect={handleSelect}
           onFieldFocus={onSearchFieldFocus}
@@ -1943,6 +1951,9 @@ type SearchPaneProps = {
   skipAutofocusRef: RefObject<boolean>;
   /** REQUIREMENTS.md § 8.14. The row is also the scroller the panel moves cell focus inside, so the ref is the panel's rather than this pane's. */
   rowRef: RefObject<Nullable<HTMLDivElement>>;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
   onQueryChange: (query: string) => void;
   onSelect: (item: Emoticon) => void;
   onFieldFocus?: () => void;
@@ -1974,6 +1985,8 @@ function SearchPane({
   packTypes,
   isPending,
   hasFailed,
+  hasMore = false,
+  isLoadingMore = false,
   revealedId,
   revealToken,
   focusableIndex,
@@ -1981,6 +1994,7 @@ function SearchPane({
   fieldRef,
   rowRef,
   skipAutofocusRef,
+  onLoadMore,
   onQueryChange,
   onSelect,
   onFieldFocus,
@@ -2105,7 +2119,18 @@ function SearchPane({
                   onFocusCell={onFocusCell}
                 />
               ))}
+              {isLoadingMore &&
+                Array.from({ length: EMOTICON_GRID_COLUMNS }).map((_, index) => (
+                  <div key={`search-loading-${index}`} className="flex" aria-hidden>
+                    <div className="square-cell w-full p-2xs">
+                      <Skeleton className="size-full rounded-sm" />
+                    </div>
+                  </div>
+                ))}
             </div>
+            {hasMore && onLoadMore && (
+              <LoadMoreSentinel key={results.length} rootRef={rowRef} onVisible={onLoadMore} />
+            )}
           </div>
           {/* WARN: § 13.9.1. A failed search still has a row when § 13.9. put the tapped item in it, and `toEmptyMessage` is only ever reached by an empty one — so without this the reveal was the one path where a failure said nothing at all. It costs the cells a line of height, and only while the sentence is up. */}
           {hasFailed && (

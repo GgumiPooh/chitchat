@@ -36,14 +36,26 @@ const MIN_USER_BOOST_RELEVANCE = 4;
  * INFO: § 13.9.2. Boosts up to `MAX_EMOTICON_SEARCH_USER_MATCHES` of the user's most
  * frequently used emoticons with strong keyword match to the top of the results.
  */
+export type EmoticonSearchResult = {
+  emoticons: Emoticon[];
+  hasMore: boolean;
+  nextOffset: Nullable<number>;
+};
+
 export async function searchEmoticons(
   terms: string[],
   userId?: Nullable<UserId>,
-): Promise<Emoticon[]> {
+  offset = 0,
+  limit = EMOTICON_SEARCH_PAGE_SIZE,
+): Promise<EmoticonSearchResult> {
   const candidateIds = toCandidateIds(terms);
 
   if (!candidateIds) {
-    return [];
+    return {
+      emoticons: [],
+      hasMore: false,
+      nextOffset: null,
+    };
   }
 
   const [userUsageRows, rows] = await Promise.all([
@@ -92,13 +104,22 @@ export async function searchEmoticons(
   const generalRanked = scoredItems
     .filter((scored) => !boostedIds.has(scored.item.id))
     // WARN: A stable sort, so authoring order still decides inside one relevance step — an item must not change places with an equally relevant one between keystrokes.
-    .sort((left, right) => right.relevance - left.relevance)
-    .slice(0, EMOTICON_SEARCH_PAGE_SIZE - userBoosted.length);
+    .sort((left, right) => right.relevance - left.relevance);
 
-  return [
+  const fullRanked = [
     ...userBoosted.map((scored) => scored.item),
     ...generalRanked.map((scored) => scored.item),
   ];
+
+  const emoticons = fullRanked.slice(offset, offset + limit);
+  const hasMore = fullRanked.length > offset + limit;
+  const nextOffset = hasMore ? offset + limit : null;
+
+  return {
+    emoticons,
+    hasMore,
+    nextOffset,
+  };
 }
 
 async function fetchUserUsage(userId: UserId) {

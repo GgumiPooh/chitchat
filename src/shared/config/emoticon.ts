@@ -583,13 +583,9 @@ export const MAX_KEYWORD_QUERY_LENGTH = MAX_EMOTICON_KEYWORDS * (MAX_EMOTICON_KE
 export const EMOTICON_SEARCH_CANDIDATE_LIMIT = 5000;
 
 /**
- * How many ranked results one search answers with (REQUIREMENTS.md § 13.9.1.).
- *
- * INFO: § 13.8. draws them as a single row that scrolls sideways, so this is a
- * scroll's worth rather than a page anybody reaches the end of — a search whose best
- * answer is past the thirtieth cell is a search the user retypes instead.
+ * How many ranked results one search page answers with (REQUIREMENTS.md § 13.9.1.).
  */
-export const EMOTICON_SEARCH_PAGE_SIZE = 30;
+export const EMOTICON_SEARCH_PAGE_SIZE = 100;
 
 /**
  * Maximum number of user-preferred (most frequently used) emoticons boosted to the top of search results (REQUIREMENTS.md § 13.9.2.).

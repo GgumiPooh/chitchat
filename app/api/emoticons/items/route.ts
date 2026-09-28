@@ -1,7 +1,12 @@
 import { listEmoticonKeywords, listEmoticonsByIds, searchEmoticons } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
-import { MAX_KEYWORD_QUERY_LENGTH, snowflakeSchema, splitKeywordQuery } from "@/shared/config";
+import {
+  EMOTICON_SEARCH_PAGE_SIZE,
+  MAX_KEYWORD_QUERY_LENGTH,
+  snowflakeSchema,
+  splitKeywordQuery,
+} from "@/shared/config";
 import type { EmoticonItemId } from "@/shared/lib";
 import { NextResponse } from "next/server";
 
@@ -50,10 +55,18 @@ export async function GET(request: Request) {
 
   // WARN: § 13.9. An empty field is answered with nothing, never with the library. Both directions of the match are containment, and every keyword contains the empty string.
   if (terms.length === 0) {
-    return NextResponse.json({ emoticons: [] });
+    return NextResponse.json({ emoticons: [], hasMore: false, nextOffset: null });
   }
 
-  return NextResponse.json({ emoticons: await searchEmoticons(terms, user.id) });
+  const offsetParam = params.get("offset");
+  const limitParam = params.get("limit");
+  const offset = offsetParam !== null ? Math.max(0, parseInt(offsetParam, 10) || 0) : 0;
+  const limit =
+    limitParam !== null
+      ? Math.max(1, parseInt(limitParam, 10) || EMOTICON_SEARCH_PAGE_SIZE)
+      : EMOTICON_SEARCH_PAGE_SIZE;
+
+  return NextResponse.json(await searchEmoticons(terms, user.id, offset, limit));
 }
 
 /**

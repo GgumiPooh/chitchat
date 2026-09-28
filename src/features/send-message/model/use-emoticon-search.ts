@@ -3,8 +3,8 @@
 import type { Emoticon } from "@/entities/emoticon";
 import { splitKeywordQuery } from "@/shared/config";
 import { A_SECOND } from "@/shared/lib";
-import { keepPreviousData, useQuery } from "@tanstack/react-query";
-import { useEffect, useState } from "react";
+import { keepPreviousData, useInfiniteQuery } from "@tanstack/react-query";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { toEmoticonSearchQuery } from "./emoticon-search-query";
 
 /**
@@ -35,11 +35,14 @@ export type EmoticonSearch = {
    * is what it did.
    */
   isPending: boolean;
+  isLoadingMore: boolean;
   /**
    * Whether the last thing the field asked came back an error
    * (REQUIREMENTS.md § 13.9.1.).
    */
   hasFailed: boolean;
+  hasMore: boolean;
+  loadMore: () => void;
 };
 
 /**
@@ -62,22 +65,42 @@ export function useEmoticonSearch(
   const debounced = useDebounced(query);
   const hasQuery = splitKeywordQuery(query).length > 0;
   const isAsked = isActive && splitKeywordQuery(debounced).length > 0;
-  const { data, isFetching, isError } = useQuery({
-    ...toEmoticonSearchQuery(debounced),
-    enabled: isAsked,
-    // INFO: § 13.8. The row keeps the previous word's answer while the next one is fetched — blanked between keystrokes it flickers once per character on the app's narrowest surface.
-    // WARN: § 13.9. And **not** across a 따라하기, which is the one query change that is not a keystroke. A reveal replaces the field wholesale with another emoticon's words, so the answer being held over is the previous search's — drawn behind the tapped item and inside its ring, it reads as "these are related", which is the one thing it is not. Typing releases the reveal, so nothing keyed on it can flicker per character.
-    placeholderData: hasReveal ? undefined : keepPreviousData,
-  });
+  const { data, isFetching, isFetchingNextPage, hasNextPage, fetchNextPage, isError } =
+    useInfiniteQuery({
+      ...toEmoticonSearchQuery(debounced),
+      enabled: isAsked,
+      // INFO: § 13.8. The row keeps the previous word's answer while the next one is fetched — blanked between keystrokes it flickers once per character on the app's narrowest surface.
+      // WARN: § 13.9. And **not** across a 따라하기, which is the one query change that is not a keystroke. A reveal replaces the field wholesale with another emoticon's words, so the answer being held over is the previous search's — drawn behind the tapped item and inside its ring, it reads as "these are related", which is the one thing it is not. Typing releases the reveal, so nothing keyed on it can flicker per character.
+      placeholderData: hasReveal ? undefined : keepPreviousData,
+    });
   // WARN: § 13.9.1. Gated on the **debounced** query matching the field, because `isError` belongs to the debounced one. Read off the raw field, `검색하지 못했어요` stayed up over a word the search had not been asked for yet — and `!hasFailed` below held pending down with it.
   const hasFailed = isAsked && debounced === query && isError;
 
+  const allEmoticons = useMemo(
+    () => (data ? data.pages.flatMap((page) => page.emoticons) : NO_RESULTS),
+    [data],
+  );
+
+  const loadMore = useCallback(() => {
+    if (hasNextPage && !isFetchingNextPage) {
+      void fetchNextPage();
+    }
+  }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
+
   return {
     // WARN: Emptied on an emptied field rather than left holding the last answer. `단어를 입력해 보세요` is what an empty field shows, and a row of results under it reads as the field having been ignored.
-    results: hasQuery ? (data ?? NO_RESULTS) : NO_RESULTS,
+    results: hasQuery ? allEmoticons : NO_RESULTS,
     // WARN: `!hasFailed` is what unlatches this. `data` stays undefined after an error and `isFetching` goes false, so the two terms beside it would hold pending forever — and `toEmptyMessage` answers the empty string for the whole of pending.
-    isPending: !hasFailed && hasQuery && (debounced !== query || isFetching || data === undefined),
+    isPending:
+      !hasFailed &&
+      hasQuery &&
+      (debounced !== query ||
+        (isFetching && !isFetchingNextPage && data === undefined) ||
+        data === undefined),
+    isLoadingMore: isFetchingNextPage,
     hasFailed,
+    hasMore: Boolean(hasNextPage),
+    loadMore,
   };
 }
 

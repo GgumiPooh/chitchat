@@ -1,5 +1,5 @@
 import { A_MINUTE } from "@/shared/lib";
-import { fetchEmoticonSearch } from "../api/fetch-emoticon-search";
+import { fetchEmoticonSearch, type EmoticonSearchPage } from "../api/fetch-emoticon-search";
 
 /**
  * REQUIREMENTS.md § 13.9. One description of a search, keyed by the string that was
@@ -14,7 +14,9 @@ import { fetchEmoticonSearch } from "../api/fetch-emoticon-search";
 export function toEmoticonSearchQuery(query: string) {
   return {
     queryKey: ["emoticon-search", query] as const,
-    queryFn: () => fetchEmoticonSearch(query),
+    queryFn: ({ pageParam = 0 }: { pageParam?: number }) => fetchEmoticonSearch(query, pageParam),
+    initialPageParam: 0,
+    getNextPageParam: (lastPage: EmoticonSearchPage) => lastPage.nextOffset,
     staleTime: A_MINUTE,
   };
 }
