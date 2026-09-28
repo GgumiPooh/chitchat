@@ -51,7 +51,7 @@ export function WaxSealUnboxing({
       {/* 3D Envelope */}
       <div
         className={cn(
-          "relative flex h-52 w-72 flex-col items-center justify-between rounded-xl border border-hairline-strong p-md shadow-xl transition-all duration-700 ease-out select-none",
+          "relative flex h-52 w-72 flex-col items-center justify-between overflow-hidden rounded-xl border border-hairline-strong p-md shadow-xl transition-all duration-700 ease-out select-none",
           theme === "classic" && "border-hairline-strong bg-canvas text-ink",
           theme === "romantic" && "border-primary/30 bg-primary-tint/40 text-ink",
           theme === "midnight" &&
@@ -61,7 +61,7 @@ export function WaxSealUnboxing({
         )}
       >
         {/* Envelope back flap fold lines */}
-        <div className="pointer-events-none absolute inset-0 opacity-25">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden rounded-xl opacity-25">
           <svg className="h-full w-full" viewBox="0 0 288 208" fill="none">
             <path
               className="text-hairline-strong"
