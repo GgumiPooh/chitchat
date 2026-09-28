@@ -46,7 +46,7 @@ export function WaxSealUnboxing({
   return (
     <div
       className={cn(
-        "flex flex-col items-center justify-center px-md py-xl [perspective:1000px]",
+        "flex flex-col items-center justify-center px-xs py-md [perspective:1000px]",
         className,
       )}
     >
