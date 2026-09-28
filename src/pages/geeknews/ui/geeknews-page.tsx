@@ -550,7 +550,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
         onClose={() => setOpenedArticleId(null)}
       >
         {sheetArticle && (
-          <div className="flex flex-col gap-lg pb-md">
+          <div className="flex flex-col pb-md">
             <div className="flex flex-wrap items-center gap-xs text-caption text-meta">
               <span className="rounded-full bg-surface-soft px-2 py-0.5 font-medium text-meta">
                 {toDomain(sheetArticle.sourceUrl ?? sheetArticle.url)}
@@ -559,16 +559,16 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
               <RelativeTime date={sheetArticle.publishedAt} />
             </div>
 
-            <h2 className="text-title-md leading-snug font-bold text-ink">{sheetArticle.title}</h2>
+            <h2 className="mt-xs text-title-md leading-snug font-bold text-ink">{sheetArticle.title}</h2>
 
-            <div onClick={handleContentClick}>
+            <div className="mt-lg" onClick={handleContentClick}>
               <MarkdownBody
                 className="space-y-xs text-body-md leading-relaxed text-body [&_strong]:font-semibold [&_strong]:text-ink"
                 text={sheetArticle.summary}
               />
             </div>
 
-            <div className="flex flex-col gap-sm border-t border-hairline pt-md">
+            <div className="mt-lg flex flex-col gap-sm border-t border-hairline pt-md">
               {sheetArticle.sourceUrl ? (
                 <>
                   <a
