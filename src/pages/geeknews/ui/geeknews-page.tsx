@@ -545,6 +545,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
         isOpen={isSheetOpen && sheetArticle !== null}
         header={{
           title: "개발자 뉴스",
+          isHidden: true,
         }}
         onClose={() => setOpenedArticleId(null)}
       >
