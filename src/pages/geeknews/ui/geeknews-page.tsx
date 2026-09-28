@@ -559,7 +559,9 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
               <RelativeTime date={sheetArticle.publishedAt} />
             </div>
 
-            <h2 className="mt-xs text-title-md leading-snug font-bold text-ink">{sheetArticle.title}</h2>
+            <h2 className="mt-xs text-title-md leading-snug font-bold text-ink">
+              {sheetArticle.title}
+            </h2>
 
             <div className="mt-lg" onClick={handleContentClick}>
               <MarkdownBody
