@@ -19,6 +19,13 @@ export type TimeLetterViewerSheetProps = {
   onCancel?: () => void;
 };
 
+const SHEET_THEME_STYLES: Record<string, string> = {
+  classic: "",
+  romantic: "bg-primary-tint/30 border-primary/25",
+  midnight: "bg-surface-soft-private border-hairline/20 text-bubble-private-ink",
+  kraft: "bg-surface-soft border-hairline-strong",
+};
+
 export function TimeLetterViewerSheet({
   className,
   isOpen,
@@ -83,7 +90,11 @@ export function TimeLetterViewerSheet({
   return (
     <>
       <BottomSheet
-        className={className}
+        className={cn(
+          "transition-colors duration-500",
+          isUnsealed && (SHEET_THEME_STYLES[letter.theme] ?? ""),
+          className,
+        )}
         isOpen={isOpen}
         header={{
           title: "타임머신 편지",
@@ -118,13 +129,8 @@ export function TimeLetterViewerSheet({
           ) : (
             /* Unfolded letter in theme parchment styling */
             <div className="animate-in space-y-lg duration-500 fade-in-50">
-              {/* Theme parchment card */}
-              <div
-                className={cn(
-                  "relative space-y-md rounded-xl p-lg transition-colors sm:p-xl",
-                  themeStyle.parchment,
-                )}
-              >
+              {/* Letter content directly in sheet */}
+              <div className="space-y-md">
                 {/* Top header row: Badge & re-seal interaction button */}
                 <div className="flex flex-wrap items-center justify-between gap-sm">
                   <div
