@@ -284,6 +284,11 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
   const selectedArticle = articles[selectedIndex] ?? null;
   const sheetArticle = articles.find((a) => a.id === openedArticleId) ?? null;
   const isSheetOpen = sheetArticle !== null;
+  const lastSheetArticleRef = useRef<GeeknewsFeedArticle | null>(null);
+  if (sheetArticle) {
+    lastSheetArticleRef.current = sheetArticle;
+  }
+  const displayedSheetArticle = sheetArticle ?? lastSheetArticleRef.current;
 
   return (
     <TwoPane
@@ -542,40 +547,40 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
 
       {/* Mobile BottomSheet detail view */}
       <BottomSheet
-        isOpen={isSheetOpen && sheetArticle !== null}
+        isOpen={isSheetOpen}
         header={{
           title: "개발자 뉴스",
           isHidden: true,
         }}
         onClose={() => setOpenedArticleId(null)}
       >
-        {sheetArticle && (
+        {displayedSheetArticle && (
           <div className="flex flex-col pb-md">
             <div className="flex flex-wrap items-center gap-xs text-caption text-meta">
               <span className="rounded-full bg-surface-soft px-2 py-0.5 font-medium text-meta">
-                {toDomain(sheetArticle.sourceUrl ?? sheetArticle.url)}
+                {toDomain(displayedSheetArticle.sourceUrl ?? displayedSheetArticle.url)}
               </span>
               <span>·</span>
-              <RelativeTime date={sheetArticle.publishedAt} />
+              <RelativeTime date={displayedSheetArticle.publishedAt} />
             </div>
 
             <h2 className="mt-xs text-title-md leading-snug font-bold text-ink">
-              {sheetArticle.title}
+              {displayedSheetArticle.title}
             </h2>
 
             <div className="mt-md" onClick={handleContentClick}>
               <MarkdownBody
                 className="space-y-xs text-body-md leading-relaxed text-body [&_strong]:font-semibold [&_strong]:text-ink"
-                text={sheetArticle.summary}
+                text={displayedSheetArticle.summary}
               />
             </div>
 
             <div className="mt-lg flex flex-col gap-sm border-t border-hairline pt-md">
-              {sheetArticle.sourceUrl ? (
+              {displayedSheetArticle.sourceUrl ? (
                 <>
                   <a
                     className="inline-flex min-h-12 w-full items-center justify-center gap-xs rounded-md bg-primary px-md py-sm text-button-md font-medium text-on-primary transition-colors hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-primary-pressed"
-                    href={sheetArticle.sourceUrl}
+                    href={displayedSheetArticle.sourceUrl}
                     rel="noopener noreferrer"
                     target="_blank"
                     onClick={handleExternalLinkClick}
@@ -586,7 +591,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
 
                   <a
                     className="inline-flex min-h-12 w-full items-center justify-center gap-xs rounded-md border border-hairline-strong bg-canvas px-md py-sm text-button-md font-medium text-ink transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-surface-strong"
-                    href={sheetArticle.url}
+                    href={displayedSheetArticle.url}
                     rel="noopener noreferrer"
                     target="_blank"
                     onClick={handleExternalLinkClick}
@@ -598,7 +603,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
               ) : (
                 <a
                   className="inline-flex min-h-12 w-full items-center justify-center gap-xs rounded-md bg-primary px-md py-sm text-button-md font-medium text-on-primary transition-colors hover:bg-primary-hover focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 focus-visible:ring-offset-canvas active:bg-primary-pressed"
-                  href={sheetArticle.url}
+                  href={displayedSheetArticle.url}
                   rel="noopener noreferrer"
                   target="_blank"
                   onClick={handleExternalLinkClick}
