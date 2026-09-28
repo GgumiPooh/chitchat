@@ -557,48 +557,50 @@ export function TimeLettersPage({
           ) : selectedLetter ? (
             <div className="flex flex-col gap-lg">
               {/* Header Info Banner */}
-              <div className="flex items-center justify-between border-b border-hairline pb-sm">
-                <div className="flex items-center gap-2">
-                  <span className="inline-flex items-center gap-1 rounded-full bg-surface-soft px-2.5 py-1 text-caption font-medium text-meta">
-                    {isScheduled ? (
-                      <Lock className="size-3.5" />
-                    ) : (
-                      <MailOpen className="size-3.5" />
-                    )}
-                    <span>{headerBadgeLabel}</span>
-                  </span>
-                  <span className="text-caption text-meta">
-                    {formatDate(selectedLetter.createdAt)}
-                    {toDayKey(selectedLetter.createdAt) === toDayKey(new Date()) &&
-                      ` ${formatTime(selectedLetter.createdAt)}`}
-                    에 묻어둠
-                  </span>
-                </div>
-
-                {isScheduled && isSender && (
-                  <div className="flex items-center gap-1.5">
-                    <Button
-                      className="w-auto"
-                      buttonClassName="min-h-8 w-auto px-sm py-1 text-button-sm"
-                      haptic
-                      variant="secondary"
-                      onClick={() => handleStartEdit(selectedLetter)}
-                    >
-                      <Pencil className="size-3.5" />
-                      <span>편지 수정</span>
-                    </Button>
-                    <Button
-                      className="w-auto"
-                      buttonClassName="min-h-8 w-auto px-sm py-1 text-button-sm text-semantic-error hover:bg-semantic-error/10"
-                      haptic
-                      variant="ghost"
-                      onClick={() => setIsCancelSheetOpen(true)}
-                    >
-                      <Trash2 className="size-3.5" />
-                      <span>봉인 취소</span>
-                    </Button>
+              <div className="border-b border-hairline pb-sm">
+                <div className="flex min-h-8 items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="inline-flex items-center gap-1 rounded-full bg-surface-soft px-2.5 py-1 text-caption font-medium text-meta">
+                      {isScheduled ? (
+                        <Lock className="size-3.5" />
+                      ) : (
+                        <MailOpen className="size-3.5" />
+                      )}
+                      <span>{headerBadgeLabel}</span>
+                    </span>
+                    <span className="text-caption text-meta">
+                      {formatDate(selectedLetter.createdAt)}
+                      {toDayKey(selectedLetter.createdAt) === toDayKey(new Date()) &&
+                        ` ${formatTime(selectedLetter.createdAt)}`}
+                      에 묻어둠
+                    </span>
                   </div>
-                )}
+
+                  {isScheduled && isSender && (
+                    <div className="flex items-center gap-1.5">
+                      <Button
+                        className="w-auto"
+                        buttonClassName="min-h-8 w-auto px-sm py-1 text-button-sm"
+                        haptic
+                        variant="secondary"
+                        onClick={() => handleStartEdit(selectedLetter)}
+                      >
+                        <Pencil className="size-3.5" />
+                        <span>편지 수정</span>
+                      </Button>
+                      <Button
+                        className="w-auto"
+                        buttonClassName="min-h-8 w-auto px-sm py-1 text-button-sm text-semantic-error hover:bg-semantic-error/10"
+                        haptic
+                        variant="ghost"
+                        onClick={() => setIsCancelSheetOpen(true)}
+                      >
+                        <Trash2 className="size-3.5" />
+                        <span>봉인 취소</span>
+                      </Button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Main Letter Card Display */}

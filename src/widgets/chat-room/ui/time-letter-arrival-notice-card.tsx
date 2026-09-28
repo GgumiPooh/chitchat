@@ -13,8 +13,9 @@ import {
   type LongPressPoint,
   type Nullable,
 } from "@/shared/lib";
-import { HapticTarget, Link } from "@/shared/ui";
-import { ChevronRight, Mail, Sparkles } from "lucide-react";
+import { HapticTarget, Link, toast } from "@/shared/ui";
+import { josa } from "es-hangul";
+import { ChevronRight, Lock, Mail, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { MouseEvent } from "react";
 
@@ -32,23 +33,30 @@ export type TimeLetterArrivalNoticeCardProps = {
 type TimeLetterNoticeData = {
   letterId: string;
   title: string;
+  onlyMe?: boolean;
 };
 
 function parseNoticeData(rawText: Nullable<string>): TimeLetterNoticeData {
   if (!rawText) {
-    return { letterId: "", title: "" };
+    return { letterId: "", title: "", onlyMe: false };
   }
 
   try {
-    const parsed = JSON.parse(rawText) as { letterId?: string; title?: string };
+    const parsed = JSON.parse(rawText) as {
+      letterId?: string;
+      title?: string;
+      onlyMe?: boolean;
+    };
     return {
       letterId: parsed.letterId ?? "",
       title: parsed.title ?? "",
+      onlyMe: Boolean(parsed.onlyMe),
     };
   } catch {
     return {
       letterId: rawText,
       title: "",
+      onlyMe: false,
     };
   }
 }
@@ -64,8 +72,13 @@ export function TimeLetterArrivalNoticeCard({
   onLongPress,
 }: TimeLetterArrivalNoticeCardProps) {
   const router = useRouter();
-  const { letterId, title } = parseNoticeData(message.text);
-  const href = letterId ? `${TIME_LETTERS_ROUTE}?id=${letterId}` : TIME_LETTERS_ROUTE;
+  const { letterId, title, onlyMe } = parseNoticeData(message.text);
+  const isBlind = Boolean(onlyMe && !isMine);
+  const href = isBlind
+    ? "#"
+    : letterId
+      ? `${TIME_LETTERS_ROUTE}?id=${letterId}`
+      : TIME_LETTERS_ROUTE;
 
   const writtenDate = letterId ? idToDate(letterId) : new Date(message.createdAt);
   const arrivalDate = new Date(message.createdAt);
@@ -114,6 +127,11 @@ export function TimeLetterArrivalNoticeCard({
   );
 
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (isBlind) {
+      event.preventDefault();
+      toast.info(`${formattedSender} 본인만 열람할 수 있는 비밀 편지예요 🤫`);
+      return;
+    }
     if (onOpen) {
       event.preventDefault();
       onOpen();
@@ -151,8 +169,9 @@ export function TimeLetterArrivalNoticeCard({
           <Link
             className={cn(
               "group relative flex max-w-[340px] min-w-0 cursor-pointer flex-col overflow-hidden rounded-2xl border p-md text-left transition-all outline-none",
-              "shadow-card border-primary/30 bg-canvas",
-              "hover:border-primary/50 hover:shadow-floating active:scale-[0.99]",
+              isBlind
+                ? "shadow-card border-hairline bg-canvas hover:border-meta/30"
+                : "shadow-card border-primary/30 bg-canvas hover:border-primary/50 hover:shadow-floating active:scale-[0.99]",
               "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
               LONG_PRESS_TARGET_CLASS,
               cardClassName,
@@ -180,6 +199,11 @@ export function TimeLetterArrivalNoticeCard({
               <p className="text-caption text-meta">
                 {isMine ? (
                   <span>내가 {elapsedText}과거에서 보낸 편지예요</span>
+                ) : isBlind ? (
+                  <>
+                    <span className="font-semibold text-ink">{senderName}</span>
+                    {josa(senderName, "이/가")} 과거의 자신에게 보낸 편지가 도착했어요 📮
+                  </>
                 ) : (
                   <>
                     <span className="font-semibold text-ink">{senderName}</span>님이 {elapsedText}
@@ -188,22 +212,42 @@ export function TimeLetterArrivalNoticeCard({
                 )}
               </p>
               <h4 className="line-clamp-2 text-body-md leading-snug font-bold tracking-tight text-ink">
-                {hasTitle ? `“${title}”` : "비밀스럽게 봉인된 편지 💌"}
+                {isBlind
+                  ? `“${formattedSender}의 비밀 편지 🔒”`
+                  : hasTitle
+                    ? `“${title}”`
+                    : onlyMe
+                      ? "나에게 쓴 비밀 편지 💌"
+                      : "비밀스럽게 봉인된 편지 💌"}
               </h4>
             </div>
 
             {/* Action Callout Button */}
-            <div className="mt-md flex items-center justify-between rounded-xl bg-surface-soft px-3 py-2.5 transition-colors group-hover:bg-primary-tint/40">
-              <div className="flex items-center gap-2">
-                <div className="flex size-7 items-center justify-center rounded-full bg-primary text-on-primary shadow-xs">
-                  <Mail className="size-3.5" />
+            {isBlind ? (
+              <div className="mt-md flex items-center justify-between rounded-xl bg-surface-soft/70 px-3 py-2.5 transition-colors group-hover:bg-surface-soft">
+                <div className="flex items-center gap-2">
+                  <div className="bg-surface flex size-7 items-center justify-center rounded-full text-meta shadow-xs ring-1 ring-hairline">
+                    <Lock className="size-3.5" />
+                  </div>
+                  <span className="text-button-sm font-medium text-meta">
+                    본인만 열람할 수 있는 편지예요
+                  </span>
                 </div>
-                <span className="text-button-sm font-semibold text-ink">
-                  실링 왁스 풀고 개봉하기
-                </span>
+                <Lock className="size-3.5 text-meta/70" />
               </div>
-              <ChevronRight className="size-4 text-meta transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
-            </div>
+            ) : (
+              <div className="mt-md flex items-center justify-between rounded-xl bg-surface-soft px-3 py-2.5 transition-colors group-hover:bg-primary-tint/40">
+                <div className="flex items-center gap-2">
+                  <div className="flex size-7 items-center justify-center rounded-full bg-primary text-on-primary shadow-xs">
+                    <Mail className="size-3.5" />
+                  </div>
+                  <span className="text-button-sm font-semibold text-ink">
+                    실링 왁스 풀고 개봉하기
+                  </span>
+                </div>
+                <ChevronRight className="size-4 text-meta transition-transform group-hover:translate-x-0.5 group-hover:text-primary" />
+              </div>
+            )}
           </Link>
 
           {/* Time beside bubble */}

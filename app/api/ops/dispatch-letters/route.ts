@@ -63,6 +63,7 @@ export async function POST(request: Request) {
         letterId: letter.id,
         title: letter.title,
         theme: letter.theme,
+        onlyMe: letter.onlyMe,
         tx,
       });
 
