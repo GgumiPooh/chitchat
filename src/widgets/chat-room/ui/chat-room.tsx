@@ -30,6 +30,7 @@ import {
   EmoticonPicker,
   EmoticonPreview,
   MessageComposer,
+  toEmoticonPacksQuery,
   useAttachmentPromotion,
   useEmoticonPreload,
   useRecentEmoticons,
@@ -38,6 +39,7 @@ import {
   type ComposerEmoticon,
   type EmoticonFocusRequest,
   type EmoticonMenu,
+  type PendingMessage,
 } from "@/features/send-message";
 import { useTypingSignal } from "@/features/typing-indicator";
 import {
@@ -106,6 +108,7 @@ import {
   randomId,
   runWhenIdle,
   startMediaMorph,
+  stopSound,
   stopVoice,
   subscribeDormancy,
   toDayKey,
@@ -150,7 +153,7 @@ import {
   type ActionSheetItem,
   type MediaCell,
 } from "@/shared/ui";
-import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { measureElement as measureRenderedElement, useVirtualizer } from "@tanstack/react-virtual";
 import { josa } from "es-hangul";
 import {
@@ -615,8 +618,18 @@ export function ChatRoom({
   >(new Map());
   // INFO: § 8.15. Reverse index of `pendingAiQuestionsRef`'s `attachmentClientMsgIds`, keyed by the attachment's own `clientMsgId` — an attachment lands through the same `handleMessageSent` echo as any other send, and this is what tells the two apart.
   const aiAttachmentQuestionRef = useRef<Map<string, string>>(new Map());
+
+  const {
+    pendingId: arrivalSoundId,
+    announce: announceArrivalSound,
+    settle: settleArrivalSound,
+    transfer: transferArrivalSound,
+  } = useArrivalEmoticonSound();
+
   const handleMessageSent = useCallback(
     (message: ChatMessage) => {
+      transferArrivalSound(message.clientMsgId, message.id);
+
       const attachmentQuestionKey = aiAttachmentQuestionRef.current.get(message.clientMsgId);
 
       if (attachmentQuestionKey) {
@@ -656,7 +669,7 @@ export function ChatRoom({
 
       appendMessage(message);
     },
-    [appendMessage, playMessageSound],
+    [appendMessage, playMessageSound, transferArrivalSound],
   );
   const { pending, send, sendMedia, sendEmoticon, retry, cancel, resolve } = useSendMessage({
     onSent: handleMessageSent,
@@ -1016,6 +1029,8 @@ export function ChatRoom({
     [currentUserId, readerCursors],
   );
   const queryClient = useQueryClient();
+  const { data: packs = [] } = useQuery(toEmoticonPacksQuery());
+  const packTypes = useMemo(() => new Map(packs.map((p) => [p.id, p.type])), [packs]);
   // INFO: REQUIREMENTS.md § 8.3. A cache read, never a subscription — this answers the row estimate below, which runs for rows that are nowhere near the DOM.
   const readPreview: PreviewReader = useCallback(
     (url) =>
@@ -1220,15 +1235,10 @@ export function ChatRoom({
   const lastPendingCount = useRef(pendingCount);
   const isSending = pending.some((entry) => entry.status === "sending");
 
-  const {
-    pendingId: arrivalSoundId,
-    announce: announceArrivalSound,
-    settle: settleArrivalSound,
-  } = useArrivalEmoticonSound();
-
   // INFO: REQUIREMENTS.md § 8.5. The stream echoes my own message back too, so the optimistic bubble is retired on `client_msg_id` rather than waiting for the POST response it may well beat.
   const receiveMessage = useCallback(
     (message: ChatMessage, arrival: MessageArrival) => {
+      transferArrivalSound(message.clientMsgId, message.id);
       const isNew = appendMessage(message);
 
       resolve(message.clientMsgId);
@@ -1266,6 +1276,7 @@ export function ChatRoom({
       inlineEmoticons,
       playMessageSound,
       announceArrivalSound,
+      transferArrivalSound,
       hasNewer,
       isAtBottom,
     ],
@@ -2326,7 +2337,10 @@ export function ChatRoom({
                     key={stagedEmoticon.id}
                     className="mx-md mb-2xs"
                     emoticon={stagedEmoticon}
-                    onRemove={() => setStagedEmoticon(null)}
+                    onRemove={() => {
+                      stopSound();
+                      setStagedEmoticon(null);
+                    }}
                   />
                 </div>
               )}
@@ -2616,6 +2630,7 @@ export function ChatRoom({
    * INFO: REQUIREMENTS.md § 13.6. An emoticon and attachments are mutually exclusive in the composer — each bubble is one or the other (§ 6.), and staging both would promise a single send the schema has no row for.
    */
   function stageEmoticon(emoticon: Emoticon) {
+    stopSound();
     selection.clear();
     setStagedEmoticon(emoticon);
     clearTimeout(collapseTimerRef.current);
@@ -2625,6 +2640,35 @@ export function ChatRoom({
     }
   }
 
+  function deliverStagedEmoticon(
+    emoticon: Emoticon,
+    replyTo: Nullable<ReplyPreview>,
+    mode: NotifyMode,
+  ): { clientMsgId: Nullable<string>; sounded: boolean } {
+    const isMiniPack = packTypes.get(emoticon.packId) === "mini";
+    rememberEmoticon(emoticon.id, isMiniPack ? "mini" : "emoticon");
+
+    if (isMiniPack) {
+      const composerEmoticon: ComposerEmoticon = {
+        packId: emoticon.packId,
+        id: emoticon.id,
+        version: emoticon.version,
+        width: emoticon.width,
+        height: emoticon.height,
+        name: emoticon.keywords[0] ?? null,
+        hasAudio: emoticon.hasAudio,
+      };
+      rememberInlineEmoticons(toInlineEmoticonMap([composerEmoticon]));
+      const clientMsgId = send("\uFFFC", [composerEmoticon], replyTo, mode);
+
+      return { clientMsgId, sounded: soundSend(clientMsgId, emoticon) };
+    }
+
+    const clientMsgId = sendEmoticon(emoticon, replyTo, mode);
+
+    return { clientMsgId, sounded: soundSend(clientMsgId, emoticon) };
+  }
+
   /**
    * INFO: REQUIREMENTS.md § 13.6. A double tap in the picker skips the preview. The first tap already staged it, so this only takes it back off the composer and sends.
    */
@@ -2632,10 +2676,11 @@ export function ChatRoom({
     // INFO: § 13.6. Sending never resizes the sheet; the stage a frame ago had armed this.
     clearTimeout(collapseTimerRef.current);
     void goLiveForSend();
+    stopSound();
     setStagedEmoticon(null);
-    // INFO: § 13.6. Never a mini — `handleSelect` inserts one into the draft rather than staging it, so no quick send can reach here with one.
-    rememberEmoticon(emoticon.id, "emoticon");
-    if (!soundSend(sendEmoticon(emoticon, replyTarget, notifyMode), emoticon)) {
+    const { sounded } = deliverStagedEmoticon(emoticon, replyTarget, notifyMode);
+
+    if (!sounded) {
       playMessageSound("sent");
     }
     // INFO: § 13.8. This path never goes through `submit`, so the field is still holding the word that found this emoticon — the composer clears it if that is all it holds.
@@ -2650,6 +2695,7 @@ export function ChatRoom({
   }
 
   async function stageMedia(files: File[]) {
+    stopSound();
     setStagedEmoticon(null);
     await selection.add(files);
   }
@@ -2733,10 +2779,10 @@ export function ChatRoom({
     }
 
     if (stagedEmoticon) {
-      // INFO: REQUIREMENTS.md § 13.6. 최근 사용 is recorded here rather than at the pick, so an emoticon staged and then abandoned never enters the list.
-      rememberEmoticon(stagedEmoticon.id, "emoticon");
-      hasSounded =
-        soundSend(sendEmoticon(stagedEmoticon, take(), notifyMode), stagedEmoticon) || hasSounded;
+      stopSound();
+      const { sounded } = deliverStagedEmoticon(stagedEmoticon, take(), notifyMode);
+
+      hasSounded = sounded || hasSounded;
       setStagedEmoticon(null);
       hasSent = true;
     }
@@ -2786,12 +2832,18 @@ export function ChatRoom({
     let hasSounded = false;
 
     if (stagedEmoticon) {
-      rememberEmoticon(stagedEmoticon.id, "emoticon");
+      stopSound();
 
-      const emoticonClientMsgId = sendEmoticon(stagedEmoticon, null, notifyMode);
+      const { clientMsgId: emoticonClientMsgId, sounded } = deliverStagedEmoticon(
+        stagedEmoticon,
+        null,
+        notifyMode,
+      );
 
-      attachmentClientMsgIds.push(emoticonClientMsgId);
-      hasSounded = soundSend(emoticonClientMsgId, stagedEmoticon);
+      if (emoticonClientMsgId) {
+        attachmentClientMsgIds.push(emoticonClientMsgId);
+      }
+      hasSounded = sounded;
       setStagedEmoticon(null);
     }
 
@@ -3213,9 +3265,9 @@ export function ChatRoom({
    *
    * INFO: § 13.8. The name is the item's first keyword, which is all a mini has (§ 2.6.).
    */
-  function insertEmoticon({ version, width, height, keywords, hasAudio, id }: Emoticon) {
+  function insertEmoticon({ version, width, height, keywords, hasAudio, packId, id }: Emoticon) {
     setInsertedEmoticon((request) => ({
-      emoticon: { version, width, height, name: keywords[0] ?? null, hasAudio, id },
+      emoticon: { version, width, height, name: keywords[0] ?? null, hasAudio, packId, id },
       token: (request?.token ?? 0) + 1,
     }));
     // INFO: § 13.6. The draft it lands in is under an expanded sheet.
@@ -3559,7 +3611,7 @@ export function ChatRoom({
                 inlineEmoticons: toInlineEmoticonMap(row.pending.inlineEmoticons),
               })
             }
-            onFollowEmoticon={toFollowEmoticon(row.pending.emoticon)}
+            onFollowEmoticon={toFollowPendingEmoticon(row.pending)}
             onArrivalSoundReady={() => settleArrivalSound(row.pending.clientMsgId)}
             onRetry={() => retry(row.pending.clientMsgId)}
             onCancel={() => cancelSend(row.pending.clientMsgId)}
@@ -3636,7 +3688,7 @@ export function ChatRoom({
             onLongPress={(anchor, point) => openMessageMenu(row.message, anchor, point)}
             onToggleReaction={(reaction) => void handleReaction(row.message.id, reaction)}
             onOpenReply={quoted ? () => void jumpToMessage(quoted.id, { flash: true }) : undefined}
-            onFollowEmoticon={toFollowEmoticon(row.message.emoticon)}
+            onFollowEmoticon={toFollowMessageEmoticon(row.message)}
             onArrivalSoundReady={() => settleArrivalSound(row.message.id)}
             onExpand={() => expandBody(row.message, false)}
             onUnfold={() => void toggleCollapse(row.message.id)}
@@ -3798,15 +3850,92 @@ export function ChatRoom({
   // INFO: § 8.3. What an optimistic bubble draws from — the composer's own emoticons, in the shape the sent row reads from the page's map.
   function toInlineEmoticonMap(emoticons: readonly ComposerEmoticon[]): InlineEmoticonMap {
     return Object.fromEntries(
-      emoticons.map(({ width, height, version, name, hasAudio, id }) => [
+      emoticons.map(({ width, height, version, name, hasAudio, packId, id }) => [
         id,
-        { width, height, version, name: name ?? null, hasAudio, isDeleted: false },
+        { width, height, version, name: name ?? null, hasAudio, isDeleted: false, packId },
       ]),
     );
   }
 
+  // INFO: REQUIREMENTS.md § 13.9. A solo mini emoticon in a message is represented as an Emoticon so follow/search can reveal its pack.
+  function toSoloMiniEmoticon(message: ChatMessage): Nullable<Emoticon> {
+    if (message.text === null) {
+      return null;
+    }
+
+    const soloId = toSoloInlineEmoticonId({
+      text: message.text,
+      inlineEmoticonItemIds: message.inlineEmoticonItemIds,
+    });
+
+    if (!soloId) {
+      return null;
+    }
+
+    const info = inlineEmoticons[soloId];
+
+    if (!info) {
+      return null;
+    }
+
+    return {
+      id: soloId,
+      packId: info.packId,
+      width: info.width,
+      height: info.height,
+      version: info.version,
+      hasAudio: info.hasAudio,
+      hasStill: false,
+      hasAnimated: true,
+      isDeleted: info.isDeleted,
+      keywords: info.name ? [info.name] : [],
+    };
+  }
+
+  function toSoloPendingMiniEmoticon(pending: PendingMessage): Nullable<Emoticon> {
+    if (pending.text === null) {
+      return null;
+    }
+
+    const soloId = toSoloInlineEmoticonId({
+      text: pending.text,
+      inlineEmoticonItemIds: pending.inlineEmoticons.map(({ id }) => id),
+    });
+
+    if (!soloId) {
+      return null;
+    }
+
+    const info = pending.inlineEmoticons.find(({ id }) => id === soloId);
+
+    if (!info) {
+      return null;
+    }
+
+    return {
+      id: soloId,
+      packId: info.packId,
+      width: info.width,
+      height: info.height,
+      version: info.version,
+      hasAudio: info.hasAudio,
+      hasStill: false,
+      hasAnimated: true,
+      isDeleted: false,
+      keywords: info.name ? [info.name] : [],
+    };
+  }
+
   // INFO: REQUIREMENTS.md § 13.9. A row with no emoticon in it hands the bubble nothing, so a text row's tap is unchanged.
-  function toFollowEmoticon(emoticon: Optional<Nullable<Emoticon>>) {
+  function toFollowMessageEmoticon(message: ChatMessage) {
+    const emoticon = message.emoticon ?? toSoloMiniEmoticon(message);
+
+    return emoticon ? () => followEmoticon(emoticon) : undefined;
+  }
+
+  function toFollowPendingEmoticon(pending: PendingMessage) {
+    const emoticon = pending.emoticon ?? toSoloPendingMiniEmoticon(pending);
+
     return emoticon ? () => followEmoticon(emoticon) : undefined;
   }
 
@@ -4216,7 +4345,7 @@ export function ChatRoom({
       return items;
     }
 
-    const emoticon = target.emoticon;
+    const emoticon = target.emoticon ?? toSoloMiniEmoticon(target);
 
     // INFO: REQUIREMENTS.md § 13.9. The same action the bubble's own tap performs, offered here because a mouse reaches this sheet by right-click (`DESIGN.md § 3.2.`) — and because a tap that also replays a sound is not the only way anyone should have to ask for it.
     // WARN: Withheld once the item is deleted, for the reason the bubble's tap is: every picker list filters it out, so the panel would open on nothing.
@@ -4228,7 +4357,7 @@ export function ChatRoom({
       });
     }
 
-    if (target.text) {
+    if (target.text && !toSoloMiniEmoticon(target)) {
       items.push({ label: "복사", Icon: Copy, onSelect: () => void copyText(target.text ?? "") });
     }
 
@@ -4245,7 +4374,11 @@ export function ChatRoom({
     }
 
     // INFO: REQUIREMENTS.md § 8.13. Text only, which `messages_edited_is_text_check` says again at the database — an attachment or an emoticon has no prose to correct, and a system notice is nobody's to touch.
-    if (target.senderId === currentUserId && target.type === "text") {
+    if (
+      target.senderId === currentUserId &&
+      target.type === "text" &&
+      !toSoloMiniEmoticon(target)
+    ) {
       // INFO: REQUIREMENTS.md § 8.13. The one row in the app that declares `keepsFocus` — it hands the field the message being corrected, and the sheet's close would otherwise take that focus straight back.
       items.push({
         label: "수정",

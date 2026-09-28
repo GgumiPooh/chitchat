@@ -49,7 +49,8 @@ export function WaxSealUnboxing({
   return (
     <div
       className={cn(
-        "relative flex size-full min-h-[280px] flex-col items-center justify-between p-lg select-none",
+        "relative flex size-full flex-col items-center justify-between px-lg py-md select-none sm:py-lg",
+        onCancel ? "min-h-[320px] sm:min-h-[340px]" : "min-h-[290px] sm:min-h-[310px]",
         isBreaking && "scale-[1.02]",
         className,
       )}
@@ -102,7 +103,7 @@ export function WaxSealUnboxing({
       {/* Interactive Wax Seal in center */}
       <button
         className={cn(
-          "group relative z-20 flex size-20 cursor-pointer items-center justify-center rounded-full transition-transform duration-300",
+          "group relative z-20 flex size-[72px] cursor-pointer items-center justify-center rounded-full transition-transform duration-300 sm:size-20",
           "outline-none hover:scale-105 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95",
         )}
         type="button"
@@ -123,7 +124,7 @@ export function WaxSealUnboxing({
                 boxShadow: "inset 0 2px 4px rgba(255, 255, 255, 0.3)",
               }}
             >
-              <div className="absolute top-1/2 right-0 flex size-20 translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-dashed border-on-primary/40">
+              <div className="absolute top-1/2 right-0 flex size-[72px] translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-dashed border-on-primary/40 sm:size-20">
                 <span className="text-xl font-bold text-on-primary">📮</span>
               </div>
             </div>
@@ -138,7 +139,7 @@ export function WaxSealUnboxing({
                 boxShadow: "inset 0 2px 4px rgba(255, 255, 255, 0.3)",
               }}
             >
-              <div className="absolute top-1/2 left-0 flex size-20 -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-dashed border-on-primary/40">
+              <div className="absolute top-1/2 left-0 flex size-[72px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full border border-dashed border-on-primary/40 sm:size-20">
                 <span className="text-xl font-bold text-on-primary">📮</span>
               </div>
             </div>
@@ -162,7 +163,7 @@ export function WaxSealUnboxing({
       </button>
 
       {/* Bottom area: Instruction label & cancel button */}
-      <div className="z-10 flex flex-col items-center gap-1 pb-1">
+      <div className="z-10 flex flex-col items-center gap-1.5 pb-2">
         <p className="text-caption text-meta transition-opacity duration-300">
           {isBreaking
             ? isSent

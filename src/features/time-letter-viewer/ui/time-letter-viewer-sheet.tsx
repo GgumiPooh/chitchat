@@ -22,8 +22,7 @@ export type TimeLetterViewerSheetProps = {
 
 const LETTER_THEME_STYLES: Record<string, string> = {
   classic: "bg-canvas border-2 border-hairline-strong text-ink shadow-2xl ring-1 ring-hairline/60",
-  romantic:
-    "bg-primary-tint/35 border-2 border-primary/25 text-ink shadow-2xl ring-1 ring-primary/20",
+  romantic: "bg-primary-tint border-2 border-primary/30 text-ink shadow-2xl ring-1 ring-primary/20",
   midnight:
     "bg-surface-soft-private border-2 border-hairline/25 text-bubble-private-ink shadow-2xl ring-1 ring-hairline/25",
   kraft:
@@ -154,15 +153,11 @@ export function TimeLetterViewerSheet({
       <Modal
         className={cn(
           "overflow-hidden rounded-2xl border-2 shadow-2xl transition-all duration-300",
-          !isUnsealed && "aspect-[1.4/1] max-w-[420px] gap-0! p-0!",
+          !isUnsealed && "max-w-[420px] gap-0! p-0!",
           LETTER_THEME_STYLES[letter.theme] ?? "",
           className,
         )}
-        bodyClassName={
-          !isUnsealed
-            ? "m-0! p-0! flex flex-col min-h-full overflow-hidden! after:hidden!"
-            : undefined
-        }
+        bodyClassName={!isUnsealed ? "m-0! p-0! flex flex-col min-h-0 after:hidden!" : undefined}
         hideCloseButton={!isUnsealed}
         isOpen={isOpen}
         size={isUnsealed ? "lg" : "md"}
