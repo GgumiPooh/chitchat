@@ -65,6 +65,7 @@ import {
   CHAT_MODE_PARAM,
   MESSAGE_FLASH_DURATION,
   REPLY_PREVIEW_MAX_LENGTH,
+  TIME_LETTERS_ROUTE,
   isVideoMime,
   toLlmProviderBranding,
   toLlmProviderName,
@@ -157,6 +158,7 @@ import {
   CornerUpLeft,
   CornerUpRight,
   LoaderCircle,
+  MailOpen,
   MessageCircle,
   Pencil,
   Share,
@@ -3472,10 +3474,12 @@ export function ChatRoom({
         return (
           <SystemNotice
             currentUserId={currentUserId}
+            isSelecting={aiSelection.isSelecting}
             message={row.message}
             sender={participantById.get(row.message.senderId)}
             onOpenEvent={onOpenEvent}
             onOpenTimeLetter={onOpenTimeLetter}
+            onLongPress={(anchor, point) => openMessageMenu(row.message, anchor, point)}
           />
         );
       case "assistant": {
@@ -4057,6 +4061,59 @@ export function ChatRoom({
 
     // INFO: REQUIREMENTS.md § 8.15. An AI answer's `senderId` is the asker (§ 8.10.), so nothing below this line applies to it — 수정/삭제 read as though the asker could correct or withdraw 쨈미니's own words, and 이모티콘 따라하기 has nothing to key off since the row carries none.
     if (target.type === "system") {
+      if (target.systemAction === "time_letter_delivered") {
+        let letterId = "";
+        let title = "";
+        try {
+          if (target.text) {
+            const parsed = JSON.parse(target.text) as { letterId?: string; title?: string };
+            letterId = parsed.letterId ?? "";
+            title = parsed.title ?? "";
+          }
+        } catch {
+          letterId = target.text ?? "";
+        }
+
+        const letterActions: ActionSheetItem[] = [];
+
+        if (letterId && onOpenTimeLetter) {
+          letterActions.push({
+            label: "편지 개봉",
+            Icon: MailOpen,
+            onSelect: () => onOpenTimeLetter(letterId),
+          });
+        }
+
+        letterActions.push(...items);
+
+        letterActions.push({
+          label: "보관함에서 보기",
+          Icon: Archive,
+          onSelect: () => {
+            const href = letterId ? `${TIME_LETTERS_ROUTE}?id=${letterId}` : TIME_LETTERS_ROUTE;
+            router.push(href);
+          },
+        });
+
+        if (title) {
+          letterActions.push({
+            label: "제목 복사",
+            Icon: Copy,
+            onSelect: () => void copyText(title),
+          });
+        }
+
+        if (canShareMessage(target)) {
+          letterActions.push({
+            label: "공유",
+            Icon: Share,
+            onSelect: () => void shareMessage(target),
+          });
+        }
+
+        return letterActions;
+      }
+
       if (target.text) {
         items.push({ label: "복사", Icon: Copy, onSelect: () => void copyText(target.text ?? "") });
       }
@@ -4188,6 +4245,15 @@ export function ChatRoom({
    * quote, the optimistic bubble and the echoed row all say the same sentence.
    */
   function toQuotedText(message: ChatMessage): Nullable<string> {
+    if (message.systemAction === "time_letter_delivered") {
+      try {
+        const parsed = JSON.parse(message.text ?? "{}") as { title?: string };
+        return parsed.title ? `“${parsed.title}” (타임머신 편지)` : "타임머신 편지 💌";
+      } catch {
+        return "타임머신 편지 💌";
+      }
+    }
+
     if (message.type !== "text") {
       return message.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null;
     }

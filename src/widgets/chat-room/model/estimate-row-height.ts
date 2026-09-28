@@ -699,7 +699,7 @@ function toNoticeHeight(
   );
 }
 
-// INFO: Time letter arrival card rendered in chat timeline for `time_letter_delivered`.
+// INFO: Time letter arrival notice row rendered with postman avatar in chat timeline for `time_letter_delivered`.
 function toTimeLetterNoticeHeight(
   message: ChatMessage,
   { contentWidth = DEFAULT_CONTENT_WIDTH, fontFamily }: RowEstimateContext,
@@ -714,9 +714,10 @@ function toTimeLetterNoticeHeight(
     // fallback
   }
 
-  // Card is max 340px, with padding px-md (16px * 2 = 32px)
-  const cardWidth = Math.min(340, contentWidth - SPACING_MD * 2);
-  const titleAvailableWidth = Math.max(cardWidth - SPACING_MD * 2, 100);
+  // Row has px-md (32px), avatar gutter (44px), time slot (56px) beside card
+  const availableForCard = Math.max(contentWidth - SPACING_MD * 2 - AVATAR_GUTTER - TIME_SLOT, 100);
+  const cardWidth = Math.min(340, availableForCard);
+  const titleAvailableWidth = Math.max(cardWidth - SPACING_MD * 2, 80);
   const titleLines = title
     ? Math.min(
         2,
@@ -727,8 +728,8 @@ function toTimeLetterNoticeHeight(
       )
     : 1;
 
-  // Base height (single line title) is 178px; 2-line title is 200px.
-  return 178 + (titleLines - 1) * 22;
+  // Base row height (top padding 8px + sender name 20px + 1-line card 166px) = 194px; 2-line title = 214px.
+  return 194 + (titleLines - 1) * 20;
 }
 
 function toQuoteHeight(replyTo: ReplyPreview, variant: "rule" | "card", isMine: boolean): number {

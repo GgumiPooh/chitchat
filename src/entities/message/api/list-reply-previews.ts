@@ -59,6 +59,7 @@ export async function listReplyPreviews(
       id: messages.id,
       senderId: messages.senderId,
       type: messages.type,
+      systemAction: messages.systemAction,
       text: messages.text,
       inlineEmoticonItemIds: messages.inlineEmoticonItemIds,
       deletedAt: messages.deletedAt,
@@ -150,7 +151,20 @@ export async function listReplyPreviews(
  * in `toReplySummary`, where a 이모티콘 answered here for a nine-photo bubble would
  * never be read but would sit in the payload contradicting it.
  */
-function toQuotedText(row: { type: string; text: Nullable<string> }): Nullable<string> {
+function toQuotedText(row: {
+  type: string;
+  systemAction?: Nullable<string>;
+  text: Nullable<string>;
+}): Nullable<string> {
+  if (row.systemAction === "time_letter_delivered") {
+    try {
+      const parsed = JSON.parse(row.text ?? "{}") as { title?: string };
+      return parsed.title ? `“${parsed.title}” (타임머신 편지)` : "타임머신 편지 💌";
+    } catch {
+      return "타임머신 편지 💌";
+    }
+  }
+
   if (row.type !== "text") {
     return row.text?.slice(0, REPLY_PREVIEW_MAX_LENGTH) ?? null;
   }

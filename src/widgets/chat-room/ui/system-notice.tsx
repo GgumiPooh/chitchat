@@ -1,7 +1,14 @@
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE, VOCA_ROUTE } from "@/shared/config";
-import { cn, composeEventNotice, toDayKey, type Optional, type UserId } from "@/shared/lib";
+import {
+  cn,
+  composeEventNotice,
+  toDayKey,
+  type LongPressPoint,
+  type Optional,
+  type UserId,
+} from "@/shared/lib";
 import { Link } from "@/shared/ui";
 import { TimeLetterArrivalNoticeCard } from "./time-letter-arrival-notice-card";
 
@@ -10,9 +17,11 @@ export type SystemNoticeProps = {
   message: ChatMessage;
   sender: Optional<Participant>;
   currentUserId?: UserId;
+  isSelecting?: boolean;
   /** REQUIREMENTS.md § 11.5. Opens the event in place; only a notice still carrying an `eventId` can, the rest link to the day. */
   onOpenEvent?: (message: ChatMessage) => void;
   onOpenTimeLetter?: (letterId: string) => void;
+  onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
 };
 
 // INFO: DESIGN.md § 6.5. Date-divider treatment, so a calendar notice reads as timeline furniture rather than as someone speaking.
@@ -21,8 +30,10 @@ export function SystemNotice({
   message,
   sender,
   currentUserId,
+  isSelecting = false,
   onOpenEvent,
   onOpenTimeLetter,
+  onLongPress,
 }: SystemNoticeProps) {
   const pillClassName =
     "min-w-0 rounded-full bg-chat-pill px-md py-2xs text-center text-caption whitespace-pre-wrap text-chat-pill-ink transition-colors outline-none hover:bg-chat-pill-pressed focus-visible:ring-2 focus-visible:ring-primary active:bg-chat-pill-pressed";
@@ -57,9 +68,11 @@ export function SystemNotice({
       <TimeLetterArrivalNoticeCard
         className={className}
         isMine={Boolean(currentUserId && message.senderId === currentUserId)}
+        isSelecting={isSelecting}
         message={message}
         senderName={actor}
         onOpen={letterId && onOpenTimeLetter ? () => onOpenTimeLetter(letterId) : undefined}
+        onLongPress={onLongPress}
       />
     );
   }

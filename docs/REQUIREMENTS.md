@@ -2448,7 +2448,11 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
   - Photo gallery grid integrating with `MediaViewer` for full-screen zoom and inspection.
 - **Chat Reply Action**: Bottom action button `[{partner}에게 답장 보내기]` triggering `onReply(letter)` to quote reply directly in the chat room.
 - **Cancel Seal Action (봉인 취소)**: Senders of scheduled letters can cancel and destroy their sealed letters from both the desktop reading pane and the mobile viewer sheet (accessible during the sealed envelope unboxing preview and within the unsealed parchment).
-- **Chat Timeline Arrival Notice Card (편지 도착 전용 카드)**: Delivered letters announce themselves in the chat room as a dedicated rich card (`TimeLetterArrivalNoticeCard`) rather than a mundane generic system pill. The card features an opaque canvas surface (`bg-canvas`), primary-tint borders, floating shadow (`shadow-card`), sender statement, two-line bold title quote, arrival timestamp, and a prominent CTA button (`[ ✉️ 실링 왁스 풀고 개봉하기 ]`). Tapping the card opens `TimeLetterViewerSheet` in place directly over the chat room without losing the conversation.
+- **Chat Timeline Arrival Notice Card (타임머신 우체부 도착 카드)**: Delivered letters announce themselves in the chat room as a dedicated rich left-aligned message row with a "타임머신 우체부" persona rather than a mundane generic system pill.
+  - Avatar & Sender: Features a distinct postman avatar (`size-9` rounded-full `bg-primary-tint` with postal `Mail` icon) and sender header (`{sender}님의 타임머신` or `과거의 나 (타임머신)`).
+  - Card Body: Opaque canvas surface (`bg-canvas`), primary-tint borders, floating shadow (`shadow-card`), written date (`{작성일} 작성`), elapsed duration statement (`{N}개월 전 과거에서 보낸 편지예요`), two-line bold title quote, and a prominent CTA button (`[ ✉️ 실링 왁스 풀고 개봉하기 ]`).
+  - Timeline Placement: Accompanied by the delivery arrival timestamp beside the card. Tapping the card opens `TimeLetterViewerSheet` in place directly over the chat room without losing conversational context.
+  - Context Menu & Long-Press: Supports mobile long-press and desktop right-click contextual actions: `[편지 개봉]`, `[답장]`, `[책갈피 등록/해제]`, `[보관함에서 보기]`, `[제목 복사]`, `[공유]`. Quoting a time letter notice formats as `“{title}” (타임머신 편지)`.
 
 ## 18.3. Delivery Engine & 1-Minute Cron Worker (`dispatch-letters-worker`)
 
