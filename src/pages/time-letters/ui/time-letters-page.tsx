@@ -352,7 +352,8 @@ export function TimeLettersPage({
           <div className="flex items-center justify-between px-xs py-1">
             <span className="text-caption font-semibold text-meta">편지함 ({letters.length})</span>
             <Button
-              className="min-h-8! w-auto! px-sm! py-1! text-button-sm font-medium"
+              className="w-auto"
+              buttonClassName="min-h-8 w-auto px-sm py-1 text-button-sm font-medium"
               haptic
               variant="primary"
               onClick={() => setIsComposeOpen(true)}
@@ -435,7 +436,8 @@ export function TimeLettersPage({
               onClick={() => void refresh()}
             />
             <Button
-              className="min-h-9! w-auto! px-sm! py-1! text-button-sm font-medium lg:hidden"
+              className="w-auto lg:hidden"
+              buttonClassName="min-h-9 w-auto px-sm py-1 text-button-sm font-medium"
               haptic
               variant="primary"
               onClick={() => setIsComposeOpen(true)}
@@ -521,7 +523,8 @@ export function TimeLettersPage({
 
                 {isScheduled && isSender && (
                   <Button
-                    className="min-h-8! w-auto! px-sm! py-1! text-button-sm text-semantic-error hover:bg-semantic-error/10"
+                    className="w-auto"
+                    buttonClassName="min-h-8 w-auto px-sm py-1 text-button-sm text-semantic-error hover:bg-semantic-error/10"
                     haptic
                     variant="ghost"
                     onClick={() => setIsCancelSheetOpen(true)}

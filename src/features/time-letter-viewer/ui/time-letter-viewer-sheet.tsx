@@ -298,7 +298,8 @@ export function TimeLetterViewerSheet({
             {canCancel && (
               <div className="pt-xs">
                 <Button
-                  className="w-full text-semantic-error hover:bg-semantic-error/10 active:bg-semantic-error/20"
+                  className="w-full"
+                  buttonClassName="text-semantic-error hover:bg-semantic-error/10 active:bg-semantic-error/20"
                   haptic
                   variant="ghost"
                   onClick={onCancel}
