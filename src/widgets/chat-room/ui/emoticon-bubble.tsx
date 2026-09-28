@@ -10,7 +10,7 @@ import {
   useViewportReplay,
 } from "@/shared/lib";
 import { MediaTombstone, PreloadImage, Skeleton } from "@/shared/ui";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { toEmoticonBox } from "../model/to-emoticon-box";
 
 // INFO: REQUIREMENTS.md § 13. 해요체, matching `삭제된 사진이에요` — the same event said about an emoticon. Written out because the noun is fixed, where `toDeletedMediaText` picks a copula for one that varies.
@@ -71,16 +71,18 @@ export function EmoticonBubble({
     hasAudio,
     isEnabled: !isDeleted,
     startsHeld: awaitsArrivalSound && !isDeleted,
+    onSound: onArrivalSoundReady,
   });
+
+  const hasPlayedArrivalRef = useRef(false);
 
   // INFO: § 13.6. The arrival's own playback — from here the room's timer is only for a row that never got this far.
   useEffect(() => {
-    if (awaitsArrivalSound && !isDeleted) {
-      onArrivalSoundReady?.();
+    if (awaitsArrivalSound && !isDeleted && !hasPlayedArrivalRef.current) {
+      hasPlayedArrivalRef.current = true;
       void play();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Once, on the mount the flag was set for.
-  }, []);
+  }, [awaitsArrivalSound, isDeleted, play]);
 
   // INFO: § 13. Once a frame of its own is up, a viewport re-entry restarts it the way the keyed `PreloadImage` below restarts the network one — silently.
   useEffect(() => {

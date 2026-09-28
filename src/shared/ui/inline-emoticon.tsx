@@ -10,7 +10,7 @@ import {
   type EmoticonItemId,
   type Nullable,
 } from "@/shared/lib";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { PreloadImage } from "./preload-image";
 import { Skeleton } from "./skeleton";
 
@@ -37,6 +37,8 @@ export type InlineEmoticonProps = {
   awaitsArrivalSound?: boolean;
   /** REQUIREMENTS.md § 13.6. This element has taken the arrival's playback over. */
   onArrivalSoundReady?: () => void;
+  /** REQUIREMENTS.md § 13.9. 따라하기 — tapping a solo mini emoticon opens the picker on its pack. */
+  onFollow?: () => void;
 };
 
 /**
@@ -69,6 +71,7 @@ export function InlineEmoticon({
   isTappable = false,
   awaitsArrivalSound = false,
   onArrivalSoundReady,
+  onFollow,
 }: InlineEmoticonProps) {
   const { ref, replayToken } = useViewportReplay();
   const emoticonAssetUrl = toEmoticonAssetUrl(itemId, "animated-image", version);
@@ -80,15 +83,17 @@ export function InlineEmoticon({
     frameClassName: cn("object-center", imgClassName),
     isEnabled: isTappable || awaitsArrivalSound,
     startsHeld: awaitsArrivalSound,
+    onSound: onArrivalSoundReady,
   });
 
+  const hasPlayedArrivalRef = useRef(false);
+
   useEffect(() => {
-    if (awaitsArrivalSound) {
-      onArrivalSoundReady?.();
+    if (awaitsArrivalSound && !hasPlayedArrivalRef.current) {
+      hasPlayedArrivalRef.current = true;
       void play();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- Once, on the mount the flag was set for.
-  }, []);
+  }, [awaitsArrivalSound, play]);
 
   useEffect(() => {
     if (replayToken > 0 && phase === "frame") {
@@ -134,7 +139,10 @@ export function InlineEmoticon({
           className="size-full cursor-pointer focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:scale-[0.96]"
           type="button"
           aria-label="이모티콘"
-          onClick={() => void play()}
+          onClick={() => {
+            void play();
+            onFollow?.();
+          }}
         >
           {image}
         </button>

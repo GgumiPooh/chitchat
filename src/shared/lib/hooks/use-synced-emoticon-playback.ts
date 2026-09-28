@@ -31,6 +31,8 @@ export type SyncedEmoticonPlaybackOptions = {
   isEnabled?: boolean;
   /** REQUIREMENTS.md § 13.6. Shows nothing until the first `play` lands — a live arrival, the staged preview. */
   startsHeld?: boolean;
+  /** REQUIREMENTS.md § 13.6. Fired when the sound is actually scheduled on the audio clock, taking playback over. */
+  onSound?: () => void;
 };
 
 export type SyncedEmoticonPlaybackPhase = "idle" | "held" | "frame";
@@ -60,11 +62,17 @@ export function useSyncedEmoticonPlayback<T extends HTMLElement = HTMLDivElement
   hasAudio,
   isEnabled = true,
   startsHeld = false,
+  onSound,
 }: SyncedEmoticonPlaybackOptions) {
   const [phase, setPhase] = useState<SyncedEmoticonPlaybackPhase>(startsHeld ? "held" : "idle");
   const frameRef = useRef<Nullable<T>>(null);
   const mountedRef = useRef<Nullable<HTMLImageElement>>(null);
   const runRef = useRef(0);
+  const onSoundRef = useRef(onSound);
+
+  useEffect(() => {
+    onSoundRef.current = onSound;
+  });
 
   useEffect(() => {
     if (!isEnabled) {
@@ -91,6 +99,7 @@ export function useSyncedEmoticonPlayback<T extends HTMLElement = HTMLDivElement
         if (sounds) {
           playSound(audioSrc);
         }
+        onSoundRef.current?.();
 
         return;
       }
@@ -114,6 +123,7 @@ export function useSyncedEmoticonPlayback<T extends HTMLElement = HTMLDivElement
         if (sounds) {
           playSound(audioSrc);
         }
+        onSoundRef.current?.();
 
         setPhase("idle");
 
@@ -132,6 +142,7 @@ export function useSyncedEmoticonPlayback<T extends HTMLElement = HTMLDivElement
         const latency = getSoundLatency();
 
         playSound(audioSrc, { delayMs: Math.max(0, A_FRAME - latency) });
+        onSoundRef.current?.();
 
         if (latency > A_FRAME) {
           await nextFrames(Math.ceil((latency - A_FRAME) / A_FRAME));
@@ -142,6 +153,8 @@ export function useSyncedEmoticonPlayback<T extends HTMLElement = HTMLDivElement
             return;
           }
         }
+      } else {
+        onSoundRef.current?.();
       }
 
       image.alt = "";

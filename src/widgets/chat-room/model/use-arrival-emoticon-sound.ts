@@ -48,6 +48,22 @@ export function useArrivalEmoticonSound() {
   }, []);
 
   /**
+   * INFO: REQUIREMENTS.md § 13.6. Hands the sound flag over when a pending send's
+   * `client_msg_id` resolves to the server's real `messages.id`, so an echo arriving
+   * before `play` landed does not leave the confirmed bubble silent.
+   */
+  const transfer = useCallback((fromId: string, toId: string) => {
+    const pending = pendingRef.current;
+
+    if (!pending || pending.id !== fromId) {
+      return;
+    }
+
+    pending.id = toId;
+    setPendingId(toId);
+  }, []);
+
+  /**
    * WARN: Sounds the row it replaces rather than dropping it. Two emoticons arriving
    * inside the hold is the case, and the shared player cuts the first off either way
    * (§ 13.6.) — but a pending row simply overwritten would have gone silent *and*
@@ -61,7 +77,10 @@ export function useArrivalEmoticonSound() {
 
       pendingRef.current = { id, emoticon };
       setPendingId(id);
-      timerRef.current = setTimeout(() => settle(id, { sounds: true }), EMOTICON_PLAYBACK_HOLD);
+      timerRef.current = setTimeout(
+        () => settle(pendingRef.current?.id ?? id, { sounds: true }),
+        EMOTICON_PLAYBACK_HOLD,
+      );
     },
     [settle],
   );
@@ -75,5 +94,5 @@ export function useArrivalEmoticonSound() {
     [],
   );
 
-  return { pendingId, announce, settle };
+  return { pendingId, announce, settle, transfer };
 }
