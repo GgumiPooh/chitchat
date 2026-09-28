@@ -12,6 +12,7 @@ import {
 import { emoticonItems, getDb, messages } from "@/shared/db";
 import {
   findFirstUrl,
+  formatMonthDay,
   withoutFragment,
   type EmoticonItemId,
   type MessageId,
@@ -69,6 +70,8 @@ export async function listReplyPreviews(
       emoticonDeletedAt: emoticonItems.deletedAt,
       // INFO: REQUIREMENTS.md § 8.10. Carried for an `assistant_reply` parent only — the quote's heading names the AI by this rather than by `senderId`, which stays the asker.
       llmProvider: messages.llmProvider,
+      eventTitle: messages.eventTitle,
+      eventStartsAt: messages.eventStartsAt,
     })
     .from(messages)
     .leftJoin(emoticonItems, eq(messages.emoticonItemId, emoticonItems.id))
@@ -155,6 +158,8 @@ function toQuotedText(row: {
   type: string;
   systemAction?: Nullable<string>;
   text: Nullable<string>;
+  eventTitle?: Nullable<string>;
+  eventStartsAt?: Nullable<Date | string>;
 }): Nullable<string> {
   if (row.systemAction === "time_letter_delivered") {
     try {
@@ -163,6 +168,17 @@ function toQuotedText(row: {
     } catch {
       return "타임머신 편지 💌";
     }
+  }
+
+  if (row.systemAction === "voca_completed") {
+    const count = row.text ?? "0";
+    return `“영단어 ${count}개 학습 완료” 👏`;
+  }
+
+  if (row.systemAction && row.systemAction.startsWith("event_")) {
+    const title = row.eventTitle ? `“${row.eventTitle}”` : "일정";
+    const date = row.eventStartsAt ? formatMonthDay(row.eventStartsAt) : "";
+    return date ? `[일정] ${title} (${date})` : `[일정] ${title}`;
   }
 
   if (row.type !== "text") {

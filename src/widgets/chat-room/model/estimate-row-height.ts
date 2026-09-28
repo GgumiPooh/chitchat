@@ -244,6 +244,12 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
       if (row.message.systemAction === "time_letter_delivered") {
         return toTimeLetterNoticeHeight(row.message, toTranslatedWidthContext(context));
       }
+      if (row.message.systemAction === "voca_completed") {
+        return toVocaNoticeHeight();
+      }
+      if (row.message.systemAction && row.message.systemAction.startsWith("event_")) {
+        return toEventNoticeHeight(row.message, toTranslatedWidthContext(context));
+      }
       return (
         SPACING_SM * 2 +
         PILL_PADDING +
@@ -730,6 +736,34 @@ function toTimeLetterNoticeHeight(
 
   // Base row height (top padding 8px + sender name 20px + 1-line card 166px) = 194px; 2-line title = 214px.
   return 194 + (titleLines - 1) * 20;
+}
+
+// INFO: Voca completion notice row rendered with book/graduation avatar in chat timeline for `voca_completed`.
+function toVocaNoticeHeight(): number {
+  return 194;
+}
+
+// INFO: Calendar event notice row rendered with persona/calendar avatar in chat timeline for `event_*`.
+function toEventNoticeHeight(
+  message: ChatMessage,
+  { contentWidth = DEFAULT_CONTENT_WIDTH, fontFamily }: RowEstimateContext,
+): number {
+  const title = message.eventTitle ?? "";
+  const availableForCard = Math.max(contentWidth - SPACING_MD * 2 - AVATAR_GUTTER - TIME_SLOT, 100);
+  const cardWidth = Math.min(340, availableForCard);
+  const titleAvailableWidth = Math.max(cardWidth - SPACING_MD * 2, 80);
+  const titleLines = title
+    ? Math.min(
+        2,
+        Math.max(
+          1,
+          countTextLines(title, { size: 15, weight: 700, family: fontFamily }, titleAvailableWidth),
+        ),
+      )
+    : 1;
+
+  // Base row height (top padding 12px + sender name 20px + 1-line card 190px) = 222px; 2-line title = 242px.
+  return 222 + (titleLines - 1) * 20;
 }
 
 function toQuoteHeight(replyTo: ReplyPreview, variant: "rule" | "card", isMine: boolean): number {

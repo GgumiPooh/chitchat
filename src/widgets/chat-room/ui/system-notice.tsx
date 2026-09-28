@@ -1,6 +1,6 @@
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE, VOCA_ROUTE } from "@/shared/config";
+import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE } from "@/shared/config";
 import {
   cn,
   composeEventNotice,
@@ -10,7 +10,9 @@ import {
   type UserId,
 } from "@/shared/lib";
 import { Link } from "@/shared/ui";
+import { EventNoticeCard } from "./event-notice-card";
 import { TimeLetterArrivalNoticeCard } from "./time-letter-arrival-notice-card";
+import { VocaCompletionNoticeCard } from "./voca-completion-notice-card";
 
 export type SystemNoticeProps = {
   className?: string;
@@ -24,7 +26,7 @@ export type SystemNoticeProps = {
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
 };
 
-// INFO: DESIGN.md § 6.5. Date-divider treatment, so a calendar notice reads as timeline furniture rather than as someone speaking.
+// INFO: DESIGN.md § 6.5. System message notice rows rendered as rich cards in chat timeline.
 export function SystemNotice({
   className,
   message,
@@ -35,25 +37,22 @@ export function SystemNotice({
   onOpenTimeLetter,
   onLongPress,
 }: SystemNoticeProps) {
-  const pillClassName =
-    "min-w-0 rounded-full bg-chat-pill px-md py-2xs text-center text-caption whitespace-pre-wrap text-chat-pill-ink transition-colors outline-none hover:bg-chat-pill-pressed focus-visible:ring-2 focus-visible:ring-primary active:bg-chat-pill-pressed";
+  const actor = sender?.name ?? "파트너";
 
   if (message.systemAction === "voca_completed") {
-    const actor = sender?.name ?? "파트너";
-    const count = message.text ?? "0";
-    const notice = `${actor}님이 영단어 ${count}개 학습을 마쳤어요! 👏`;
-
     return (
-      <div className={cn("flex justify-center px-md py-sm", className)}>
-        <Link className={pillClassName} href={VOCA_ROUTE}>
-          {notice}
-        </Link>
-      </div>
+      <VocaCompletionNoticeCard
+        className={className}
+        isMine={Boolean(currentUserId && message.senderId === currentUserId)}
+        isSelecting={isSelecting}
+        message={message}
+        senderName={actor}
+        onLongPress={onLongPress}
+      />
     );
   }
 
   if (message.systemAction === "time_letter_delivered") {
-    const actor = sender?.name ?? "파트너";
     let letterId = "";
     try {
       if (message.text) {
@@ -77,6 +76,24 @@ export function SystemNotice({
     );
   }
 
+  if (message.systemAction && message.systemAction.startsWith("event_")) {
+    return (
+      <EventNoticeCard
+        className={className}
+        isMine={Boolean(currentUserId && message.senderId === currentUserId)}
+        isSelecting={isSelecting}
+        message={message}
+        sender={sender}
+        senderName={actor}
+        onOpenEvent={onOpenEvent}
+        onLongPress={onLongPress}
+      />
+    );
+  }
+
+  const pillClassName =
+    "min-w-0 rounded-full bg-chat-pill px-md py-2xs text-center text-caption whitespace-pre-wrap text-chat-pill-ink transition-colors outline-none hover:bg-chat-pill-pressed focus-visible:ring-2 focus-visible:ring-primary active:bg-chat-pill-pressed";
+
   // INFO: REQUIREMENTS.md § 11.5. Composed at render time from the live nickname, so a rename rewrites past notices too (§ 8.7.).
   const notice = composeEventNotice(
     message.systemAction,
@@ -87,9 +104,6 @@ export function SystemNotice({
 
   return (
     <div className={cn("flex justify-center px-md py-sm", className)}>
-      {/* WARN: The link carries the day and not the event id — a delete notice outlives its `events` row (§ 6.) and would otherwise have nothing to navigate to. */}
-      {/* WARN: `px-md` and not the date divider's `px-sm` — this pill carries a sentence over two lines (§ 11.5.) where that one carries a word. `toNoticeHeight` subtracts the very same number, so the two move together or the row is priced against a width it is not wrapped in. */}
-      {/* WARN: `min-w-0` is load-bearing. A flex item's automatic minimum size is min-content, and the inherited `overflow-wrap: break-word` does not reduce that (only `anywhere` does) — so a spaceless event title would widen the pill past the width REQUIREMENTS.md § 8.3.'s estimate wraps it at, and the row is counted a line too tall. */}
       {message.eventId && onOpenEvent ? (
         <button
           className={cn("cursor-pointer", pillClassName)}

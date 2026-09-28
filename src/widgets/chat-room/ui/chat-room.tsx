@@ -60,12 +60,15 @@ import {
   ARCHIVE_GALLERY_ROUTE,
   ARCHIVE_MODE_PARAM,
   ARCHIVE_TARGET_PARAM,
+  CALENDAR_DAY_PARAM,
+  CALENDAR_ROUTE,
   CHAT_AI_PATH,
   CHAT_MESSAGE_PARAM,
   CHAT_MODE_PARAM,
   MESSAGE_FLASH_DURATION,
   REPLY_PREVIEW_MAX_LENGTH,
   TIME_LETTERS_ROUTE,
+  VOCA_ROUTE,
   isVideoMime,
   toLlmProviderBranding,
   toLlmProviderName,
@@ -94,6 +97,7 @@ import {
   countVisibleWakes,
   findFirstUrl,
   focusWithoutPan,
+  formatMonthDay,
   holdAwake,
   isEditableElement,
   isSidePanelAnimating,
@@ -104,6 +108,7 @@ import {
   startMediaMorph,
   stopVoice,
   subscribeDormancy,
+  toDayKey,
   toId,
   useIsCoarsePointer,
   useIsFinePointer,
@@ -150,8 +155,11 @@ import { measureElement as measureRenderedElement, useVirtualizer } from "@tanst
 import { josa } from "es-hangul";
 import {
   Archive,
+  BookOpen,
   Bookmark,
   BookmarkMinus,
+  Calendar,
+  CalendarDays,
   ChevronsDownUp,
   ChevronsUpDown,
   Copy,
@@ -4020,6 +4028,14 @@ export function ChatRoom({
     );
   }
 
+  function toCalendarHref(message: ChatMessage): string {
+    if (!message.eventStartsAt) {
+      return CALENDAR_ROUTE;
+    }
+    const params = new URLSearchParams({ [CALENDAR_DAY_PARAM]: toDayKey(message.eventStartsAt) });
+    return `${CALENDAR_ROUTE}?${params}`;
+  }
+
   function buildActionItems(): ActionSheetItem[] {
     if (!actionTarget) {
       return [];
@@ -4112,6 +4128,81 @@ export function ChatRoom({
         }
 
         return letterActions;
+      }
+
+      if (target.systemAction === "voca_completed") {
+        const actor = participantById.get(target.senderId)?.name ?? "파트너";
+        const count = target.text ?? "0";
+        const fullNotice = `${actor}님이 영단어 ${count}개 학습을 마쳤어요! 👏`;
+
+        const vocaActions: ActionSheetItem[] = [
+          {
+            label: "단어장 바로가기",
+            Icon: BookOpen,
+            onSelect: () => router.push(VOCA_ROUTE),
+          },
+          ...items,
+          {
+            label: "내용 복사",
+            Icon: Copy,
+            onSelect: () => void copyText(fullNotice),
+          },
+        ];
+
+        if (canShareMessage(target)) {
+          vocaActions.push({
+            label: "공유",
+            Icon: Share,
+            onSelect: () => void shareMessage(target),
+          });
+        }
+
+        return vocaActions;
+      }
+
+      if (target.systemAction && target.systemAction.startsWith("event_")) {
+        const eventActions: ActionSheetItem[] = [];
+
+        if (target.systemAction !== "event_deleted" && target.eventId && onOpenEvent) {
+          eventActions.push({
+            label: "일정 상세 보기",
+            Icon: Calendar,
+            onSelect: () => onOpenEvent(target),
+          });
+        }
+
+        eventActions.push({
+          label: "캘린더에서 보기",
+          Icon: CalendarDays,
+          onSelect: () => {
+            const href = toCalendarHref(target);
+            router.push(href);
+          },
+        });
+
+        eventActions.push(...items);
+
+        if (target.eventTitle) {
+          const date = target.eventStartsAt ? formatMonthDay(target.eventStartsAt) : "";
+          const copyStr = date
+            ? `${date} 일정: “${target.eventTitle}”`
+            : `일정: “${target.eventTitle}”`;
+          eventActions.push({
+            label: "일정 복사",
+            Icon: Copy,
+            onSelect: () => void copyText(copyStr),
+          });
+        }
+
+        if (canShareMessage(target)) {
+          eventActions.push({
+            label: "공유",
+            Icon: Share,
+            onSelect: () => void shareMessage(target),
+          });
+        }
+
+        return eventActions;
       }
 
       if (target.text) {
@@ -4252,6 +4343,17 @@ export function ChatRoom({
       } catch {
         return "타임머신 편지 💌";
       }
+    }
+
+    if (message.systemAction === "voca_completed") {
+      const count = message.text ?? "0";
+      return `“영단어 ${count}개 학습 완료” 👏`;
+    }
+
+    if (message.systemAction && message.systemAction.startsWith("event_")) {
+      const title = message.eventTitle ? `“${message.eventTitle}”` : "일정";
+      const date = message.eventStartsAt ? formatMonthDay(message.eventStartsAt) : "";
+      return date ? `[일정] ${title} (${date})` : `[일정] ${title}`;
     }
 
     if (message.type !== "text") {
