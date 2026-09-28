@@ -53,7 +53,7 @@ export function QuoteThumbnailTile({ className, thumbnail }: QuoteThumbnailTileP
       // WARN: `canRetry` off and `no-referrer` as the § 6.9. card sets them — this is the same third-party image, on a host we do not own (REQUIREMENTS.md § 8.9.).
       <PreloadImage
         className={cn("size-8 shrink-0 overflow-hidden rounded-xs", className)}
-        imgClassName="size-full object-cover ring-1 ring-hairline ring-inset"
+        imgClassName="size-full rounded-xs object-cover ring-1 ring-hairline ring-inset"
         src={thumbnail.imageUrl}
         alt=""
         referrerPolicy="no-referrer"
@@ -65,7 +65,7 @@ export function QuoteThumbnailTile({ className, thumbnail }: QuoteThumbnailTileP
   return (
     <PreloadImage
       className={cn("size-8 shrink-0 overflow-hidden rounded-xs", className)}
-      imgClassName="size-full object-cover ring-1 ring-hairline ring-inset"
+      imgClassName="size-full rounded-xs object-cover ring-1 ring-hairline ring-inset"
       src={toMediaUrl(thumbnail.mediaId)}
       alt=""
     />

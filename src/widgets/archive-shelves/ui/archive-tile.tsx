@@ -86,7 +86,7 @@ export function ArchiveTile({
         <PreloadImage
           className="size-full"
           imgClassName={cn(
-            "size-full object-cover ring-1 ring-hairline transition-[scale] ring-inset",
+            "size-full rounded-sm object-cover ring-1 ring-hairline transition-[scale] ring-inset",
             // INFO: The tile shrinks rather than dimming — a dim on a photograph reads as the photo being wrong, while the inset makes the selection ring the thing that changed.
             isSelected && "scale-90",
           )}

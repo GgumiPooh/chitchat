@@ -138,7 +138,7 @@ export function MediaGrid({
 
     return (
       <button
-        className="block w-full cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+        className="block w-full cursor-pointer rounded-md outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
         type="button"
         aria-label={cell.isVideo ? "동영상 보기" : "사진 보기"}
         {...{ [CELL_ID_ATTRIBUTE]: cell.id }}
@@ -146,12 +146,15 @@ export function MediaGrid({
       >
         {/* WARN: REQUIREMENTS.md § 8.3. The ratio is what reserves the row's height before the asset loads; without it every image that arrives re-measures the list and jolts the scroll. */}
         <span
-          className={cn("relative block w-full", !isOnlyMe && "ring-1 ring-hairline ring-inset")}
+          className={cn(
+            "relative block w-full rounded-md",
+            !isOnlyMe && "ring-1 ring-hairline ring-inset",
+          )}
           style={{ aspectRatio: toCellRatio(cell) }}
         >
           <PreloadImage
             className="size-full"
-            imgClassName="size-full object-cover"
+            imgClassName="size-full rounded-md object-cover"
             src={cell.previewUrl}
             blurhash={cell.blurhash}
             blurhashRatio={toCellRatio(cell)}
