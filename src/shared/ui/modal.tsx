@@ -5,6 +5,7 @@ import { DialogShell } from "./dialog-shell";
 
 export type ModalProps = PropsWithChildren<{
   className?: string;
+  bodyClassName?: string;
   hideCloseButton?: boolean;
   isOpen: boolean;
   position?: "center" | "top";
@@ -24,6 +25,7 @@ export type ModalProps = PropsWithChildren<{
 
 export function Modal({
   className,
+  bodyClassName,
   hideCloseButton,
   isOpen,
   position,
@@ -37,6 +39,7 @@ export function Modal({
   return (
     <DialogShell
       className={className}
+      bodyClassName={bodyClassName}
       hideCloseButton={hideCloseButton}
       isOpen={isOpen}
       position={position}

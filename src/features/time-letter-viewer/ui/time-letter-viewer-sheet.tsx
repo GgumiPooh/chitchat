@@ -154,9 +154,16 @@ export function TimeLetterViewerSheet({
       <Modal
         className={cn(
           "overflow-hidden rounded-2xl border-2 shadow-2xl transition-all duration-300",
+          !isUnsealed && "aspect-[1.4/1] max-w-[420px] gap-0! p-0!",
           LETTER_THEME_STYLES[letter.theme] ?? "",
           className,
         )}
+        bodyClassName={
+          !isUnsealed
+            ? "m-0! p-0! flex flex-col min-h-full overflow-hidden! after:hidden!"
+            : undefined
+        }
+        hideCloseButton={!isUnsealed}
         isOpen={isOpen}
         size={isUnsealed ? "lg" : "md"}
         header={{
@@ -177,28 +184,13 @@ export function TimeLetterViewerSheet({
       >
         {!isUnsealed ? (
           /* Sealed Envelope view inside Modal */
-          <div className="flex animate-in flex-col items-center justify-center pt-xs pb-sm duration-300 fade-in-50">
-            <WaxSealUnboxing
-              theme={letter.theme}
-              title={letter.title}
-              isSent={isSent}
-              onUnsealed={() => setIsUnsealed(true)}
-            />
-
-            {canCancel && (
-              <div className="pt-xs pb-2xs">
-                <Button
-                  className="min-h-9! w-auto! px-md! py-1.5! text-button-sm text-semantic-error hover:bg-semantic-error/10 active:bg-semantic-error/20"
-                  haptic
-                  variant="ghost"
-                  onClick={onCancel}
-                >
-                  <Trash2 className="size-4" />
-                  <span>봉인 취소</span>
-                </Button>
-              </div>
-            )}
-          </div>
+          <WaxSealUnboxing
+            title={letter.title}
+            isSent={isSent}
+            onUnsealed={() => setIsUnsealed(true)}
+            onClose={onClose}
+            onCancel={canCancel ? onCancel : undefined}
+          />
         ) : (
           /* Unfolded letter paper view inside Modal */
           <div className="animate-in space-y-md pt-xs pb-md duration-500 fade-in-50">

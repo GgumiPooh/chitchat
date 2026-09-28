@@ -6,6 +6,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 
 export type DialogShellProps = PropsWithChildren<{
   className?: string;
+  bodyClassName?: string;
   hideCloseButton?: boolean;
   isOpen: boolean;
   position?: "center" | "top";
@@ -40,6 +41,7 @@ const SIZE_CLASS_NAME = {
  */
 export function DialogShell({
   className,
+  bodyClassName,
   hideCloseButton,
   isOpen,
   position = "center",
@@ -92,7 +94,10 @@ export function DialogShell({
         {/* WARN: `min-h-0` clears the flex item's content-based floor, or this never shrinks below `children`'s own height for `max-h` on `DialogContent` to cut into — the box would just grow past it instead of scrolling. */}
         <div
           ref={scrollRef}
-          className="-mx-lg -mt-1 scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-lg pt-1 after:block after:h-lg"
+          className={cn(
+            "-mx-lg -mt-1 scrollbar-hidden min-h-0 flex-1 overflow-y-auto px-lg pt-1 after:block after:h-lg",
+            bodyClassName,
+          )}
           style={maskStyle}
         >
           {children}
