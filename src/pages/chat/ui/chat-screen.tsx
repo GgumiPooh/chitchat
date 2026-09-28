@@ -477,6 +477,7 @@ export function ChatScreen({
               isSender={activeLetter.senderId === currentUserId}
               letter={activeLetter}
               partnerName={partner?.name ?? "상대방"}
+              currentUserName={participants.find((p) => p.id === currentUserId)?.name}
               onReply={() => {
                 setActiveLetter(null);
               }}

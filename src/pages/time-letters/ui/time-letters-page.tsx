@@ -5,6 +5,7 @@ import { TimeLetterComposeSheet } from "@/features/time-letter-compose";
 import { TimeLetterViewerSheet } from "@/features/time-letter-viewer";
 import {
   CHAT_ROUTE,
+  formatJourneyDuration,
   PLAYGROUND_ROUTE,
   SIDE_PANEL_MEDIA_QUERY,
   THEME_STYLES,
@@ -54,6 +55,7 @@ import { TimeLetterCard } from "./time-letter-card";
 export type TimeLettersPageProps = {
   className?: string;
   currentUserId: UserId;
+  currentUserName?: string;
   partnerName?: string;
   initialLetters: TimeLetter[];
   initialNextCursor?: Nullable<string>;
@@ -70,6 +72,7 @@ const FILTER_TABS: readonly { label: string; id: TimeLetterFilter }[] = [
 export function TimeLettersPage({
   className,
   currentUserId,
+  currentUserName,
   partnerName = "상대방",
   initialLetters,
   initialNextCursor = null,
@@ -170,13 +173,10 @@ export function TimeLettersPage({
     }
   }, []);
 
-  const handleReply = useCallback(
-    (_letter?: TimeLetter) => {
-      setIsMobileViewerOpen(false);
-      router.push(CHAT_ROUTE);
-    },
-    [router],
-  );
+  const handleReply = useCallback(() => {
+    setIsMobileViewerOpen(false);
+    router.push(CHAT_ROUTE);
+  }, [router]);
 
   const handleConfirmCancel = useCallback(async () => {
     if (!selectedLetter) {
@@ -220,6 +220,68 @@ export function TimeLettersPage({
   const isSender = selectedLetter ? selectedLetter.senderId === currentUserId : false;
   const isScheduled = selectedLetter ? selectedLetter.status === "scheduled" : false;
   const isTeaser = isScheduled && !isSender;
+
+  const selectedToLabel = useMemo(() => {
+    if (!selectedLetter) {
+      return "";
+    }
+    if (selectedLetter.onlyMe) {
+      return isSender ? "To. 미래의 나에게" : "To. 나에게";
+    }
+    if (isSender) {
+      return `To. ${partnerName}에게`;
+    }
+    return currentUserName ? `To. ${currentUserName}에게` : "To. 나에게";
+  }, [selectedLetter, isSender, partnerName, currentUserName]);
+
+  const selectedFromLabel = useMemo(() => {
+    if (!selectedLetter) {
+      return "";
+    }
+    if (selectedLetter.onlyMe) {
+      return "From. 과거의 나";
+    }
+    if (isSender) {
+      return currentUserName ? `From. ${currentUserName}` : "From. 나";
+    }
+    const sender = selectedLetter.senderName ?? partnerName;
+    return `From. ${sender}`;
+  }, [selectedLetter, isSender, currentUserName, partnerName]);
+
+  const selectedCreatedDate = useMemo(() => {
+    if (!selectedLetter) {
+      return null;
+    }
+    return selectedLetter.createdAt
+      ? new Date(selectedLetter.createdAt)
+      : new Date(selectedLetter.scheduledAt);
+  }, [selectedLetter]);
+
+  const selectedArrivalDate = useMemo(() => {
+    if (!selectedLetter) {
+      return null;
+    }
+    return selectedLetter.sentAt
+      ? new Date(selectedLetter.sentAt)
+      : new Date(selectedLetter.scheduledAt);
+  }, [selectedLetter]);
+
+  const selectedWrittenDateStr = selectedCreatedDate
+    ? `${formatDate(selectedCreatedDate)} ${formatTime(selectedCreatedDate)}`
+    : "";
+
+  const selectedTargetDateStr = selectedArrivalDate
+    ? `${formatDate(selectedArrivalDate)} ${formatTime(selectedArrivalDate)}`
+    : "";
+
+  const selectedArrivalLabel = !isScheduled ? "도착한 시각" : "도착 예정 시각";
+
+  const selectedJourneyDuration = useMemo(() => {
+    if (!selectedArrivalDate || !selectedCreatedDate) {
+      return "";
+    }
+    return formatJourneyDuration(selectedArrivalDate.getTime() - selectedCreatedDate.getTime());
+  }, [selectedArrivalDate, selectedCreatedDate]);
 
   return (
     <TwoPane
@@ -443,40 +505,29 @@ export function TimeLettersPage({
                   </div>
                 ) : (
                   <div className="flex flex-col gap-md">
-                    {/* Title & Scheduled Time */}
-                    <div className="flex flex-col gap-xs">
-                      <div className="flex items-center gap-2 text-caption text-meta">
-                        <Clock className="size-3.5" />
-                        <span>
-                          {isScheduled ? "도착 예정: " : "도착: "}
-                          {formatDate(
-                            isScheduled
-                              ? selectedLetter.scheduledAt
-                              : (selectedLetter.sentAt ?? selectedLetter.scheduledAt),
-                          )}{" "}
-                          {formatTime(
-                            isScheduled
-                              ? selectedLetter.scheduledAt
-                              : (selectedLetter.sentAt ?? selectedLetter.scheduledAt),
-                          )}
-                        </span>
-                      </div>
+                    {/* Addressee (To. ...) */}
+                    <div className="text-title-md font-bold tracking-tight">
+                      <span className={selectedThemeStyle.title}>{selectedToLabel}</span>
+                    </div>
+
+                    {/* Title */}
+                    {selectedLetter.title && (
                       <h1
                         className={cn(
                           "text-display-xs leading-tight font-bold",
                           selectedThemeStyle.title,
                         )}
                       >
-                        {selectedLetter.title || "제목 없는 편지"}
+                        {selectedLetter.title}
                       </h1>
-                    </div>
+                    )}
 
-                    <hr className={cn("my-1 border-t", selectedThemeStyle.divider)} />
+                    <hr className={cn("border-t", selectedThemeStyle.divider)} />
 
                     {/* Content Body */}
                     <div
                       className={cn(
-                        "text-body-md leading-relaxed whitespace-pre-wrap",
+                        "min-h-24 font-sans text-body-md leading-relaxed break-keep whitespace-pre-wrap",
                         selectedThemeStyle.body,
                       )}
                     >
@@ -486,7 +537,9 @@ export function TimeLettersPage({
                     {/* Attached Photos / Videos */}
                     {selectedLetter.media && selectedLetter.media.length > 0 && (
                       <div className="mt-md flex flex-col gap-xs">
-                        <span className="text-caption font-semibold text-meta">
+                        <span
+                          className={cn("text-caption font-semibold", selectedThemeStyle.dateStamp)}
+                        >
                           첨부된 추억 ({selectedLetter.media.length}장)
                         </span>
                         <div className="grid grid-cols-3 gap-xs sm:grid-cols-4">
@@ -514,14 +567,59 @@ export function TimeLettersPage({
                       </div>
                     )}
 
+                    {/* Sign-off and Written Date (Right-aligned) */}
+                    <div className="flex flex-col items-end gap-0.5 pt-sm text-right">
+                      <span className={cn("text-caption", selectedThemeStyle.dateStamp)}>
+                        {selectedWrittenDateStr}
+                      </span>
+                      <span
+                        className={cn(
+                          "text-title-sm font-semibold tracking-tight",
+                          selectedThemeStyle.title,
+                        )}
+                      >
+                        {selectedFromLabel}
+                      </span>
+                    </div>
+
+                    {/* Delivery Journey Log Card (타임머신 배달 기록) */}
+                    <div
+                      className={cn(
+                        "mt-md rounded-xl border p-md text-caption",
+                        selectedThemeStyle.headerBadge,
+                      )}
+                    >
+                      <div className="flex items-center justify-between border-b border-hairline/30 pb-xs">
+                        <span className="flex items-center gap-1.5 font-medium">
+                          <Clock className="size-3.5" aria-hidden />
+                          <span>타임머신 배달 기록</span>
+                        </span>
+                        {selectedJourneyDuration && (
+                          <span className="font-semibold">{selectedJourneyDuration}</span>
+                        )}
+                      </div>
+                      <div className="grid grid-cols-2 gap-sm pt-xs">
+                        <div>
+                          <span className="block text-[11px] opacity-75">묻어둔 시각</span>
+                          <span className="font-medium">{selectedWrittenDateStr}</span>
+                        </div>
+                        <div>
+                          <span className="block text-[11px] opacity-75">
+                            {selectedArrivalLabel}
+                          </span>
+                          <span className="font-medium">{selectedTargetDateStr}</span>
+                        </div>
+                      </div>
+                    </div>
+
                     {/* Reply Action for Delivered Letters */}
-                    {!isScheduled && (
+                    {!isScheduled && !selectedLetter.onlyMe && (
                       <div className="mt-lg flex justify-end border-t border-hairline pt-md">
                         <Button
                           className="w-auto! px-lg! py-sm!"
                           haptic
                           variant="primary"
-                          onClick={() => handleReply(selectedLetter)}
+                          onClick={handleReply}
                         >
                           <span>{partnerName}에게 답장 보내기</span>
                         </Button>
@@ -543,6 +641,7 @@ export function TimeLettersPage({
           isOpen={isMobileViewerOpen}
           isSender={isSender}
           letter={selectedLetter}
+          currentUserName={currentUserName}
           partnerName={partnerName}
           onCancel={() => {
             setIsMobileViewerOpen(false);

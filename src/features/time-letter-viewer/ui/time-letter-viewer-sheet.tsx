@@ -1,10 +1,10 @@
 "use client";
 
 import type { TimeLetter } from "@/entities/time-letter";
-import { THEME_STYLES } from "@/shared/config";
-import { cn, formatDate, formatTime, toDayKey, type Nullable } from "@/shared/lib";
+import { formatJourneyDuration, THEME_STYLES } from "@/shared/config";
+import { cn, formatDate, formatTime, type Nullable } from "@/shared/lib";
 import { BottomSheet, Button, MediaViewer, type MediaCell } from "@/shared/ui";
-import { Calendar, RotateCcw, Trash2, Video } from "lucide-react";
+import { Clock, RotateCcw, Sparkles, Trash2, Video } from "lucide-react";
 import { useMemo, useState } from "react";
 import { WaxSealUnboxing } from "./wax-seal-unboxing";
 
@@ -13,6 +13,7 @@ export type TimeLetterViewerSheetProps = {
   isOpen: boolean;
   letter: TimeLetter;
   isSender?: boolean;
+  currentUserName?: string;
   partnerName?: string;
   onClose: () => void;
   onReply?: (letter: TimeLetter) => void;
@@ -31,6 +32,7 @@ export function TimeLetterViewerSheet({
   isOpen,
   letter,
   isSender = false,
+  currentUserName,
   partnerName = "상대방",
   onClose,
   onReply,
@@ -41,22 +43,56 @@ export function TimeLetterViewerSheet({
 
   const themeStyle = THEME_STYLES[letter.theme] ?? THEME_STYLES.classic;
 
-  const targetName = letter.senderName ?? partnerName;
-  const formattedName = targetName.endsWith("님") ? targetName : `${targetName}님`;
-  const replyButtonLabel = `${formattedName}에게 답장 보내기`;
+  const toLabel = useMemo(() => {
+    if (letter.onlyMe) {
+      return isSender ? "To. 미래의 나에게" : "To. 나에게";
+    }
+    if (isSender) {
+      return `To. ${partnerName}에게`;
+    }
+    return currentUserName ? `To. ${currentUserName}에게` : "To. 나에게";
+  }, [letter.onlyMe, isSender, partnerName, currentUserName]);
 
-  const createdDate = letter.createdAt ? new Date(letter.createdAt) : new Date(letter.scheduledAt);
-  const arrivalDate = letter.sentAt ? new Date(letter.sentAt) : new Date(letter.scheduledAt);
-  const isCreatedToday = toDayKey(createdDate) === toDayKey(new Date());
+  const fromLabel = useMemo(() => {
+    if (letter.onlyMe) {
+      return "From. 과거의 나";
+    }
+    if (isSender) {
+      return currentUserName ? `From. ${currentUserName}` : "From. 나";
+    }
+    const sender = letter.senderName ?? partnerName;
+    return `From. ${sender}`;
+  }, [letter.onlyMe, isSender, currentUserName, letter.senderName, partnerName]);
 
-  const createdDateStr = isCreatedToday
-    ? `${formatDate(createdDate)} ${formatTime(createdDate)}`
-    : formatDate(createdDate);
+  const targetReplyName = isSender ? partnerName : (letter.senderName ?? partnerName);
+  const formattedReplyName = targetReplyName.endsWith("님")
+    ? targetReplyName
+    : `${targetReplyName}님`;
+  const replyButtonLabel = `${formattedReplyName}에게 답장 보내기`;
+
+  const createdDate = useMemo(
+    () => (letter.createdAt ? new Date(letter.createdAt) : new Date(letter.scheduledAt)),
+    [letter.createdAt, letter.scheduledAt],
+  );
+  const arrivalDate = useMemo(
+    () => (letter.sentAt ? new Date(letter.sentAt) : new Date(letter.scheduledAt)),
+    [letter.sentAt, letter.scheduledAt],
+  );
+
+  const writtenDateFullStr = `${formatDate(createdDate)} ${formatTime(createdDate)}`;
 
   const isSent = letter.status === "sent";
-  const arrivalLabel = isSent ? "도착" : "도착 예정";
-  const targetDate = isSent ? arrivalDate : new Date(letter.scheduledAt);
+  const arrivalLabel = isSent ? "도착한 시각" : "도착 예정 시각";
+  const targetDate = useMemo(
+    () => (isSent ? arrivalDate : new Date(letter.scheduledAt)),
+    [isSent, arrivalDate, letter.scheduledAt],
+  );
   const targetDateStr = `${formatDate(targetDate)} ${formatTime(targetDate)}`;
+
+  const journeyDuration = useMemo(() => {
+    const diffMs = targetDate.getTime() - createdDate.getTime();
+    return formatJourneyDuration(diffMs);
+  }, [targetDate, createdDate]);
 
   // Convert letter.media to MediaCell for MediaViewer
   const mediaCells: MediaCell[] = useMemo(() => {
@@ -131,15 +167,16 @@ export function TimeLetterViewerSheet({
             <div className="animate-in space-y-lg duration-500 fade-in-50">
               {/* Letter content directly in sheet */}
               <div className="space-y-md">
-                {/* Top header row: Badge & re-seal interaction button */}
+                {/* 1. Top utility row: Badge & re-seal interaction button */}
                 <div className="flex flex-wrap items-center justify-between gap-sm">
                   <div
                     className={cn(
-                      "inline-flex items-center gap-1 rounded-full px-3 py-1 text-caption font-medium",
+                      "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-caption font-medium",
                       themeStyle.headerBadge,
                     )}
                   >
-                    <span>📮 타임머신 편지 • {createdDateStr}에 묻어둠</span>
+                    <Sparkles className="size-3" aria-hidden />
+                    <span>타임머신 편지</span>
                   </div>
 
                   <div className="flex items-center gap-2">
@@ -164,29 +201,24 @@ export function TimeLetterViewerSheet({
                   </div>
                 </div>
 
-                {/* Letter title (if provided) */}
+                {/* 2. Addressee (To. ...) */}
+                <div className="pt-xs">
+                  <span className={cn("text-title-md font-bold tracking-tight", themeStyle.title)}>
+                    {toLabel}
+                  </span>
+                </div>
+
+                {/* 3. Letter title (if provided) */}
                 {letter.title && (
                   <h2 className={cn("text-title-lg font-bold tracking-tight", themeStyle.title)}>
                     {letter.title}
                   </h2>
                 )}
 
-                {/* Formatted arrival date stamp */}
-                <div
-                  className={cn(
-                    "flex items-center gap-1.5 pb-xs text-caption",
-                    themeStyle.dateStamp,
-                  )}
-                >
-                  <Calendar className="size-3.5" aria-hidden />
-                  <span>
-                    {arrivalLabel}: {targetDateStr}
-                  </span>
-                </div>
-
+                {/* 4. Elegant separator */}
                 <hr className={cn("border-t", themeStyle.divider)} />
 
-                {/* Letter body with line breaks and emoji support */}
+                {/* 5. Letter body */}
                 <div
                   className={cn(
                     "min-h-24 font-sans text-body-md leading-relaxed break-keep whitespace-pre-wrap",
@@ -197,10 +229,12 @@ export function TimeLetterViewerSheet({
                     "개봉일까지 본문과 사진은 안전하게 암호화 및 봉인 처리되어 보호돼요."}
                 </div>
 
-                {/* Photo gallery grid (tap opens MediaViewer) */}
+                {/* 6. Photo gallery grid (tap opens MediaViewer) */}
                 {letter.media && letter.media.length > 0 && (
-                  <div className="space-y-xs pt-sm">
-                    <p className="text-caption text-meta">첨부된 추억 ({letter.media.length}장)</p>
+                  <div className="space-y-xs pt-xs">
+                    <p className={cn("text-caption", themeStyle.dateStamp)}>
+                      첨부된 추억 ({letter.media.length}장)
+                    </p>
                     <div
                       className={cn(
                         "grid gap-xs",
@@ -232,9 +266,47 @@ export function TimeLetterViewerSheet({
                     </div>
                   </div>
                 )}
+
+                {/* 7. Sign-off and Written Date (Right-aligned) */}
+                <div className="flex flex-col items-end gap-0.5 pt-sm text-right">
+                  <span className={cn("text-caption", themeStyle.dateStamp)}>
+                    {writtenDateFullStr}
+                  </span>
+                  <span
+                    className={cn("text-title-sm font-semibold tracking-tight", themeStyle.title)}
+                  >
+                    {fromLabel}
+                  </span>
+                </div>
+
+                {/* 8. Delivery Journey Log Card (타임머신 배달 기록) */}
+                <div
+                  className={cn(
+                    "mt-md rounded-xl border p-md text-caption",
+                    themeStyle.headerBadge,
+                  )}
+                >
+                  <div className="flex items-center justify-between border-b border-hairline/30 pb-xs">
+                    <span className="flex items-center gap-1.5 font-medium">
+                      <Clock className="size-3.5" aria-hidden />
+                      <span>타임머신 배달 기록</span>
+                    </span>
+                    {journeyDuration && <span className="font-semibold">{journeyDuration}</span>}
+                  </div>
+                  <div className="grid grid-cols-2 gap-sm pt-xs">
+                    <div>
+                      <span className="block text-[11px] opacity-75">묻어둔 시각</span>
+                      <span className="font-medium">{writtenDateFullStr}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[11px] opacity-75">{arrivalLabel}</span>
+                      <span className="font-medium">{targetDateStr}</span>
+                    </div>
+                  </div>
+                </div>
               </div>
 
-              {/* Bottom action button (for scheduled sender or delivered recipient) */}
+              {/* 9. Bottom action buttons */}
               {canCancel && (
                 <div className="pt-xs">
                   <Button
@@ -249,7 +321,7 @@ export function TimeLetterViewerSheet({
                 </div>
               )}
 
-              {letter.status === "sent" && onReply && (
+              {letter.status === "sent" && onReply && !letter.onlyMe && (
                 <div className="pt-xs">
                   <Button variant="primary" haptic onClick={handleReply}>
                     {replyButtonLabel}

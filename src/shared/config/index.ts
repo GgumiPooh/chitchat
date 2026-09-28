@@ -383,6 +383,7 @@ export {
   THEME_STYLES,
   TIME_LETTER_THEMES,
   TIME_LETTER_THEMES_LIST,
+  formatJourneyDuration,
   type ThemeOption,
   type ThemeStyles,
   type TimeLetterTheme,

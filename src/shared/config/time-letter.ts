@@ -79,3 +79,32 @@ export const THEME_STYLES: Record<TimeLetterTheme, ThemeStyles> = {
     accent: "text-primary",
   },
 };
+
+export function formatJourneyDuration(ms: number): string {
+  if (ms <= 0) {
+    return "";
+  }
+  const totalMinutes = Math.max(1, Math.round(ms / 60000));
+  if (totalMinutes < 60) {
+    return `${totalMinutes}분간의 시간 여행`;
+  }
+  const totalHours = Math.floor(totalMinutes / 60);
+  const remainingMinutes = totalMinutes % 60;
+  if (totalHours < 24) {
+    return remainingMinutes > 0
+      ? `${totalHours}시간 ${remainingMinutes}분간의 시간 여행`
+      : `${totalHours}시간 동안의 시간 여행`;
+  }
+  const totalDays = Math.floor(totalHours / 24);
+  const remainingHours = totalHours % 24;
+  if (totalDays < 365) {
+    return remainingHours > 0
+      ? `${totalDays}일 ${remainingHours}시간 동안의 시간 여행`
+      : `${totalDays}일 동안의 시간 여행`;
+  }
+  const years = Math.floor(totalDays / 365);
+  const remainingDays = totalDays % 365;
+  return remainingDays > 0
+    ? `${years}년 ${remainingDays}일 동안의 시간 여행`
+    : `${years}년 동안의 시간 여행`;
+}
