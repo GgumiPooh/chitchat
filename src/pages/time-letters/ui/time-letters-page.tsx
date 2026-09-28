@@ -89,6 +89,7 @@ export function TimeLettersPage({
     hasMore,
     isLoadingMore,
     isRefreshing,
+    isFilterLoading,
     loadMore,
     refresh,
     handleFilterChange,
@@ -116,7 +117,16 @@ export function TimeLettersPage({
   const [isCancelSheetOpen, setIsCancelSheetOpen] = useState(false);
   const [activeMediaIndex, setActiveMediaIndex] = useState<Nullable<number>>(null);
 
-  const selectedLetter = letters[selectedIndex] ?? null;
+  const effectiveIndex = letters.length > 0 && selectedIndex >= letters.length ? 0 : selectedIndex;
+  const selectedLetter = letters[effectiveIndex] ?? null;
+
+  const handleTabChange = useCallback(
+    (newFilter: TimeLetterFilter) => {
+      setSelectedIndex(0);
+      void handleFilterChange(newFilter);
+    },
+    [handleFilterChange],
+  );
 
   const handleBack = useCallback(() => {
     // INFO: REQUIREMENTS.md § 8.14. 데스크톱(lg)에서 사이드패널이 닫혀있는 상태라면 패널을 먼저 열고, 열려 있으면 놀이터 홈으로 이동.
@@ -369,7 +379,7 @@ export function TimeLettersPage({
                 key={tab.id}
                 haptic
                 isSelected={filter === tab.id}
-                onClick={() => handleFilterChange(tab.id)}
+                onClick={() => handleTabChange(tab.id)}
               >
                 {tab.label}
               </Chip>
@@ -377,7 +387,11 @@ export function TimeLettersPage({
           </div>
 
           {/* Letters List */}
-          {letters.length === 0 ? (
+          {isFilterLoading ? (
+            <div className="flex justify-center py-12" aria-label="편지 목록을 불러오는 중">
+              <RotateCw className="size-6 animate-spin text-meta" />
+            </div>
+          ) : letters.length === 0 ? (
             <p className="p-md text-center text-body-sm text-meta">{emptyListMessage}</p>
           ) : (
             <div className="flex flex-col gap-sm" onKeyDown={handleRovingKeyDown}>
@@ -386,7 +400,7 @@ export function TimeLettersPage({
                   key={letter.id}
                   currentUserId={currentUserId}
                   partnerName={partnerName}
-                  isSelected={index === selectedIndex}
+                  isSelected={index === effectiveIndex}
                   letter={letter}
                   onClick={() => handleSelectLetter(index)}
                 />
@@ -394,7 +408,7 @@ export function TimeLettersPage({
             </div>
           )}
 
-          {hasMore && !isLoadingMore && (
+          {!isFilterLoading && hasMore && !isLoadingMore && (
             <LoadMoreSentinel
               key={`desktop-sentinel-${letters.length}`}
               rootRef={sidePanelScrollerRef}
@@ -402,7 +416,7 @@ export function TimeLettersPage({
             />
           )}
 
-          {isLoadingMore && (
+          {!isFilterLoading && isLoadingMore && (
             <div className="flex justify-center py-md" aria-label="편지 목록을 불러오는 중">
               <RotateCw className="size-5 animate-spin text-meta" />
             </div>
@@ -460,14 +474,18 @@ export function TimeLettersPage({
               key={tab.id}
               haptic
               isSelected={filter === tab.id}
-              onClick={() => handleFilterChange(tab.id)}
+              onClick={() => handleTabChange(tab.id)}
             >
               {tab.label}
             </Chip>
           ))}
         </div>
 
-        {letters.length === 0 ? (
+        {isFilterLoading ? (
+          <div className="flex justify-center py-16" aria-label="편지 목록을 불러오는 중">
+            <RotateCw className="size-6 animate-spin text-meta" />
+          </div>
+        ) : letters.length === 0 ? (
           <EmptyState description={emptyStateMessage} Icon={Mail} />
         ) : (
           <div className="flex flex-col gap-sm">
@@ -483,11 +501,11 @@ export function TimeLettersPage({
           </div>
         )}
 
-        {hasMore && !isLoadingMore && (
+        {!isFilterLoading && hasMore && !isLoadingMore && (
           <LoadMoreSentinel key={`mobile-sentinel-${letters.length}`} onVisible={loadMore} />
         )}
 
-        {isLoadingMore && (
+        {!isFilterLoading && isLoadingMore && (
           <div className="flex justify-center py-md" aria-label="편지를 불러오는 중">
             <RotateCw className="size-5 animate-spin text-meta" />
           </div>
@@ -497,7 +515,14 @@ export function TimeLettersPage({
       {/* Desktop reading pane (>= lg) */}
       <div className="hidden flex-1 flex-col pt-[calc(var(--app-header-inset)+var(--spacing-xs))] pb-2xl lg:flex">
         <Container className="space-y-lg" size="md">
-          {letters.length === 0 ? (
+          {isFilterLoading ? (
+            <div
+              className="flex flex-1 items-center justify-center py-24"
+              aria-label="편지 내용을 불러오는 중"
+            >
+              <RotateCw className="size-8 animate-spin text-meta" />
+            </div>
+          ) : letters.length === 0 ? (
             <EmptyState description={desktopEmptyStateMessage} Icon={Mail} />
           ) : selectedLetter ? (
             <div className="flex flex-col gap-lg">

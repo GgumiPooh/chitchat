@@ -25,7 +25,9 @@ export function useTimeLetters({
   const [hasMore, setHasMore] = useState<boolean>(initialHasMore);
   const [isLoadingMore, setIsLoadingMore] = useState<boolean>(false);
   const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
+  const [isFilterLoading, setIsFilterLoading] = useState<boolean>(false);
   const isLoadingRef = useRef(false);
+  const filterRequestIdRef = useRef(0);
 
   const loadMore = useCallback(async () => {
     if (isLoadingRef.current || !hasMore || !cursor) {
@@ -80,11 +82,36 @@ export function useTimeLetters({
   );
 
   const handleFilterChange = useCallback(
-    (newFilter: TimeLetterFilter) => {
+    async (newFilter: TimeLetterFilter) => {
+      if (newFilter === filter && !isFilterLoading) {
+        return;
+      }
       setFilter(newFilter);
-      void refresh(newFilter);
+      setIsFilterLoading(true);
+      const requestId = ++filterRequestIdRef.current;
+
+      try {
+        const response = await fetchTimeLetters({
+          filter: newFilter,
+          limit: 20,
+        });
+        if (requestId !== filterRequestIdRef.current) {
+          return;
+        }
+        setLetters(response.items);
+        setCursor(response.nextCursor);
+        setHasMore(response.hasMore);
+      } catch {
+        if (requestId === filterRequestIdRef.current) {
+          toast("편지 목록을 불러오지 못했어요");
+        }
+      } finally {
+        if (requestId === filterRequestIdRef.current) {
+          setIsFilterLoading(false);
+        }
+      }
     },
-    [refresh],
+    [filter, isFilterLoading],
   );
 
   const cancelLetter = useCallback(async (id: TimeLetterId) => {
@@ -109,6 +136,7 @@ export function useTimeLetters({
     hasMore,
     isLoadingMore,
     isRefreshing,
+    isFilterLoading,
     loadMore,
     refresh,
     handleFilterChange,
