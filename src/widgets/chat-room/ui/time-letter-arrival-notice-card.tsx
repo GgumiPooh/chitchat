@@ -4,10 +4,10 @@ import type { ChatMessage } from "@/entities/message";
 import { TIME_LETTERS_ROUTE } from "@/shared/config";
 import {
   cn,
-  formatDate,
   formatTime,
   idToDate,
   LONG_PRESS_TARGET_CLASS,
+  toDayKey,
   useLongPress,
   type LongPressPoint,
   type Nullable,
@@ -67,7 +67,7 @@ export function TimeLetterArrivalNoticeCard({
   const href = letterId ? `${TIME_LETTERS_ROUTE}?id=${letterId}` : TIME_LETTERS_ROUTE;
 
   const writtenDate = letterId ? idToDate(letterId) : new Date(message.createdAt);
-  const writtenDateStr = `${formatDate(writtenDate)} 작성`;
+  const writtenDateStr = `${toDayKey(writtenDate).replace(/-/g, ".")} 작성`;
   const timeString = formatTime(message.createdAt);
   const hasTitle = Boolean(title.trim());
 
@@ -146,11 +146,13 @@ export function TimeLetterArrivalNoticeCard({
           >
             {/* Top Header Badge & Written Date */}
             <div className="flex items-center justify-between gap-xs">
-              <span className="inline-flex items-center gap-1.5 rounded-full bg-primary-tint/70 px-2.5 py-0.5 text-caption font-semibold text-primary">
-                <Sparkles className="size-3.5 text-primary" aria-hidden />
-                <span>타임머신 편지 도착</span>
+              <span className="inline-flex shrink-0 items-center gap-1 rounded-full bg-primary-tint/70 px-2 py-0.5 text-caption font-semibold whitespace-nowrap text-primary">
+                <Sparkles className="size-3 text-primary" aria-hidden />
+                <span>타임머신 도착</span>
               </span>
-              <span className="text-caption font-medium text-meta">{writtenDateStr}</span>
+              <span className="shrink-0 text-caption font-medium whitespace-nowrap text-meta">
+                {writtenDateStr}
+              </span>
             </div>
 
             {/* Sender announcement & Title */}
