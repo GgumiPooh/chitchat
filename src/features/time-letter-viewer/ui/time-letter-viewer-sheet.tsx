@@ -42,7 +42,7 @@ export function TimeLetterViewerSheet({
   onCancel,
 }: TimeLetterViewerSheetProps) {
   const isSent = letter.status === "sent";
-  const [isUnsealed, setIsUnsealed] = useState<boolean>(isSent);
+  const [isUnsealed, setIsUnsealed] = useState<boolean>(false);
   const [activeMediaIndex, setActiveMediaIndex] = useState<Nullable<number>>(null);
 
   const [prevOpenState, setPrevOpenState] = useState<{ isOpen: boolean; letterId: string }>({
@@ -53,19 +53,19 @@ export function TimeLetterViewerSheet({
   if (prevOpenState.isOpen !== isOpen || prevOpenState.letterId !== letter.id) {
     setPrevOpenState({ isOpen, letterId: letter.id });
     if (isOpen) {
-      setIsUnsealed(letter.status === "sent");
+      setIsUnsealed(false);
     }
   }
 
   useEffect(() => {
     if (!isOpen) {
       const timer = setTimeout(() => {
-        setIsUnsealed(letter.status === "sent");
+        setIsUnsealed(false);
         setActiveMediaIndex(null);
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isOpen, letter.status]);
+  }, [isOpen]);
 
   const themeStyle = THEME_STYLES[letter.theme] ?? THEME_STYLES.classic;
 
@@ -170,14 +170,6 @@ export function TimeLetterViewerSheet({
             >
               <RotateCcw className="size-3.5" aria-hidden />
               <span>{isSent ? "봉투 보기" : "봉인 다시 보기"}</span>
-            </button>
-          ) : isSent ? (
-            <button
-              className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-caption text-meta transition-colors hover:bg-surface-soft hover:text-ink active:bg-surface-strong"
-              type="button"
-              onClick={() => setIsUnsealed(true)}
-            >
-              <span>편지 보기</span>
             </button>
           ) : undefined,
         }}
