@@ -64,24 +64,28 @@ export function MediaGrid({
     return null;
   }
 
+  const isFiles = Boolean(cells[0].filename);
   // WARN: The wrapper's clip radius must equal what its corner cells draw — `rounded-md` over a `rounded-sm` grid cut diagonally through the tiles' outer corners (and § 16.1.'s ring), since a 12px arc reaches ~1px deeper into the corner than the 8px arc the cell painted.
-  const isTileGrid = !cells[0].filename && cells.length > 1;
+  const isTileGrid = !isFiles && cells.length > 1;
 
   return (
     <div
       className={cn(
         "relative overflow-hidden",
         isTileGrid ? "rounded-sm" : "rounded-md",
-        isPending && "opacity-60",
         className,
       )}
       style={{ width: MAX_EDGE }}
     >
       {renderCells()}
+      {isPending && !isFiles && (
+        // INFO: DESIGN.md § 6.5. Dims media under a scrim wash rather than applying container opacity, so the photo stays opaque and chat background never bleeds through.
+        <span className="pointer-events-none absolute inset-0 bg-scrim/30" aria-hidden="true" />
+      )}
       {isPending && progress < 1 && encodeProgress === null && (
         // INFO: The one progress affordance in the chat column. DESIGN.md § 6.5. dims an optimistic bubble rather than spinning it, so this reads as the dimmed bubble filling in.
         // INFO: DESIGN.md § 6.5.1. Withheld while `encodeProgress` is set — the centred percentage over the encoding cell is the phase's own indicator, and the byte bar would otherwise sit at 0% beside it.
-        <div className="absolute inset-x-0 bottom-0 h-1 bg-scrim/45">
+        <div className="absolute inset-x-0 bottom-0 z-10 h-1 bg-scrim/45">
           <div
             className="h-full bg-primary transition-[width] duration-200"
             style={{ width: `${Math.round(progress * 100)}%` }}
@@ -103,7 +107,7 @@ export function MediaGrid({
   // INFO: DESIGN.md § 6.5. The `FileCard` of `shared/ui`, stacked when a bubble carries several — the same row 보관함 lists (REQUIREMENTS.md § 10.).
   function renderFiles() {
     return (
-      <div className="flex flex-col gap-2xs">
+      <div className={cn("flex flex-col gap-2xs", isPending && "opacity-60")}>
         {cells.map((cell, index) =>
           cell.isDeleted ? (
             // INFO: The finished restructure. `FILE_CARD_HEIGHT`'s own `h-14`, so the stack measures the same whether the card is a file or a tombstone (REQUIREMENTS.md § 8.3.).
@@ -226,7 +230,7 @@ export function MediaGrid({
     if (encodingIndex === index && encodeProgress !== null) {
       // INFO: DESIGN.md § 6.5.1. Replaces the play glyph rather than joining it — a draft mid-encode has nothing playable yet, and the two would otherwise compete for the same centre.
       return (
-        <span className="absolute inset-0 flex items-center justify-center bg-scrim/45">
+        <span className="absolute inset-0 z-10 flex items-center justify-center bg-scrim/45">
           <span className="text-title-md text-on-scrim">{Math.round(encodeProgress * 100)}%</span>
         </span>
       );
