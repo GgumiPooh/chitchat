@@ -14,7 +14,6 @@ export type AiVocaInputDialogProps = {
 export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDialogProps) {
   const [inputText, setInputText] = useState("");
   const [contextSentence, setContextSentence] = useState("");
-  const [tagsInput, setTagsInput] = useState("");
 
   const handleSubmit = () => {
     const rawTokens = inputText
@@ -27,13 +26,10 @@ export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDia
       return;
     }
 
-    const effectiveTags = tagsInput.trim() || undefined;
-
     // Immediate optimistic closure (non-blocking, instant response)
     onClose();
     setInputText("");
     setContextSentence("");
-    setTagsInput("");
     toast.success(`${rawTokens.length}개 단어 생성을 시작했어요. 생성이 끝나면 알림을 보내드려요.`);
 
     // Fire individual independent background generation requests
@@ -41,7 +37,6 @@ export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDia
       void fetch("/api/voca/ai-generate", {
         body: JSON.stringify({
           contextSentence: rawTokens.length === 1 ? contextSentence.trim() : undefined,
-          tags: effectiveTags,
           word,
         }),
         headers: { "Content-Type": "application/json" },
@@ -91,17 +86,6 @@ export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDia
             rows={2}
             value={contextSentence}
             onChange={(e) => setContextSentence(e.target.value)}
-          />
-        </div>
-
-        <div className="space-y-1.5">
-          <label className="text-caption font-semibold text-ink">태그 (선택 사항)</label>
-          <input
-            className="w-full rounded-xl border border-hairline bg-surface-soft px-3 py-2.5 text-body-sm text-ink placeholder:text-meta-soft focus:border-primary focus:outline-none"
-            placeholder="예: 토익, 비즈니스 (비워두면 AI가 카테고리와 난이도를 자동 분류)"
-            type="text"
-            value={tagsInput}
-            onChange={(e) => setTagsInput(e.target.value)}
           />
         </div>
 
