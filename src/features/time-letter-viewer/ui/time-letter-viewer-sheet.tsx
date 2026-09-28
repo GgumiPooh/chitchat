@@ -177,11 +177,13 @@ export function TimeLetterViewerSheet({
         <WaxSealUnboxing
           title={letter.title}
           isSent={isSent}
+          scheduledDate={targetDate}
           writtenDateStr={writtenDateFullStr}
           onUnsealed={() => setIsUnsealed(true)}
           onClose={onClose}
           onCancel={canCancel ? onCancel : undefined}
           onEdit={canEdit ? () => onEdit?.(letter) : undefined}
+          onPreview={isSender && !isSent ? () => setIsUnsealed(true) : undefined}
         />
       </Modal>
 
@@ -201,6 +203,15 @@ export function TimeLetterViewerSheet({
         onClose={onClose}
       >
         <div className="space-y-md pt-xs pb-md">
+          {/* Author preview banner (when sender previews an unsealed scheduled letter) */}
+          {!isSent && (
+            <div className="flex items-center gap-1.5 rounded-lg border border-hairline bg-surface-soft/70 px-sm py-1.5 text-caption text-meta">
+              <span className="font-semibold text-primary">작성자 미리보기</span>
+              <span>•</span>
+              <span>개봉 예정 시각({targetDateStr})까지 봉인 보관 중이에요</span>
+            </div>
+          )}
+
           {/* 1. Addressee (To. ...) & Stationery Watermark & Re-seal Action */}
           <div className="flex items-center justify-between pt-xs">
             <span className={cn("text-title-lg font-bold tracking-tight", themeStyle.title)}>

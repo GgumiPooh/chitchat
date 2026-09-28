@@ -2444,7 +2444,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 ## 18.2. Time-Letter Viewer (`time-letter-viewer`)
 
 - **Responsive Surface**: Uses `BottomSheet` on mobile and `DialogShell` on desktop with a flat props API.
-- **Wax Seal Unboxing Experience**: Interactive wax seal breaking animation where the seal fractures, envelope flap unfolds, and the letter unfurls with haptic vibration. Includes a '봉인 다시 보기' re-seal action.
+- **Wax Seal Unboxing Experience**: Interactive wax seal breaking animation where the seal fractures, envelope flap unfolds, and the letter unfurls with haptic vibration. Includes a '봉인 다시 보기' re-seal action. Scheduled letters before arrival (`status === 'scheduled'`) keep the seal firmly locked: touching the seal triggers a wiggle shake animation (`animate-wax-shake`), haptic warning feedback, and countdown/D-Day arrival statement instead of breaking the seal prematurely; senders can inspect what they wrote via `[편지 미리보기]` or edit via `[편지 수정]`.
 - **Letter Rendering**:
   - Theme-specific parchment styling using semantic tokens (`canvas`, `surface-soft`, `surface-soft-private`, `primary-tint`, `hairline-strong`).
   - Header badge: `📮 타임머신 편지 • {작성일}에 묻어둠`.

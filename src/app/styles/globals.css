@@ -389,10 +389,40 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
   animation: ai-sparkle var(--duration-ai-sparkle) var(--ease-route) var(--sparkle-delay) backwards;
 }
 
+/* INFO: DESIGN.md § 7.22. Wax seal shake animation when touching a locked time-letter before arrival. */
+@keyframes wax-shake {
+  0%,
+  100% {
+    translate: 0 0;
+    rotate: 0deg;
+  }
+  20% {
+    translate: -6px 0;
+    rotate: -4deg;
+  }
+  40% {
+    translate: 6px 0;
+    rotate: 4deg;
+  }
+  60% {
+    translate: -4px 0;
+    rotate: -2deg;
+  }
+  80% {
+    translate: 4px 0;
+    rotate: 2deg;
+  }
+}
+
+@utility animate-wax-shake {
+  animation: wax-shake 360ms ease-in-out;
+}
+
 /* WARN: `glyph-pop-out` is the one that cannot simply stop: its resting state is the glyph at full size in a zero-width box, so reduced motion has to state the ending the animation would have left. */
 @media (prefers-reduced-motion: reduce) {
   .glyph-pop-in,
-  .ai-sparkle {
+  .ai-sparkle,
+  .animate-wax-shake {
     animation: none !important;
   }
   .glyph-pop-out {
@@ -401,3 +431,4 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
     opacity: 0;
   }
 }
+

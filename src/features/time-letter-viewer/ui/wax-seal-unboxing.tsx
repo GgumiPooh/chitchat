@@ -1,34 +1,78 @@
 "use client";
 
-import { cn } from "@/shared/lib";
-import { Pencil, Sparkles, Trash2, X } from "lucide-react";
-import { useState } from "react";
+import { cn, countDays, formatMonthDay, formatTime } from "@/shared/lib";
+import { toast } from "@/shared/ui";
+import { Eye, Pencil, Sparkles, Trash2, X } from "lucide-react";
+import { useMemo, useState } from "react";
 
 export type WaxSealUnboxingProps = {
   className?: string;
   title?: string | null;
   isSent?: boolean;
+  scheduledDate?: Date | string | null;
   writtenDateStr?: string;
   onUnsealed: () => void;
   onClose?: () => void;
   onCancel?: () => void;
   onEdit?: () => void;
+  onPreview?: () => void;
 };
 
 export function WaxSealUnboxing({
   className,
   title,
   isSent = false,
+  scheduledDate,
   writtenDateStr,
   onUnsealed,
   onClose,
   onCancel,
   onEdit,
+  onPreview,
 }: WaxSealUnboxingProps) {
   const [isBreaking, setIsBreaking] = useState<boolean>(false);
+  const [isShaking, setIsShaking] = useState<boolean>(false);
 
-  const handleBreakSeal = () => {
+  const dDayStr = useMemo(() => {
+    if (!scheduledDate) {
+      return null;
+    }
+    const days = countDays(new Date(), scheduledDate);
+    if (days > 0) {
+      return `D-${days}`;
+    }
+    if (days === 0) {
+      return "D-Day";
+    }
+    return null;
+  }, [scheduledDate]);
+
+  const scheduledDateStr = useMemo(() => {
+    if (!scheduledDate) {
+      return null;
+    }
+    const date = new Date(scheduledDate);
+    return `${formatMonthDay(date)} ${formatTime(date)}`;
+  }, [scheduledDate]);
+
+  const handleSealClick = () => {
     if (isBreaking) {
+      return;
+    }
+
+    if (!isSent) {
+      setIsShaking(true);
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate?.([30, 40, 30]);
+        } catch {
+          // INFO: Ignore
+        }
+      }
+      toast.info("아직 개봉 시각이 되지 않아 봉인되어 있어요!");
+      setTimeout(() => {
+        setIsShaking(false);
+      }, 360);
       return;
     }
 
@@ -52,7 +96,9 @@ export function WaxSealUnboxing({
     <div
       className={cn(
         "relative flex size-full flex-col items-center justify-between px-lg py-md select-none sm:py-lg",
-        onCancel ? "min-h-[320px] sm:min-h-[340px]" : "min-h-[290px] sm:min-h-[310px]",
+        onCancel || onPreview || onEdit
+          ? "min-h-[320px] sm:min-h-[340px]"
+          : "min-h-[290px] sm:min-h-[310px]",
         isBreaking && "scale-[1.02]",
         className,
       )}
@@ -107,11 +153,12 @@ export function WaxSealUnboxing({
         className={cn(
           "group relative z-20 flex size-[72px] cursor-pointer items-center justify-center rounded-full transition-transform duration-300 sm:size-20",
           "outline-none hover:scale-105 focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 active:scale-95",
+          isShaking && "animate-wax-shake",
         )}
         type="button"
         disabled={isBreaking}
-        aria-label={isSent ? "편지 열기" : "편지 봉인 해제하기"}
-        onClick={handleBreakSeal}
+        aria-label={isSent ? "편지 열기" : "봉인된 실링 왁스"}
+        onClick={handleSealClick}
       >
         {/* Breaking seal fragments */}
         {isBreaking ? (
@@ -164,20 +211,38 @@ export function WaxSealUnboxing({
         )}
       </button>
 
-      {/* Bottom area: Instruction label & cancel button */}
+      {/* Bottom area: Instruction label & action buttons */}
       <div className="z-10 flex flex-col items-center gap-1.5 pb-2">
-        <p className="text-caption text-meta transition-opacity duration-300">
-          {isBreaking
-            ? isSent
-              ? "편지를 펼치고 있어요..."
-              : "봉인을 해제하고 있어요..."
-            : isSent
-              ? "실링 왁스를 터치하여 편지 읽기"
-              : "실링 왁스를 터치하여 봉인 해제"}
-        </p>
+        {isSent ? (
+          <p className="text-caption text-meta transition-opacity duration-300">
+            {isBreaking ? "편지를 펼치고 있어요..." : "실링 왁스를 터치하여 편지 읽기"}
+          </p>
+        ) : (
+          <div className="flex flex-col items-center gap-0.5 text-center">
+            <p className="text-caption font-medium text-meta">
+              {scheduledDateStr
+                ? `${scheduledDateStr} 개봉 가능`
+                : "개봉 예정 시각에 왁스를 풀 수 있어요"}
+              {dDayStr && <span className="ml-1 text-primary">({dDayStr})</span>}
+            </p>
+            <p className="text-[11px] text-meta-soft">
+              개봉 시각까지 안전하게 봉인 보관 중이에요 ⏳
+            </p>
+          </div>
+        )}
 
-        {(onEdit || onCancel) && (
-          <div className="flex items-center gap-2">
+        {(onPreview || onEdit || onCancel) && (
+          <div className="flex items-center gap-2 pt-0.5">
+            {onPreview && (
+              <button
+                className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-caption text-ink transition-colors hover:bg-surface-soft active:bg-surface-strong"
+                type="button"
+                onClick={onPreview}
+              >
+                <Eye className="size-3.5" />
+                <span>편지 미리보기</span>
+              </button>
+            )}
             {onEdit && (
               <button
                 className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-caption text-ink transition-colors hover:bg-surface-soft active:bg-surface-strong"
