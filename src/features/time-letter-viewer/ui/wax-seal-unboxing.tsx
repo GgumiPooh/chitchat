@@ -80,7 +80,7 @@ export function WaxSealUnboxing({
 
         {/* Letter preview peek */}
         {title && (
-          <div className="z-10 max-w-[85%] truncate text-center text-title-sm font-semibold tracking-tight">
+          <div className="z-10 line-clamp-2 max-w-[85%] text-center text-title-sm font-semibold tracking-tight">
             &ldquo;{title}&rdquo;
           </div>
         )}

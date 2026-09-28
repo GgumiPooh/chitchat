@@ -34,14 +34,17 @@ export function TimeLetterCard({
     senderLabel = `${letter.senderName ?? "상대방"}님이 보냄`;
   }
 
+  const hasTitle = Boolean(letter.title?.trim());
   const titleText = isTeaser
     ? "비밀 편지 🔒"
-    : letter.title || (letter.content ? letter.content.slice(0, 30) : "제목 없는 편지");
+    : hasTitle
+      ? letter.title!
+      : letter.content || "제목 없는 편지";
 
   const previewText = isTeaser
     ? "개봉일까지 내용과 사진이 비밀로 유지돼요"
-    : letter.content
-      ? letter.content.slice(0, 70)
+    : hasTitle
+      ? letter.content || ""
       : "";
 
   return (
@@ -83,7 +86,7 @@ export function TimeLetterCard({
 
       <h3
         className={cn(
-          "line-clamp-1 text-body-md font-semibold transition-colors",
+          "line-clamp-2 text-body-md font-semibold transition-colors",
           isSelected ? "text-primary" : "text-ink",
         )}
       >
