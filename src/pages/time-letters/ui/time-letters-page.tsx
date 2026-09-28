@@ -505,8 +505,8 @@ export function TimeLettersPage({
                   </div>
                 ) : (
                   <div className="flex flex-col gap-md">
-                    {/* Addressee (To. ...) */}
-                    <div className="pt-xs">
+                    {/* Addressee (To. ...) & Stationery Watermark */}
+                    <div className="flex items-center justify-between pt-xs">
                       <span
                         className={cn(
                           "text-title-lg font-bold tracking-tight",
@@ -514,6 +514,9 @@ export function TimeLettersPage({
                         )}
                       >
                         {selectedToLabel}
+                      </span>
+                      <span className="font-mono text-caption tracking-widest uppercase opacity-60">
+                        Time Letter
                       </span>
                     </div>
 

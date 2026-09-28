@@ -21,10 +21,13 @@ export type TimeLetterViewerSheetProps = {
 };
 
 const LETTER_THEME_STYLES: Record<string, string> = {
-  classic: "bg-canvas border-hairline-strong text-ink",
-  romantic: "bg-primary-tint/35 border-primary/25 text-ink",
-  midnight: "bg-surface-soft-private border-hairline/20 text-bubble-private-ink",
-  kraft: "bg-surface-soft border-hairline-strong text-ink",
+  classic: "bg-canvas border-2 border-hairline-strong text-ink shadow-2xl ring-1 ring-hairline/60",
+  romantic:
+    "bg-primary-tint/35 border-2 border-primary/25 text-ink shadow-2xl ring-1 ring-primary/20",
+  midnight:
+    "bg-surface-soft-private border-2 border-hairline/25 text-bubble-private-ink shadow-2xl ring-1 ring-hairline/25",
+  kraft:
+    "bg-surface-soft border-2 border-hairline-strong text-ink shadow-2xl ring-1 ring-hairline/80",
 };
 
 export function TimeLetterViewerSheet({
@@ -38,18 +41,31 @@ export function TimeLetterViewerSheet({
   onReply,
   onCancel,
 }: TimeLetterViewerSheetProps) {
-  const [isUnsealed, setIsUnsealed] = useState<boolean>(false);
+  const isSent = letter.status === "sent";
+  const [isUnsealed, setIsUnsealed] = useState<boolean>(isSent);
   const [activeMediaIndex, setActiveMediaIndex] = useState<Nullable<number>>(null);
+
+  const [prevOpenState, setPrevOpenState] = useState<{ isOpen: boolean; letterId: string }>({
+    isOpen,
+    letterId: letter.id,
+  });
+
+  if (prevOpenState.isOpen !== isOpen || prevOpenState.letterId !== letter.id) {
+    setPrevOpenState({ isOpen, letterId: letter.id });
+    if (isOpen) {
+      setIsUnsealed(letter.status === "sent");
+    }
+  }
 
   useEffect(() => {
     if (!isOpen) {
       const timer = setTimeout(() => {
-        setIsUnsealed(false);
+        setIsUnsealed(letter.status === "sent");
         setActiveMediaIndex(null);
       }, 300);
       return () => clearTimeout(timer);
     }
-  }, [isOpen]);
+  }, [isOpen, letter.status]);
 
   const themeStyle = THEME_STYLES[letter.theme] ?? THEME_STYLES.classic;
 
@@ -91,7 +107,6 @@ export function TimeLetterViewerSheet({
 
   const writtenDateFullStr = `${formatDate(createdDate)} ${formatTime(createdDate)}`;
 
-  const isSent = letter.status === "sent";
   const arrivalLabel = isSent ? "도착한 시각" : "도착 예정 시각";
   const targetDate = useMemo(
     () => (isSent ? arrivalDate : new Date(letter.scheduledAt)),
@@ -149,6 +164,7 @@ export function TimeLetterViewerSheet({
           <WaxSealUnboxing
             theme={letter.theme}
             title={letter.title}
+            isSent={isSent}
             onUnsealed={() => setIsUnsealed(true)}
           />
 
@@ -171,7 +187,7 @@ export function TimeLetterViewerSheet({
       {/* 2. Unfolded letter paper centered modal (앞면 - 편지모양) */}
       <Modal
         className={cn(
-          "overflow-hidden rounded-2xl border transition-colors duration-300",
+          "overflow-hidden rounded-2xl border-2 transition-colors duration-300",
           LETTER_THEME_STYLES[letter.theme] ?? "",
           className,
         )}
@@ -187,17 +203,20 @@ export function TimeLetterViewerSheet({
               onClick={() => setIsUnsealed(false)}
             >
               <RotateCcw className="size-3.5" aria-hidden />
-              <span>봉인 다시 보기</span>
+              <span>{isSent ? "봉투 보기" : "봉인 다시 보기"}</span>
             </button>
           ),
         }}
         onClose={onClose}
       >
         <div className="animate-in space-y-md pt-xs pb-md duration-500 fade-in-50">
-          {/* 1. Addressee (To. ...) */}
-          <div className="pt-xs">
+          {/* 1. Addressee (To. ...) & Stationery Watermark */}
+          <div className="flex items-center justify-between pt-xs">
             <span className={cn("text-title-lg font-bold tracking-tight", themeStyle.title)}>
               {toLabel}
+            </span>
+            <span className="font-mono text-caption tracking-widest uppercase opacity-60">
+              Time Letter
             </span>
           </div>
 

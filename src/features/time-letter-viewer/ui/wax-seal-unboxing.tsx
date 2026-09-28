@@ -9,6 +9,7 @@ export type WaxSealUnboxingProps = {
   className?: string;
   theme?: TimeLetterTheme;
   title?: string | null;
+  isSent?: boolean;
   onUnsealed: () => void;
 };
 
@@ -16,6 +17,7 @@ export function WaxSealUnboxing({
   className,
   theme = "classic",
   title,
+  isSent = false,
   onUnsealed,
 }: WaxSealUnboxingProps) {
   const [isBreaking, setIsBreaking] = useState<boolean>(false);
@@ -75,7 +77,7 @@ export function WaxSealUnboxing({
         {/* Top header on envelope */}
         <div className="z-10 flex items-center gap-1.5 text-caption text-meta">
           <Sparkles className="size-3.5 text-primary" aria-hidden />
-          <span>전송된 타임머신 편지</span>
+          <span>{isSent ? "도착한 타임머신 편지" : "전송된 타임머신 편지"}</span>
         </div>
 
         {/* Letter preview peek */}
@@ -93,7 +95,7 @@ export function WaxSealUnboxing({
           )}
           type="button"
           disabled={isBreaking}
-          aria-label="편지 봉인 해제하기"
+          aria-label={isSent ? "편지 열기" : "편지 봉인 해제하기"}
           onClick={handleBreakSeal}
         >
           {/* Breaking seal fragments */}
@@ -149,7 +151,13 @@ export function WaxSealUnboxing({
 
         {/* Instruction label */}
         <p className="z-10 text-caption text-meta transition-opacity duration-300">
-          {isBreaking ? "봉인을 해제하고 있어요..." : "실링 왁스를 터치하여 봉인 해제"}
+          {isBreaking
+            ? isSent
+              ? "편지를 펼치고 있어요..."
+              : "봉인을 해제하고 있어요..."
+            : isSent
+              ? "실링 왁스를 터치하여 편지 읽기"
+              : "실링 왁스를 터치하여 봉인 해제"}
         </p>
       </div>
     </div>
