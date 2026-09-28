@@ -46,7 +46,7 @@ export const THEME_STYLES: Record<TimeLetterTheme, ThemeStyles> = {
   },
   romantic: {
     parchment: "bg-primary-tint/35 border border-primary/25 text-ink shadow-sm",
-    headerBadge: "bg-primary-tint/70 text-primary border border-primary/30",
+    headerBadge: "bg-canvas/80 text-primary border border-primary/30",
     title: "text-ink",
     body: "text-body",
     dateStamp: "text-primary/70",
@@ -57,11 +57,12 @@ export const THEME_STYLES: Record<TimeLetterTheme, ThemeStyles> = {
   },
   midnight: {
     parchment:
-      "bg-surface-soft-private border border-hairline/20 text-bubble-private-ink shadow-sm",
-    headerBadge: "bg-surface-soft-private/90 text-bubble-private-ink/80 border border-hairline/25",
-    title: "text-bubble-private-ink",
-    body: "text-bubble-private-ink/90",
-    dateStamp: "text-bubble-private-ink/60",
+      "bg-parchment-midnight border border-hairline/20 text-parchment-midnight-ink shadow-sm",
+    headerBadge:
+      "bg-parchment-midnight-card text-parchment-midnight-ink/85 border border-hairline/25",
+    title: "text-parchment-midnight-ink",
+    body: "text-parchment-midnight-ink/90",
+    dateStamp: "text-parchment-midnight-ink/60",
     divider: "border-hairline/15",
     waxSeal: "bg-primary text-on-primary",
     waxSealShadow: "shadow-md shadow-ink/40",
@@ -69,7 +70,7 @@ export const THEME_STYLES: Record<TimeLetterTheme, ThemeStyles> = {
   },
   kraft: {
     parchment: "bg-surface-soft border border-hairline-strong text-ink shadow-sm",
-    headerBadge: "bg-surface-soft-private/50 text-body border border-hairline",
+    headerBadge: "bg-surface-strong/70 text-ink border border-hairline-strong",
     title: "text-ink",
     body: "text-body",
     dateStamp: "text-meta",

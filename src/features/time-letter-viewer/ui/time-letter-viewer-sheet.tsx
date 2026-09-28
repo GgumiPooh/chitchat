@@ -24,7 +24,7 @@ const LETTER_THEME_STYLES: Record<string, string> = {
   classic: "bg-canvas border-2 border-hairline-strong text-ink shadow-2xl ring-1 ring-hairline/60",
   romantic: "bg-primary-tint border-2 border-primary/30 text-ink shadow-2xl ring-1 ring-primary/20",
   midnight:
-    "bg-surface-soft-private border-2 border-hairline/25 text-bubble-private-ink shadow-2xl ring-1 ring-hairline/25",
+    "bg-parchment-midnight border-2 border-hairline/25 text-parchment-midnight-ink shadow-2xl ring-1 ring-hairline/25",
   kraft:
     "bg-surface-soft border-2 border-hairline-strong text-ink shadow-2xl ring-1 ring-hairline/80",
 };

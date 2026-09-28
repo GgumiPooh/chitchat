@@ -581,7 +581,7 @@ export function TimeLettersPage({
                         {formatTime(selectedLetter.scheduledAt)}에 대화방으로 배달돼요.
                       </p>
                     </div>
-                    <div className="bg-surface rounded-xl border border-hairline p-md text-caption text-meta">
+                    <div className="rounded-xl border border-hairline bg-surface-soft p-md text-caption text-meta">
                       개봉일까지 본문과 사진은 안전하게 암호화 및 봉인 처리되어 보호돼요.
                     </div>
                   </div>

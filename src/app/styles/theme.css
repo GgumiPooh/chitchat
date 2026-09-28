@@ -21,6 +21,11 @@
   /* WARN: A token of its own because no single existing one answers it on both themes: the ladder ascends towards light on one and towards dark on the other, so the lift is `canvas` here and `surface-strong` under `.dark`. Reaching for either by name is right on one theme and inverted on the other. */
   --color-surface-raised: #fbf9f6;
 
+  /* INFO: DESIGN.md § 7.22. Time Machine Letter — midnight parchment stationery tokens */
+  --color-parchment-midnight: #1e1a15;
+  --color-parchment-midnight-card: #27221c;
+  --color-parchment-midnight-ink: #f2ede4;
+
   /* INFO: Lines and text — DESIGN.md § 4.1.2. */
   --color-hairline: #e6e0d6;
   --color-hairline-soft: #f0ebe3;
@@ -460,6 +465,11 @@
   --color-surface-soft-private: #f4f0e9;
   /* INFO: DESIGN.md § 5.3. Re-derived, not the light value reused: elevation on dark is the surface ladder alone (`shadow-raised` is neutralised below), so the lift has to be a step **up** the dark ladder rather than back down to `canvas`. */
   --color-surface-raised: #2a251e;
+
+  /* INFO: DESIGN.md § 7.22. Midnight parchment stays deep night on dark canvas, re-derived deeper than canvas. */
+  --color-parchment-midnight: #100e0b;
+  --color-parchment-midnight-card: #1c1813;
+  --color-parchment-midnight-ink: #f2ede4;
 
   /* INFO: DESIGN.md § 4.1.2. */
   --color-hairline: #2e2820;

@@ -65,8 +65,8 @@ export function TimeLetterCard({
         "group flex w-full cursor-pointer flex-col gap-xs rounded-xl border p-md text-left transition-all outline-none",
         "focus-visible:ring-2 focus-visible:ring-primary",
         isSelected
-          ? "border-primary bg-primary-tint/30 dark:bg-primary-tint/20"
-          : "bg-surface border-hairline hover:border-hairline-strong hover:bg-surface-soft active:bg-surface-strong",
+          ? "border-primary bg-primary-tint/30"
+          : "border-hairline bg-canvas hover:border-hairline-strong hover:bg-surface-soft active:bg-surface-strong",
         className,
       )}
       tabIndex={isSelected ? 0 : -1}

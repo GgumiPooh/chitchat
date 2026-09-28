@@ -104,7 +104,8 @@ export function WaxSealStamp({
         <div
           className={cn(
             "relative flex h-48 w-72 flex-col items-center justify-center overflow-hidden rounded-lg border border-hairline-strong bg-surface-soft p-md shadow-2xl transition-all duration-700 ease-out",
-            theme === "midnight" && "border-hairline/25 bg-surface-soft-private",
+            theme === "midnight" &&
+              "border-hairline/25 bg-parchment-midnight text-parchment-midnight-ink",
             theme === "romantic" && "border-primary/30 bg-primary-tint/50",
             theme === "kraft" && "border-hairline-strong bg-surface-strong/80",
             activeStep === "folding" && "scale-95 rotate-x-12",
