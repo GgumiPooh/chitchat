@@ -147,7 +147,7 @@ export function MediaGrid({
         {/* WARN: REQUIREMENTS.md § 8.3. The ratio is what reserves the row's height before the asset loads; without it every image that arrives re-measures the list and jolts the scroll. */}
         <span
           className={cn(
-            "relative block w-full rounded-md",
+            "relative block w-full rounded-md bg-surface-soft",
             !isOnlyMe && "ring-1 ring-hairline ring-inset",
           )}
           style={{ aspectRatio: toCellRatio(cell) }}
@@ -192,7 +192,7 @@ export function MediaGrid({
             <button
               key={cell.id}
               className={cn(
-                "relative aspect-square cursor-pointer overflow-hidden rounded-sm outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+                "relative aspect-square cursor-pointer overflow-hidden rounded-sm bg-surface-soft outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
                 !isOnlyMe && "ring-1 ring-hairline ring-inset",
               )}
               type="button"
