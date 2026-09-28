@@ -17,7 +17,7 @@ export const TIME_LETTER_THEMES: readonly ThemeOption[] = [
   { id: "classic", label: "클래식", description: "따뜻하고 단정한 기본 양식" },
   { id: "romantic", label: "로맨틱", description: "설레는 마음을 담은 핑크빛 양식" },
   { id: "midnight", label: "미드나잇", description: "깊은 밤 차분하게 적어 내려간 양식" },
-  { id: "kraft", label: "크라프트", description: "빈티지하고 포근한 크라프트 양식" },
+  { id: "kraft", label: "빈티지", description: "빛바랜 종이처럼 따뜻하고 아날로그한 양식" },
 ] as const;
 
 export type ThemeStyles = {
