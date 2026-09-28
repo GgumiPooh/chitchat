@@ -532,7 +532,7 @@ export function TimeLetterComposeSheet({
         }}
         onClose={handleClose}
       >
-        <div className="space-y-xl pt-xs pb-xl">
+        <div className="space-y-lg pt-xs pb-xl">
           {/* Draft restore banner (create mode only) */}
           {!isEditMode && pendingDraft && (
             <div
@@ -564,39 +564,42 @@ export function TimeLetterComposeSheet({
             </div>
           )}
 
-          {/* 1. Recipient selection */}
-          <section className="space-y-xs">
-            <label className="text-caption text-meta">받는 사람</label>
-            <div className="flex flex-wrap gap-xs">
-              {RECIPIENT_OPTIONS.map((opt) => (
-                <Chip
-                  key={opt.mode}
-                  haptic
-                  isSelected={recipientMode === opt.mode}
-                  onClick={() => setRecipientMode(opt.mode)}
-                >
-                  {opt.mode === "partner" && partnerName ? `${partnerName}에게` : opt.label}
-                </Chip>
-              ))}
-            </div>
-          </section>
+          {/* 1 & 2. Metadata (Recipient & Theme) */}
+          <div className="space-y-md">
+            {/* 1. Recipient selection */}
+            <section className="space-y-xs">
+              <label className="text-caption text-meta">받는 사람</label>
+              <div className="flex flex-wrap gap-xs">
+                {RECIPIENT_OPTIONS.map((opt) => (
+                  <Chip
+                    key={opt.mode}
+                    haptic
+                    isSelected={recipientMode === opt.mode}
+                    onClick={() => setRecipientMode(opt.mode)}
+                  >
+                    {opt.mode === "partner" && partnerName ? `${partnerName}에게` : opt.label}
+                  </Chip>
+                ))}
+              </div>
+            </section>
 
-          {/* 2. Theme selector chips with haptic */}
-          <section className="space-y-xs">
-            <label className="text-caption text-meta">편지 테마</label>
-            <div className="flex flex-wrap gap-xs">
-              {TIME_LETTER_THEMES.map((item) => (
-                <Chip
-                  key={item.id}
-                  haptic
-                  isSelected={theme === item.id}
-                  onClick={() => setTheme(item.id)}
-                >
-                  {item.label}
-                </Chip>
-              ))}
-            </div>
-          </section>
+            {/* 2. Theme selector chips with haptic */}
+            <section className="space-y-xs">
+              <label className="text-caption text-meta">편지 테마</label>
+              <div className="flex flex-wrap gap-xs">
+                {TIME_LETTER_THEMES.map((item) => (
+                  <Chip
+                    key={item.id}
+                    haptic
+                    isSelected={theme === item.id}
+                    onClick={() => setTheme(item.id)}
+                  >
+                    {item.label}
+                  </Chip>
+                ))}
+              </div>
+            </section>
+          </div>
 
           {/* 3. Title (optional) & Content textarea (required) */}
           <section className="space-y-xs">
