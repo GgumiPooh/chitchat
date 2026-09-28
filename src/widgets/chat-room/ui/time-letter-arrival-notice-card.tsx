@@ -133,7 +133,7 @@ export function TimeLetterArrivalNoticeCard({
         <div className="flex max-w-full items-end gap-2xs">
           <Link
             className={cn(
-              "group relative flex w-full max-w-[340px] cursor-pointer flex-col overflow-hidden rounded-2xl border p-md text-left transition-all outline-none",
+              "group relative flex max-w-[340px] min-w-0 cursor-pointer flex-col overflow-hidden rounded-2xl border p-md text-left transition-all outline-none",
               "shadow-card border-primary/30 bg-canvas",
               "hover:border-primary/50 hover:shadow-floating active:scale-[0.99]",
               "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2",
@@ -187,7 +187,7 @@ export function TimeLetterArrivalNoticeCard({
           </Link>
 
           {/* Time beside bubble */}
-          <div className="flex flex-col items-start pb-0.5 text-chat-time text-meta select-none">
+          <div className="flex shrink-0 flex-col items-start pb-0.5 text-chat-time whitespace-nowrap text-chat-meta select-none [[data-wallpaper]_&]:on-wallpaper">
             <time dateTime={message.createdAt}>{timeString}</time>
           </div>
         </div>
