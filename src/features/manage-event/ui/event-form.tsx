@@ -231,7 +231,7 @@ function DateTimeRow({
       />
       {!isTimeHidden && (
         <Input
-          className="w-32"
+          className="w-36 shrink-0 px-3"
           type="time"
           value={time}
           onChange={(event) => onTimeChange(event.target.value)}
