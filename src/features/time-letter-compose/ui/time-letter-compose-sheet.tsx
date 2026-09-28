@@ -116,6 +116,7 @@ export function TimeLetterComposeSheet({
   }, [
     isOpen,
     isSealing,
+    isSubmitting,
     title,
     content,
     theme,
@@ -286,8 +287,11 @@ export function TimeLetterComposeSheet({
     <>
       <BottomSheet
         className={className}
-        header={{ title: "타임머신 편지 쓰기" }}
         isOpen={isOpen}
+        header={{
+          title: "타임머신 편지 쓰기",
+          isHidden: true,
+        }}
         onClose={handleClose}
       >
         <div className="space-y-xl pt-xs pb-xl">
