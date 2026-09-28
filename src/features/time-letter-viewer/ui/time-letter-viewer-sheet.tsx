@@ -2,7 +2,7 @@
 
 import type { TimeLetter } from "@/entities/time-letter";
 import { THEME_STYLES } from "@/shared/config";
-import { cn, formatDate, formatTime, type Nullable } from "@/shared/lib";
+import { cn, formatDate, formatTime, toDayKey, type Nullable } from "@/shared/lib";
 import { BottomSheet, Button, MediaViewer, type MediaCell } from "@/shared/ui";
 import { Calendar, RotateCcw, Trash2, Video } from "lucide-react";
 import { useMemo, useState } from "react";
@@ -38,8 +38,18 @@ export function TimeLetterViewerSheet({
   const formattedName = targetName.endsWith("님") ? targetName : `${targetName}님`;
   const replyButtonLabel = `${formattedName}에게 답장 보내기`;
 
-  const createdDateStr = formatDate(letter.createdAt ?? letter.scheduledAt);
-  const scheduledDateStr = `${formatDate(letter.scheduledAt)} ${formatTime(letter.scheduledAt)}`;
+  const createdDate = letter.createdAt ? new Date(letter.createdAt) : new Date(letter.scheduledAt);
+  const arrivalDate = letter.sentAt ? new Date(letter.sentAt) : new Date(letter.scheduledAt);
+  const isCreatedToday = toDayKey(createdDate) === toDayKey(new Date());
+
+  const createdDateStr = isCreatedToday
+    ? `${formatDate(createdDate)} ${formatTime(createdDate)}`
+    : formatDate(createdDate);
+
+  const isSent = letter.status === "sent";
+  const arrivalLabel = isSent ? "도착" : "도착 예정";
+  const targetDate = isSent ? arrivalDate : new Date(letter.scheduledAt);
+  const targetDateStr = `${formatDate(targetDate)} ${formatTime(targetDate)}`;
 
   // Convert letter.media to MediaCell for MediaViewer
   const mediaCells: MediaCell[] = useMemo(() => {
@@ -163,7 +173,9 @@ export function TimeLetterViewerSheet({
                   )}
                 >
                   <Calendar className="size-3.5" aria-hidden />
-                  <span>개봉: {scheduledDateStr}</span>
+                  <span>
+                    {arrivalLabel}: {targetDateStr}
+                  </span>
                 </div>
 
                 <hr className={cn("border-t", themeStyle.divider)} />

@@ -4,6 +4,7 @@ import type { ChatMessage } from "@/entities/message";
 import { TIME_LETTERS_ROUTE } from "@/shared/config";
 import {
   cn,
+  formatDate,
   formatTime,
   idToDate,
   LONG_PRESS_TARGET_CLASS,
@@ -67,26 +68,42 @@ export function TimeLetterArrivalNoticeCard({
   const href = letterId ? `${TIME_LETTERS_ROUTE}?id=${letterId}` : TIME_LETTERS_ROUTE;
 
   const writtenDate = letterId ? idToDate(letterId) : new Date(message.createdAt);
-  const writtenDateStr = `${toDayKey(writtenDate).replace(/-/g, ".")} 작성`;
+  const arrivalDate = new Date(message.createdAt);
   const timeString = formatTime(message.createdAt);
   const hasTitle = Boolean(title.trim());
 
-  const daysDiff = Math.max(
-    0,
-    Math.floor(
-      (new Date(message.createdAt).getTime() - writtenDate.getTime()) / (1000 * 60 * 60 * 24),
-    ),
-  );
+  const diffMs = Math.max(0, arrivalDate.getTime() - writtenDate.getTime());
+  const diffMinutes = Math.floor(diffMs / (1000 * 60));
+  const diffHours = Math.floor(diffMs / (1000 * 60 * 60));
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const isSameDay = toDayKey(writtenDate) === toDayKey(arrivalDate);
+
+  let writtenDateStr = "";
+  if (diffMinutes < 1) {
+    writtenDateStr = "방금 전 작성";
+  } else if (diffMinutes < 60) {
+    writtenDateStr = `${diffMinutes}분 전 작성`;
+  } else if (isSameDay) {
+    writtenDateStr = `${diffHours}시간 전 작성`;
+  } else {
+    writtenDateStr = `${toDayKey(writtenDate).replace(/-/g, ".")} 작성`;
+  }
 
   let elapsedText = "";
-  if (daysDiff >= 365) {
-    const years = Math.floor(daysDiff / 365);
-    elapsedText = `${years}년 전 `;
-  } else if (daysDiff >= 30) {
-    const months = Math.floor(daysDiff / 30);
+  if (diffMinutes < 1) {
+    elapsedText = "방금 전 ";
+  } else if (diffMinutes < 60) {
+    elapsedText = `${diffMinutes}분 전 `;
+  } else if (diffHours < 24) {
+    elapsedText = `${diffHours}시간 전 `;
+  } else if (diffDays < 30) {
+    elapsedText = `${diffDays}일 전 `;
+  } else if (diffDays < 365) {
+    const months = Math.floor(diffDays / 30);
     elapsedText = `${months}개월 전 `;
-  } else if (daysDiff > 0) {
-    elapsedText = `${daysDiff}일 전 `;
+  } else {
+    const years = Math.floor(diffDays / 365);
+    elapsedText = `${years}년 전 `;
   }
 
   const formattedSender = senderName.endsWith("님") ? senderName : `${senderName}님`;
@@ -150,7 +167,10 @@ export function TimeLetterArrivalNoticeCard({
                 <Sparkles className="size-3 text-primary" aria-hidden />
                 <span>타임머신 도착</span>
               </span>
-              <span className="shrink-0 text-caption font-medium whitespace-nowrap text-meta">
+              <span
+                className="shrink-0 text-caption font-medium whitespace-nowrap text-meta"
+                title={`${formatDate(writtenDate)} ${formatTime(writtenDate)} 작성`}
+              >
                 {writtenDateStr}
               </span>
             </div>

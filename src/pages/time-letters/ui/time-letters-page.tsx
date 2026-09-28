@@ -15,6 +15,7 @@ import {
   formatTime,
   isBareKey,
   isLetterKey,
+  toDayKey,
   useRovingTabIndex,
   useSidePanel,
   type Nullable,
@@ -394,7 +395,10 @@ export function TimeLettersPage({
                     <span>{isScheduled ? "봉인 보관 중" : "전송 완료"}</span>
                   </span>
                   <span className="text-caption text-meta">
-                    {formatDate(selectedLetter.createdAt)}에 묻어둠
+                    {formatDate(selectedLetter.createdAt)}
+                    {toDayKey(selectedLetter.createdAt) === toDayKey(new Date()) &&
+                      ` ${formatTime(selectedLetter.createdAt)}`}
+                    에 묻어둠
                   </span>
                 </div>
 
@@ -444,7 +448,7 @@ export function TimeLettersPage({
                       <div className="flex items-center gap-2 text-caption text-meta">
                         <Clock className="size-3.5" />
                         <span>
-                          {isScheduled ? "도착 예정: " : "전송 완료: "}
+                          {isScheduled ? "도착 예정: " : "도착: "}
                           {formatDate(
                             isScheduled
                               ? selectedLetter.scheduledAt
