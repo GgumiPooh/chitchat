@@ -37,13 +37,15 @@ export function SystemNotice({
   onOpenTimeLetter,
   onLongPress,
 }: SystemNoticeProps) {
-  const actor = sender?.name ?? "파트너";
+  const isMine = Boolean(currentUserId && message.senderId === currentUserId);
+  const fallbackActor = isMine ? "나" : "파트너";
+  const actor = sender?.name ?? fallbackActor;
 
   if (message.systemAction === "voca_completed") {
     return (
       <VocaCompletionNoticeCard
         className={className}
-        isMine={Boolean(currentUserId && message.senderId === currentUserId)}
+        isMine={isMine}
         isSelecting={isSelecting}
         message={message}
         senderName={actor}

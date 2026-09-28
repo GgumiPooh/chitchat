@@ -1076,8 +1076,10 @@ export function ChatRoom({
       readNotice: (message: ChatMessage) => {
         if (message.systemAction === "voca_completed") {
           const actor = participantById.get(message.senderId)?.name ?? "파트너";
-          const count = message.text ?? "0";
-          return `${actor}님이 영단어 ${count}개 학습을 마쳤어요! 👏`;
+          const baseName = actor.endsWith("님") && actor.length > 1 ? actor.slice(0, -1) : actor;
+          const subject =
+            baseName === "나" ? "내가" : `${baseName}님${josa.pick(`${baseName}님`, "이/가")}`;
+          return `${subject} 오늘 목표 단어 학습을 달성했어요! 👏`;
         }
 
         if (message.systemAction === "time_letter_delivered") {
@@ -4261,8 +4263,11 @@ export function ChatRoom({
 
       if (target.systemAction === "voca_completed") {
         const actor = participantById.get(target.senderId)?.name ?? "파트너";
+        const baseName = actor.endsWith("님") && actor.length > 1 ? actor.slice(0, -1) : actor;
+        const subject =
+          baseName === "나" ? "내가" : `${baseName}님${josa.pick(`${baseName}님`, "이/가")}`;
         const count = target.text ?? "0";
-        const fullNotice = `${actor}님이 영단어 ${count}개 학습을 마쳤어요! 👏`;
+        const fullNotice = `${subject} 오늘 영단어 ${count}개 완독을 달성했어요! 👏`;
 
         const vocaActions: ActionSheetItem[] = [
           {

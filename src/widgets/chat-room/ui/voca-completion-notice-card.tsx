@@ -10,6 +10,7 @@ import {
   type LongPressPoint,
 } from "@/shared/lib";
 import { HapticTarget, Link } from "@/shared/ui";
+import { josa } from "es-hangul";
 import { BookOpen, ChevronRight, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { MouseEvent } from "react";
@@ -39,8 +40,12 @@ export function VocaCompletionNoticeCard({
   const count = message.text ?? "0";
   const timeString = formatTime(message.createdAt);
 
-  const formattedSender = senderName.endsWith("님") ? senderName : `${senderName}님`;
-  const senderTitle = isMine ? "오늘의 단어 학습" : `${formattedSender}의 단어 학습`;
+  const baseName =
+    senderName.endsWith("님") && senderName.length > 1 ? senderName.slice(0, -1) : senderName;
+  const isSelf = baseName === "나";
+  const honorific = isSelf ? "나" : `${baseName}님`;
+  const senderTitle = isSelf ? "내가 완료한 단어 학습" : `${honorific}의 단어 학습`;
+  const subjectParticle = isSelf ? "가" : josa.pick(honorific, "이/가");
 
   const longPressHandlers = useLongPress(
     !isSelecting && onLongPress ? (point, element) => onLongPress(element, point) : undefined,
@@ -108,14 +113,10 @@ export function VocaCompletionNoticeCard({
             {/* Subtext Announcement & Title */}
             <div className="mt-sm flex flex-col gap-1">
               <p className="truncate text-caption text-meta">
-                {isMine ? (
-                  <span>오늘 목표 단어 학습을 달성했어요! 👏</span>
-                ) : (
-                  <>
-                    <span className="font-semibold text-ink">{senderName}</span>님이 단어 학습을
-                    마쳤어요!
-                  </>
-                )}
+                <span className="font-semibold text-ink">{isSelf ? "내가" : baseName}</span>
+                {isSelf
+                  ? " 오늘 목표 단어 학습을 달성했어요! 👏"
+                  : `님${subjectParticle} 오늘 목표 단어 학습을 달성했어요! 👏`}
               </p>
               <h4 className="line-clamp-2 text-body-md leading-snug font-bold tracking-tight text-ink">
                 {`오늘 영단어 ${count}개 완독 달성 🎉`}
