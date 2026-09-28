@@ -13,6 +13,7 @@ export type ModalProps = PropsWithChildren<{
     className?: string;
     title: string;
     description?: string;
+    isHidden?: boolean;
     /** A control that sits beside the close button — the only thing permitted in the corner (AGENTS.md § 2.4.). */
     action?: ReactNode;
   };
