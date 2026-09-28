@@ -70,6 +70,7 @@ export function useViewerTrack(
    * WARN: The generation cannot answer this. A withdrawal is not a reopen: bumping it would discard a page fetched for the track the reader is still holding, and `isLoadingRef` is only cleared for the generation that set it — so the edge that was mid-request would page no further for the rest of the open.
    */
   const droppedRef = useRef(new Set<MessageId>());
+  const droppedMediaRef = useRef(new Set<MediaId>());
 
   // INFO: Bumped rather than cleared, so anything already in flight for the previous open is discarded when it lands rather than having to be cancelled.
   const reset = useCallback(() => {
@@ -78,6 +79,7 @@ export function useViewerTrack(
     hasMoreRef.current = { older: false, newer: false };
     isLoadingRef.current = { older: false, newer: false };
     droppedRef.current = new Set();
+    droppedMediaRef.current = new Set();
     setHasHeldPage(false);
   }, []);
 
@@ -108,7 +110,7 @@ export function useViewerTrack(
         };
 
         // WARN: § 8.13. Filtered for the reason a page is: a withdrawal landing while this was in flight has already narrowed the track, and the window replaces it whole — so an unfiltered one puts those slides back and offers 메시지 삭제 over a message that is gone. `hasMoreRef` above stays keyed on what the conversation answered with, since a locally withdrawn row still says the side filled.
-        const rows = toSurvivingRows(track, droppedRef.current);
+        const rows = toSurvivingRows(track, droppedRef.current, droppedMediaRef.current);
         // WARN: `previous` is still tested, because `drop` can have closed the viewer without bumping the generation — the last slide of a withdrawn bubble leaves nothing to look at (§ 8.13.), and a window landing after that would put the overlay back up over the conversation.
         setViewer((previous) =>
           previous
@@ -190,7 +192,7 @@ export function useViewerTrack(
         hasMoreRef.current[edge] = page.length >= CHAT_MEDIA_TRACK_SPAN;
 
         // WARN: § 8.13. Filtered before it is held, because this request can have been issued before a withdrawal and answered after it — `drop` filters what is already held and cannot reach a page that is still in flight. Committed unexamined, those slides arrive back into the track and offer 메시지 삭제 over a message that is gone.
-        const rows = toSurvivingRows(page, droppedRef.current);
+        const rows = toSurvivingRows(page, droppedRef.current, droppedMediaRef.current);
 
         heldRef.current[edge] = rows;
 
@@ -263,8 +265,8 @@ export function useViewerTrack(
     droppedRef.current.add(messageId);
 
     const held: HeldPages = {
-      older: toSurvivingRows(heldRef.current.older, droppedRef.current),
-      newer: toSurvivingRows(heldRef.current.newer, droppedRef.current),
+      older: toSurvivingRows(heldRef.current.older, droppedRef.current, droppedMediaRef.current),
+      newer: toSurvivingRows(heldRef.current.newer, droppedRef.current, droppedMediaRef.current),
     };
 
     heldRef.current = held;
@@ -287,13 +289,44 @@ export function useViewerTrack(
     });
   }, []);
 
+  /**
+   * Drops specific media attachments from the track when individually deleted.
+   */
+  const dropMedia = useCallback((mediaIds: MediaId[]) => {
+    for (const id of mediaIds) {
+      droppedMediaRef.current.add(id);
+    }
+
+    const held: HeldPages = {
+      older: toSurvivingRows(heldRef.current.older, droppedRef.current, droppedMediaRef.current),
+      newer: toSurvivingRows(heldRef.current.newer, droppedRef.current, droppedMediaRef.current),
+    };
+
+    heldRef.current = held;
+    setHasHeldPage(held.older.length + held.newer.length > 0);
+    setViewer((previous) => {
+      if (!previous) {
+        return previous;
+      }
+
+      const droppedSet = new Set(mediaIds);
+      const cells = previous.cells.filter((cell) => !droppedSet.has(cell.id));
+
+      if (cells.length === previous.cells.length) {
+        return previous;
+      }
+
+      return cells.length === 0 ? null : { ...previous, cells };
+    });
+  }, []);
+
   // INFO: Assembled here rather than at the JSX, so `MediaViewer`'s requirement that both callbacks be memoized is met where they are written rather than remembered at the call site.
   const paging = useMemo(
     () => ({ hasHeldPage, onLoadEdge: loadEdge, onCommit: commit }),
     [hasHeldPage, loadEdge, commit],
   );
 
-  return { viewer, paging, open, close, drop };
+  return { viewer, paging, open, close, drop, dropMedia };
 }
 
 // INFO: A factory rather than a shared constant, because the two arrays are replaced wholesale and a shared literal would be one object every reset points back at.
@@ -304,6 +337,12 @@ function toEmptyPages(): HeldPages {
 // INFO: REQUIREMENTS.md § 8.13. Named rather than written out at each of the three sites, so the window, a page in flight and a page already held cannot come to disagree about what a withdrawal removed.
 // INFO: The finished restructure. A deleted attachment leaves the track on the same terms, and through the same function for the same reason — a page fetched before the delete can land after it, and § 4.3. is that there is nothing behind the slide to open.
 // WARN: It is only the **track** that narrows. The bubble keeps its tombstone (`MediaTombstone`); filtering there would rewrite what the other participant remembers seeing.
-function toSurvivingRows(rows: ChatTrackMedia[], dropped: Set<MessageId>): ChatTrackMedia[] {
-  return rows.filter((row) => !row.isDeleted && !dropped.has(row.messageId));
+function toSurvivingRows(
+  rows: ChatTrackMedia[],
+  dropped: Set<MessageId>,
+  droppedMedia: Set<MediaId>,
+): ChatTrackMedia[] {
+  return rows.filter(
+    (row) => !row.isDeleted && !dropped.has(row.messageId) && !droppedMedia.has(row.id),
+  );
 }

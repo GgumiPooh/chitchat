@@ -149,6 +149,7 @@ import {
   MarkdownBody,
   MediaViewer,
   Modal,
+  toDeletedMediaText,
   toast,
   type ActionSheetItem,
   type MediaCell,
@@ -192,6 +193,7 @@ import {
   type TransitionEvent,
 } from "react";
 import { flushSync } from "react-dom";
+import { requestMediaDeletion } from "../api/request-media-deletion";
 import { requestMessageCollapse } from "../api/request-message-collapse";
 import { requestMessageDeletion } from "../api/request-message-deletion";
 import { requestMessageEdit } from "../api/request-message-edit";
@@ -528,6 +530,10 @@ export function ChatRoom({
   // INFO: DESIGN.md § 6.8. The bubble a jump landed on, until its flash expires.
   const [highlightedId, setHighlightedId] = useState<Nullable<MessageId>>(null);
   const [confirmingDeleteId, setConfirmingDeleteId] = useState<Nullable<MessageId>>(null);
+  const [pendingDeleteMedia, setPendingDeleteMedia] =
+    useState<Nullable<{ noun: MediaNoun; id: MediaId }>>(null);
+  const [isConfirmingMediaDelete, setIsConfirmingMediaDelete] = useState(false);
+  const [isDeletingMedia, setIsDeletingMedia] = useState(false);
   // INFO: REQUIREMENTS.md § 8.1. The slide 원본 저장 was tapped on, and every attachment of its bubble — held together so the two buttons cannot disagree about which is which.
   // WARN: REQUIREMENTS.md § 10. The nouns are carried on the pending bundle rather than decided in the heading, because the description, both buttons and the toast all take them — hardcoded, they read 사진 over a bubble of videos.
   // WARN: REQUIREMENTS.md § 8.1. **Two** kinds, and they answer different questions: `kind` is the bundle's, for every sentence about 모두, and `slideNoun` is the tapped slide's, for the one control that saves it alone. One noun served both until a mixed bubble (§ 6.) showed it offering to save 동영상 and saving the photos with it.
@@ -2540,6 +2546,34 @@ export function ChatRoom({
             취소
           </Button>
           <Button className="flex-1" variant="destructive" onClick={confirmMediaDelete}>
+            삭제
+          </Button>
+        </div>
+      </Modal>
+      <Modal
+        isOpen={isConfirmingMediaDelete}
+        header={{
+          title: `${josa(pendingDeleteMedia ? `이 ${toMediaLabel(pendingDeleteMedia.noun)}` : "이 사진", "을/를")} 삭제할까요?`,
+          // INFO: REQUIREMENTS.md § 18. #1. The tombstone's own copy, so the description states what will stand in its place.
+          description: `대화 말풍선에는 '${toDeletedMediaText(pendingDeleteMedia?.noun ?? "photo")}'만 남아요`,
+        }}
+        onClose={() => setIsConfirmingMediaDelete(false)}
+      >
+        <div className="flex gap-xs">
+          <Button
+            className="flex-1"
+            variant="secondary"
+            onClick={() => setIsConfirmingMediaDelete(false)}
+          >
+            취소
+          </Button>
+          <Button
+            className="flex-1"
+            variant="destructive"
+            disabled={isDeletingMedia}
+            haptic
+            onClick={() => void confirmSingleMediaDelete()}
+          >
             삭제
           </Button>
         </div>
@@ -4701,26 +4735,65 @@ export function ChatRoom({
   }
 
   /**
-   * DESIGN.md § 7.10. The control sits beside a per-slide 원본 저장, so the reach of
-   * one tap is not obvious from where it is — 메시지 is the label's whole job, and
-   * 보관함's viewer renders the same trash over a row-only delete.
+   * REQUIREMENTS.md § 18. #1. The viewer's 삭제 destroys the specific media object
+   * that was tapped, rather than withdrawing the entire message.
    *
    * WARN: REQUIREMENTS.md § 8.1. Resolved per slide, never once per open. The track
-   * crosses bubbles, so the reach of this trash changes with every swipe — and
-   * § 8.13. withdraws my own messages only, which is what `isAvailable` answers.
+   * crosses bubbles, so the reach changes with every swipe, and only my own media
+   * may be deleted from here.
    */
   function buildViewerDelete(owners: Map<MediaId, TrackOwner>) {
     return {
-      label: "메시지 삭제",
+      label: "삭제",
       isAvailable: (mediaId: MediaId) => owners.get(mediaId)?.senderId === currentUserId,
       onSelect: (mediaId: MediaId) => {
-        const messageId = owners.get(mediaId)?.messageId;
-
-        if (messageId !== undefined) {
-          setConfirmingDeleteId(messageId);
-        }
+        askToDeleteSlide(mediaId);
       },
     };
+  }
+
+  function askToDeleteSlide(mediaId: MediaId) {
+    const cell = mediaTrack.viewer?.cells.find((item) => item.id === mediaId);
+    const noun: MediaNoun = cell?.isVideo ? "video" : "photo";
+
+    setPendingDeleteMedia({ noun, id: mediaId });
+    setIsConfirmingMediaDelete(true);
+  }
+
+  async function confirmSingleMediaDelete() {
+    if (!pendingDeleteMedia) {
+      return;
+    }
+
+    const { noun, id: mediaId } = pendingDeleteMedia;
+    setIsConfirmingMediaDelete(false);
+    setIsDeletingMedia(true);
+
+    try {
+      const { deletedIds } = await requestMediaDeletion([mediaId]);
+
+      if (deletedIds.length === 0) {
+        return;
+      }
+
+      mediaTrack.dropMedia(deletedIds);
+
+      for (const m of messages) {
+        if (m.media.some((item) => deletedIds.includes(item.id))) {
+          const updatedMedia = m.media.map((item) =>
+            deletedIds.includes(item.id) ? { ...item, isDeleted: true } : item,
+          );
+          replaceMessage({
+            ...m,
+            media: updatedMedia,
+          });
+        }
+      }
+    } catch {
+      toast.error(`${josa(toMediaLabel(noun), "을/를")} 삭제하지 못했어요`);
+    } finally {
+      setIsDeletingMedia(false);
+    }
   }
 
   /**
@@ -4789,6 +4862,15 @@ export function ChatRoom({
    */
   function handleRemoteChange(message: ChatMessage) {
     replaceMessage(message);
+
+    const deletedMediaIds = message.media.filter((item) => item.isDeleted).map((item) => item.id);
+    if (deletedMediaIds.length > 0) {
+      mediaTrack.dropMedia(deletedMediaIds);
+
+      if (pendingDeleteMedia && deletedMediaIds.includes(pendingDeleteMedia.id)) {
+        setIsConfirmingMediaDelete(false);
+      }
+    }
 
     if (!message.isDeleted) {
       return;

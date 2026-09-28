@@ -1,7 +1,7 @@
 import type { MediaId, UserId } from "@/shared/lib";
 import "server-only";
 
-import { getDb, media } from "@/shared/db";
+import { getDb, media, MESSAGE_CHANGED_CHANNEL, messageMedia, notifyChannel } from "@/shared/db";
 import { and, inArray, isNull } from "drizzle-orm";
 import { isInLibrary } from "./list-archive-media";
 
@@ -51,5 +51,20 @@ export async function destroyArchiveMedia(
     .where(and(inArray(media.id, ids), isNull(media.deletedAt), isInLibrary(currentUserId)))
     .returning({ id: media.id });
 
-  return deleted.map((row) => row.id);
+  const deletedIds = deleted.map((row) => row.id);
+
+  if (deletedIds.length > 0) {
+    const carried = await getDb()
+      .select({ messageId: messageMedia.messageId })
+      .from(messageMedia)
+      .where(inArray(messageMedia.mediaId, deletedIds));
+
+    const messageIds = [...new Set(carried.map((row) => row.messageId))];
+
+    for (const messageId of messageIds) {
+      await notifyChannel(MESSAGE_CHANGED_CHANNEL, JSON.stringify({ id: messageId }));
+    }
+  }
+
+  return deletedIds;
 }
