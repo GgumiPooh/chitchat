@@ -563,7 +563,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
               {sheetArticle.title}
             </h2>
 
-            <div className="mt-lg" onClick={handleContentClick}>
+            <div className="mt-md" onClick={handleContentClick}>
               <MarkdownBody
                 className="space-y-xs text-body-md leading-relaxed text-body [&_strong]:font-semibold [&_strong]:text-ink"
                 text={sheetArticle.summary}
