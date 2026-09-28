@@ -187,6 +187,7 @@ export function TimeLetterViewerSheet({
           <WaxSealUnboxing
             title={letter.title}
             isSent={isSent}
+            writtenDateStr={writtenDateFullStr}
             onUnsealed={() => setIsUnsealed(true)}
             onClose={onClose}
             onCancel={canCancel ? onCancel : undefined}

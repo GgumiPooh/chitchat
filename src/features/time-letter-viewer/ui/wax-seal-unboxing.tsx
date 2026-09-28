@@ -8,6 +8,7 @@ export type WaxSealUnboxingProps = {
   className?: string;
   title?: string | null;
   isSent?: boolean;
+  writtenDateStr?: string;
   onUnsealed: () => void;
   onClose?: () => void;
   onCancel?: () => void;
@@ -17,6 +18,7 @@ export function WaxSealUnboxing({
   className,
   title,
   isSent = false,
+  writtenDateStr,
   onUnsealed,
   onClose,
   onCancel,
@@ -79,15 +81,19 @@ export function WaxSealUnboxing({
       )}
 
       {/* Top header on envelope */}
-      <div className="z-10 flex flex-col items-center gap-1 pt-1">
-        <div className="flex items-center gap-1.5 text-caption text-meta">
+      <div className="z-10 flex flex-col items-center gap-0.5 pt-1">
+        <div className="flex items-center gap-1.5 text-caption font-medium text-meta">
           <Sparkles className="size-3.5 text-primary" aria-hidden />
-          <span>{isSent ? "도착한 타임머신 편지" : "전송된 타임머신 편지"}</span>
+          <span>{isSent ? "과거에서 온 편지" : "미래로 보내는 편지"}</span>
         </div>
+
+        {writtenDateStr && (
+          <span className="text-chat-time text-meta/80">{writtenDateStr} 작성</span>
+        )}
 
         {/* Letter preview peek */}
         {title && (
-          <div className="line-clamp-1 max-w-[260px] text-center text-title-sm font-semibold tracking-tight text-ink">
+          <div className="mt-1 line-clamp-2 max-w-[290px] text-center text-title-sm font-semibold tracking-tight text-balance break-keep text-ink sm:max-w-[320px]">
             &ldquo;{title}&rdquo;
           </div>
         )}
