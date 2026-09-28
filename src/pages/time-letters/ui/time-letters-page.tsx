@@ -114,20 +114,37 @@ export function TimeLettersPage({
     return 0;
   });
 
-  const [isComposeOpen, setIsComposeOpen] = useState(false);
-  const [editingLetter, setEditingLetter] = useState<Nullable<TimeLetter>>(null);
+  const [composeSession, setComposeSession] = useState<{
+    isOpen: boolean;
+    letter: Nullable<TimeLetter>;
+    token: string;
+  }>({
+    isOpen: false,
+    letter: null,
+    token: "init",
+  });
   const [isMobileViewerOpen, setIsMobileViewerOpen] = useState(() => Boolean(initialLetterId));
   const [isCancelSheetOpen, setIsCancelSheetOpen] = useState(false);
   const [activeMediaIndex, setActiveMediaIndex] = useState<Nullable<number>>(null);
 
   const handleOpenCompose = useCallback(() => {
-    setEditingLetter(null);
-    setIsComposeOpen(true);
+    setComposeSession({
+      isOpen: true,
+      letter: null,
+      token: `create-${Date.now()}`,
+    });
   }, []);
 
   const handleStartEdit = useCallback((letter: TimeLetter) => {
-    setEditingLetter(letter);
-    setIsComposeOpen(true);
+    setComposeSession({
+      isOpen: true,
+      letter,
+      token: `edit-${letter.id}-${Date.now()}`,
+    });
+  }, []);
+
+  const handleCloseCompose = useCallback(() => {
+    setComposeSession((prev) => ({ ...prev, isOpen: false }));
   }, []);
 
   const effectiveIndex = letters.length > 0 && selectedIndex >= letters.length ? 0 : selectedIndex;
@@ -777,11 +794,12 @@ export function TimeLettersPage({
 
       {/* Compose Sheet (Create & Edit) */}
       <TimeLetterComposeSheet
-        initialLetter={editingLetter}
-        isOpen={isComposeOpen}
+        key={composeSession.token}
+        initialLetter={composeSession.letter}
+        isOpen={composeSession.isOpen}
         partnerName={partnerName}
         onSuccess={(letter) => {
-          if (editingLetter) {
+          if (composeSession.letter) {
             updateLetterOptimistic(letter);
           } else {
             addLetterOptimistic(letter);
@@ -789,10 +807,7 @@ export function TimeLettersPage({
           }
           void refresh();
         }}
-        onClose={() => {
-          setIsComposeOpen(false);
-          setEditingLetter(null);
-        }}
+        onClose={handleCloseCompose}
       />
 
       {/* Cancel Confirmation ActionSheet */}

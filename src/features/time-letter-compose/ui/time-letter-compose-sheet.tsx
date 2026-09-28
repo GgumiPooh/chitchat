@@ -45,21 +45,25 @@ const RECIPIENT_OPTIONS: readonly {
 
 type SaveStatus = "idle" | "saving" | "saved" | "error";
 
-type TimeLetterComposeFormProps = {
+export type TimeLetterComposeSheetProps = {
   className?: string;
+  isOpen: boolean;
   initialLetter?: Nullable<TimeLetter>;
   partnerName?: string;
   onClose: () => void;
   onSuccess?: (letter: TimeLetter) => void;
 };
 
-function TimeLetterComposeForm({
+// WARN: Seeded once at mount. The caller passes a key that changes per opening (EventFormSheet pattern).
+// This guarantees fresh initial state on open while keeping content mounted during the close animation.
+export function TimeLetterComposeSheet({
   className,
+  isOpen,
   initialLetter,
   partnerName = "상대방",
   onClose,
   onSuccess,
-}: TimeLetterComposeFormProps) {
+}: TimeLetterComposeSheetProps) {
   const isEditMode = Boolean(initialLetter);
   const [todayKey] = useState(() => toDayKey(Date.now()));
   const [initialDateTime] = useState(() => getDefaultScheduledDateTime());
@@ -512,390 +516,368 @@ function TimeLetterComposeForm({
     onClose();
   };
 
+  const handleClose = async () => {
+    if (isSubmitting) {
+      return;
+    }
+    if (isEditMode && autoSaveTimeoutRef.current) {
+      clearTimeout(autoSaveTimeoutRef.current);
+      await performAutoSave();
+    }
+    setIsSealing(false);
+    setIsSealCompleted(false);
+    onClose();
+  };
+
   return (
-    <div className={cn("space-y-xl pt-xs pb-xl", className)}>
-      {/* Header indicator in edit mode */}
-      {isEditMode && (
-        <div className="flex items-center justify-between border-b border-hairline/50 pb-sm">
-          <div className="flex items-center gap-2">
-            <span className="text-title-sm font-bold text-ink">타임머신 편지 수정</span>
-            {saveStatus === "saving" && (
-              <span className="flex items-center gap-1 text-caption text-meta">
-                <RotateCw className="size-3 animate-spin text-primary" aria-hidden />
-                <span>저장 중...</span>
-              </span>
-            )}
-            {saveStatus === "saved" && (
-              <span className="flex items-center gap-1 text-caption text-primary">
-                <Check className="size-3" aria-hidden />
-                <span>저장됨</span>
-              </span>
-            )}
-            {saveStatus === "error" && (
-              <span className="text-caption text-semantic-error">저장 실패</span>
-            )}
-          </div>
-          <Button
-            buttonClassName="min-h-8 px-sm py-1 text-button-sm"
-            haptic
-            variant="primary"
-            onClick={handleFinishEdit}
-          >
-            완료
-          </Button>
-        </div>
-      )}
-
-      {/* Draft restore banner (create mode only) */}
-      {!isEditMode && pendingDraft && (
-        <div
-          className="flex items-center justify-between gap-sm rounded-lg border border-hairline-strong bg-surface-soft p-sm"
-          role="status"
-        >
-          <div className="flex min-w-0 items-center gap-xs text-body-sm text-ink">
-            <History className="size-4 shrink-0 text-primary" aria-hidden />
-            <span className="truncate">이전에 작성 중이던 편지가 있어요</span>
-          </div>
-          <div className="flex shrink-0 items-center gap-xs">
-            <Button
-              buttonClassName="min-h-8 px-sm py-1 text-button-sm"
-              haptic
-              variant="primary"
-              onClick={handleRestoreDraft}
+    <>
+      <BottomSheet
+        className={className}
+        isOpen={isOpen}
+        header={{
+          title: isEditMode ? "타임머신 편지 수정" : "타임머신 편지 쓰기",
+          isHidden: true,
+        }}
+        onClose={handleClose}
+      >
+        <div className="space-y-xl pt-xs pb-xl">
+          {/* Draft restore banner (create mode only) */}
+          {!isEditMode && pendingDraft && (
+            <div
+              className="flex items-center justify-between gap-sm rounded-lg border border-hairline-strong bg-surface-soft p-sm"
+              role="status"
             >
-              불러오기
-            </Button>
-            <Button
-              buttonClassName="min-h-8 px-xs py-1 text-button-sm text-meta"
-              haptic
-              variant="ghost"
-              onClick={handleDiscardDraft}
-            >
-              삭제
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* 1. Recipient selection */}
-      <section className="space-y-xs">
-        <label className="text-caption text-meta">받는 사람</label>
-        <div className="flex flex-wrap gap-xs">
-          {RECIPIENT_OPTIONS.map((opt) => (
-            <Chip
-              key={opt.mode}
-              haptic
-              isSelected={recipientMode === opt.mode}
-              onClick={() => setRecipientMode(opt.mode)}
-            >
-              {opt.mode === "partner" && partnerName ? `${partnerName}에게` : opt.label}
-            </Chip>
-          ))}
-        </div>
-      </section>
-
-      {/* 2. Theme selector chips with haptic */}
-      <section className="space-y-xs">
-        <label className="text-caption text-meta">편지 테마</label>
-        <div className="flex flex-wrap gap-xs">
-          {TIME_LETTER_THEMES.map((item) => (
-            <Chip
-              key={item.id}
-              haptic
-              isSelected={theme === item.id}
-              onClick={() => setTheme(item.id)}
-            >
-              {item.label}
-            </Chip>
-          ))}
-        </div>
-      </section>
-
-      {/* 3. Title (optional) & Content textarea (required) */}
-      <section className="space-y-xs">
-        <div className="flex items-center justify-between">
-          <label className="text-caption text-meta">편지 내용</label>
-          <span className="font-mono text-caption tracking-widest uppercase opacity-60">
-            Time Letter
-          </span>
-        </div>
-        <div
-          className={cn(
-            "relative flex flex-col gap-sm rounded-xl p-md transition-all duration-300",
-            selectedThemeStyle.parchment,
+              <div className="flex min-w-0 items-center gap-xs text-body-sm text-ink">
+                <History className="size-4 shrink-0 text-primary" aria-hidden />
+                <span className="truncate">이전에 작성 중이던 편지가 있어요</span>
+              </div>
+              <div className="flex shrink-0 items-center gap-xs">
+                <Button
+                  buttonClassName="min-h-8 px-sm py-1 text-button-sm"
+                  haptic
+                  variant="primary"
+                  onClick={handleRestoreDraft}
+                >
+                  불러오기
+                </Button>
+                <Button
+                  buttonClassName="min-h-8 px-xs py-1 text-button-sm text-meta"
+                  haptic
+                  variant="ghost"
+                  onClick={handleDiscardDraft}
+                >
+                  삭제
+                </Button>
+              </div>
+            </div>
           )}
-        >
-          <Input
-            className={cn(
-              "border-0 bg-transparent px-0 text-title-md font-semibold tracking-tight shadow-none placeholder:opacity-50 focus-visible:ring-0",
-              selectedThemeStyle.title,
-            )}
-            maxLength={100}
-            placeholder="편지 제목 (선택)"
-            value={title}
-            onChange={(e) => setTitle(e.target.value)}
-          />
-          <div className="relative">
-            <Textarea
+
+          {/* 1. Recipient selection */}
+          <section className="space-y-xs">
+            <label className="text-caption text-meta">받는 사람</label>
+            <div className="flex flex-wrap gap-xs">
+              {RECIPIENT_OPTIONS.map((opt) => (
+                <Chip
+                  key={opt.mode}
+                  haptic
+                  isSelected={recipientMode === opt.mode}
+                  onClick={() => setRecipientMode(opt.mode)}
+                >
+                  {opt.mode === "partner" && partnerName ? `${partnerName}에게` : opt.label}
+                </Chip>
+              ))}
+            </div>
+          </section>
+
+          {/* 2. Theme selector chips with haptic */}
+          <section className="space-y-xs">
+            <label className="text-caption text-meta">편지 테마</label>
+            <div className="flex flex-wrap gap-xs">
+              {TIME_LETTER_THEMES.map((item) => (
+                <Chip
+                  key={item.id}
+                  haptic
+                  isSelected={theme === item.id}
+                  onClick={() => setTheme(item.id)}
+                >
+                  {item.label}
+                </Chip>
+              ))}
+            </div>
+          </section>
+
+          {/* 3. Title (optional) & Content textarea (required) */}
+          <section className="space-y-xs">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <label className="text-caption text-meta">편지 내용</label>
+                {isEditMode && saveStatus === "saving" && (
+                  <span className="flex items-center gap-1 text-[11px] text-meta">
+                    <RotateCw className="size-3 animate-spin text-primary" aria-hidden />
+                    <span>자동 저장 중...</span>
+                  </span>
+                )}
+                {isEditMode && saveStatus === "saved" && (
+                  <span className="flex items-center gap-1 text-[11px] text-primary">
+                    <Check className="size-3" aria-hidden />
+                    <span>저장됨</span>
+                  </span>
+                )}
+                {isEditMode && saveStatus === "error" && (
+                  <span className="text-[11px] text-semantic-error">저장 실패</span>
+                )}
+              </div>
+              <span className="font-mono text-caption tracking-widest uppercase opacity-60">
+                Time Letter
+              </span>
+            </div>
+            <div
               className={cn(
-                "min-h-48 resize-none border-0 bg-transparent px-0 py-xs text-body-md leading-relaxed shadow-none focus-visible:ring-0",
-                selectedThemeStyle.body,
+                "relative flex flex-col gap-sm rounded-xl p-md transition-all duration-300",
+                selectedThemeStyle.parchment,
               )}
-              maxLength={MAX_CONTENT_LENGTH}
-              placeholder="미래의 소중한 순간에 전해질 이야기를 적어보세요..."
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-            />
-            <div className={cn("mt-1 text-right text-caption", selectedThemeStyle.dateStamp)}>
-              {content.length.toLocaleString()} / {MAX_CONTENT_LENGTH.toLocaleString()}자
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* 4. Media uploader: Attach up to 10 photos/videos */}
-      <section className="space-y-xs">
-        <div className="flex items-center justify-between">
-          <label className="text-caption text-meta">
-            사진 / 동영상 첨부 ({totalMediaCount}/{MAX_MEDIA_COUNT})
-          </label>
-        </div>
-
-        <div className="flex flex-wrap gap-xs">
-          {/* Existing media previews */}
-          {existingMedia.map((item, index) => (
-            <div
-              key={item.id}
-              className="group relative size-18 shrink-0 overflow-hidden rounded-md border border-hairline bg-surface-soft"
             >
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img className="size-full object-cover" alt="첨부된 미디어" src={item.previewUrl} />
-
-              {item.isVideo && (
-                <div className="absolute bottom-1 left-1 rounded bg-scrim/70 px-1 py-0.5 text-[10px] text-on-scrim">
-                  동영상
-                </div>
-              )}
-
-              <button
-                className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-scrim/80 text-on-scrim transition-colors hover:bg-scrim"
-                type="button"
-                aria-label="미디어 삭제"
-                onClick={() => handleRemoveExistingMedia(index)}
-              >
-                <X className="size-3.5" />
-              </button>
-            </div>
-          ))}
-
-          {/* Draft media previews */}
-          {draftMedia.map((item, index) => (
-            <div
-              key={item.id}
-              className="group relative size-18 shrink-0 overflow-hidden rounded-md border border-hairline bg-surface-soft"
-            >
-              {item.previewUrl ? (
-                // eslint-disable-next-line @next/next/no-img-element
-                <img className="size-full object-cover" alt="첨부된 미디어" src={item.previewUrl} />
-              ) : (
-                <div className="flex size-full items-center justify-center text-meta">
-                  {item.durationMs ? (
-                    <Video className="size-5" />
-                  ) : (
-                    <ImagePlus className="size-5" />
+              <Input
+                className={cn(
+                  "border-0 bg-transparent px-0 text-title-md font-semibold tracking-tight shadow-none placeholder:opacity-50 focus-visible:ring-0",
+                  selectedThemeStyle.title,
+                )}
+                maxLength={100}
+                placeholder="편지 제목 (선택)"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
+              />
+              <div className="relative">
+                <Textarea
+                  className={cn(
+                    "min-h-48 resize-none border-0 bg-transparent px-0 py-xs text-body-md leading-relaxed shadow-none focus-visible:ring-0",
+                    selectedThemeStyle.body,
                   )}
+                  maxLength={MAX_CONTENT_LENGTH}
+                  placeholder="미래의 소중한 순간에 전해질 이야기를 적어보세요..."
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                />
+                <div className={cn("mt-1 text-right text-caption", selectedThemeStyle.dateStamp)}>
+                  {content.length.toLocaleString()} / {MAX_CONTENT_LENGTH.toLocaleString()}자
                 </div>
-              )}
-
-              {item.durationMs !== null && (
-                <div className="absolute bottom-1 left-1 rounded bg-scrim/70 px-1 py-0.5 text-[10px] text-on-scrim">
-                  동영상
-                </div>
-              )}
-
-              <button
-                className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-scrim/80 text-on-scrim transition-colors hover:bg-scrim"
-                type="button"
-                aria-label="미디어 삭제"
-                onClick={() => handleRemoveDraftMedia(index)}
-              >
-                <X className="size-3.5" />
-              </button>
+              </div>
             </div>
-          ))}
+          </section>
 
-          {/* Add media button */}
-          {totalMediaCount < MAX_MEDIA_COUNT && (
-            <button
-              className={cn(
-                "flex size-18 shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-hairline-strong bg-surface-soft/50 text-meta transition-colors hover:border-primary hover:text-primary disabled:opacity-50",
+          {/* 4. Media uploader: Attach up to 10 photos/videos */}
+          <section className="space-y-xs">
+            <div className="flex items-center justify-between">
+              <label className="text-caption text-meta">
+                사진 / 동영상 첨부 ({totalMediaCount}/{MAX_MEDIA_COUNT})
+              </label>
+            </div>
+
+            <div className="flex flex-wrap gap-xs">
+              {/* Existing media previews */}
+              {existingMedia.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="group relative size-18 shrink-0 overflow-hidden rounded-md border border-hairline bg-surface-soft"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    className="size-full object-cover"
+                    alt="첨부된 미디어"
+                    src={item.previewUrl}
+                  />
+
+                  {item.isVideo && (
+                    <div className="absolute bottom-1 left-1 rounded bg-scrim/70 px-1 py-0.5 text-[10px] text-on-scrim">
+                      동영상
+                    </div>
+                  )}
+
+                  <button
+                    className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-scrim/80 text-on-scrim transition-colors hover:bg-scrim"
+                    type="button"
+                    aria-label="미디어 삭제"
+                    onClick={() => handleRemoveExistingMedia(index)}
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+
+              {/* Draft media previews */}
+              {draftMedia.map((item, index) => (
+                <div
+                  key={item.id}
+                  className="group relative size-18 shrink-0 overflow-hidden rounded-md border border-hairline bg-surface-soft"
+                >
+                  {item.previewUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      className="size-full object-cover"
+                      alt="첨부된 미디어"
+                      src={item.previewUrl}
+                    />
+                  ) : (
+                    <div className="flex size-full items-center justify-center text-meta">
+                      {item.durationMs ? (
+                        <Video className="size-5" />
+                      ) : (
+                        <ImagePlus className="size-5" />
+                      )}
+                    </div>
+                  )}
+
+                  {item.durationMs !== null && (
+                    <div className="absolute bottom-1 left-1 rounded bg-scrim/70 px-1 py-0.5 text-[10px] text-on-scrim">
+                      동영상
+                    </div>
+                  )}
+
+                  <button
+                    className="absolute top-1 right-1 flex size-5 items-center justify-center rounded-full bg-scrim/80 text-on-scrim transition-colors hover:bg-scrim"
+                    type="button"
+                    aria-label="미디어 삭제"
+                    onClick={() => handleRemoveDraftMedia(index)}
+                  >
+                    <X className="size-3.5" />
+                  </button>
+                </div>
+              ))}
+
+              {/* Add media button */}
+              {totalMediaCount < MAX_MEDIA_COUNT && (
+                <button
+                  className={cn(
+                    "flex size-18 shrink-0 flex-col items-center justify-center gap-1 rounded-md border border-dashed border-hairline-strong bg-surface-soft/50 text-meta transition-colors hover:border-primary hover:text-primary disabled:opacity-50",
+                  )}
+                  disabled={isProcessingMedia}
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                >
+                  <ImagePlus className="size-5" />
+                  <span className="text-[11px]">추가</span>
+                </button>
               )}
-              disabled={isProcessingMedia}
-              type="button"
-              onClick={() => fileInputRef.current?.click()}
-            >
-              <ImagePlus className="size-5" />
-              <span className="text-[11px]">추가</span>
-            </button>
-          )}
-        </div>
+            </div>
 
-        {/* Hidden file input */}
-        <input
-          ref={fileInputRef}
-          className="hidden"
-          accept="image/*,video/*"
-          multiple
-          type="file"
-          onChange={handleFilesSelected}
-        />
-      </section>
+            {/* Hidden file input */}
+            <input
+              ref={fileInputRef}
+              className="hidden"
+              accept="image/*,video/*"
+              multiple
+              type="file"
+              onChange={handleFilesSelected}
+            />
+          </section>
 
-      {/* 5. Date selection */}
-      <section className="space-y-sm">
-        <div className="flex items-center justify-between">
-          <label className="text-caption text-meta">도착 일시</label>
-          {dateValidation.scheduledDate && dateValidation.isValid && (
-            <span className="text-caption text-primary">
-              {dateValidation.scheduledDate.toLocaleDateString("ko-KR", {
-                day: "numeric",
-                month: "long",
-                weekday: "short",
-              })}{" "}
-              {scheduledTime} 도착
-            </span>
-          )}
-        </div>
+          {/* 5. Date selection */}
+          <section className="space-y-sm">
+            <div className="flex items-center justify-between">
+              <label className="text-caption text-meta">도착 일시</label>
+              {dateValidation.scheduledDate && dateValidation.isValid && (
+                <span className="text-caption text-primary">
+                  {dateValidation.scheduledDate.toLocaleDateString("ko-KR", {
+                    day: "numeric",
+                    month: "long",
+                    weekday: "short",
+                  })}{" "}
+                  {scheduledTime} 도착
+                </span>
+              )}
+            </div>
 
-        {/* Presets */}
-        <div className="flex flex-wrap gap-xs">
-          {DATE_PRESETS.map((preset) => {
-            const isSelected = selectedPresetId === preset.id;
+            {/* Presets */}
+            <div className="flex flex-wrap gap-xs">
+              {DATE_PRESETS.map((preset) => {
+                const isSelected = selectedPresetId === preset.id;
 
-            return (
-              <Chip
-                key={preset.id}
-                haptic
-                isSelected={isSelected}
-                onClick={() => handleSelectPreset(preset)}
-              >
-                {preset.label}
+                return (
+                  <Chip
+                    key={preset.id}
+                    haptic
+                    isSelected={isSelected}
+                    onClick={() => handleSelectPreset(preset)}
+                  >
+                    {preset.label}
+                  </Chip>
+                );
+              })}
+              <Chip haptic isSelected={selectedPresetId === "custom"} onClick={handleSelectCustom}>
+                직접 설정
               </Chip>
-            );
-          })}
-          <Chip haptic isSelected={selectedPresetId === "custom"} onClick={handleSelectCustom}>
-            직접 설정
-          </Chip>
+            </div>
+
+            {/* Custom Date & Time pickers */}
+            <div className="flex gap-xs">
+              <Input
+                ref={dateInputRef}
+                className="min-w-0 flex-1"
+                min={todayKey}
+                type="date"
+                value={scheduledDayKey}
+                aria-invalid={!dateValidation.isValid}
+                onChange={(e) => handleDayKeyChange(e.target.value)}
+              />
+              <Input
+                className="w-36 shrink-0 px-3"
+                type="time"
+                value={scheduledTime}
+                aria-invalid={!dateValidation.isValid}
+                onChange={(e) => handleTimeChange(e.target.value)}
+              />
+            </div>
+
+            {/* Date validation issue warning */}
+            {!dateValidation.isValid && dateValidation.issue && (
+              <p className="text-caption text-semantic-error" role="alert">
+                {dateValidation.issue}
+              </p>
+            )}
+          </section>
+
+          {/* 6. Show Teaser toggle switch with haptic */}
+          <section className="flex items-center justify-between gap-md rounded-lg border border-hairline bg-surface-soft/60 px-md py-sm">
+            <div className="space-y-0.5">
+              <p className="text-body-sm font-medium text-ink">
+                상대방에게 D-Day 카운트다운 보여주기
+              </p>
+              <p className="text-caption text-meta">
+                편지 내용은 숨겨지고, 개봉일까지 남은 날짜만 대화방에 표시돼요
+              </p>
+            </div>
+            <Switch
+              checked={showTeaser}
+              disabled={recipientMode === "me"}
+              haptic
+              aria-label="상대방에게 D-Day 카운트다운 보여주기"
+              onCheckedChange={setShowTeaser}
+            />
+          </section>
+
+          {/* 7. Bottom action button */}
+          <div className="pt-sm">
+            {isEditMode ? (
+              <Button className="w-full" haptic variant="primary" onClick={handleFinishEdit}>
+                완료
+              </Button>
+            ) : (
+              <Button
+                disabled={!isSubmittable || isSubmitting}
+                haptic
+                onClick={() => void handleSubmit()}
+              >
+                편지 봉인하기
+              </Button>
+            )}
+          </div>
         </div>
-
-        {/* Custom Date & Time pickers */}
-        <div className="flex gap-xs">
-          <Input
-            ref={dateInputRef}
-            className="min-w-0 flex-1"
-            min={todayKey}
-            type="date"
-            value={scheduledDayKey}
-            aria-invalid={!dateValidation.isValid}
-            onChange={(e) => handleDayKeyChange(e.target.value)}
-          />
-          <Input
-            className="w-36 shrink-0 px-3"
-            type="time"
-            value={scheduledTime}
-            aria-invalid={!dateValidation.isValid}
-            onChange={(e) => handleTimeChange(e.target.value)}
-          />
-        </div>
-
-        {/* Date validation issue warning */}
-        {!dateValidation.isValid && dateValidation.issue && (
-          <p className="text-caption text-semantic-error" role="alert">
-            {dateValidation.issue}
-          </p>
-        )}
-      </section>
-
-      {/* 6. Show Teaser toggle switch with haptic */}
-      <section className="flex items-center justify-between gap-md rounded-lg border border-hairline bg-surface-soft/60 px-md py-sm">
-        <div className="space-y-0.5">
-          <p className="text-body-sm font-medium text-ink">상대방에게 D-Day 카운트다운 보여주기</p>
-          <p className="text-caption text-meta">
-            편지 내용은 숨겨지고, 개봉일까지 남은 날짜만 대화방에 표시돼요
-          </p>
-        </div>
-        <Switch
-          checked={showTeaser}
-          disabled={recipientMode === "me"}
-          haptic
-          aria-label="상대방에게 D-Day 카운트다운 보여주기"
-          onCheckedChange={setShowTeaser}
-        />
-      </section>
-
-      {/* 7. Bottom action button */}
-      <div className="pt-sm">
-        {isEditMode ? (
-          <Button className="w-full" haptic variant="primary" onClick={handleFinishEdit}>
-            완료
-          </Button>
-        ) : (
-          <Button
-            disabled={!isSubmittable || isSubmitting}
-            haptic
-            onClick={() => void handleSubmit()}
-          >
-            편지 봉인하기
-          </Button>
-        )}
-      </div>
+      </BottomSheet>
 
       {/* Wax seal stamp animation modal overlay (create mode only) */}
       {!isEditMode && (
         <WaxSealStamp isCompleted={isSealCompleted} isSealing={isSealing} theme={theme} />
       )}
-    </div>
-  );
-}
-
-export type TimeLetterComposeSheetProps = {
-  className?: string;
-  isOpen: boolean;
-  initialLetter?: Nullable<TimeLetter>;
-  partnerName?: string;
-  onClose: () => void;
-  onSuccess?: (letter: TimeLetter) => void;
-};
-
-export function TimeLetterComposeSheet({
-  className,
-  isOpen,
-  initialLetter,
-  partnerName = "상대방",
-  onClose,
-  onSuccess,
-}: TimeLetterComposeSheetProps) {
-  const isEditMode = Boolean(initialLetter);
-
-  return (
-    <BottomSheet
-      className={className}
-      isOpen={isOpen}
-      header={{
-        title: isEditMode ? "타임머신 편지 수정" : "타임머신 편지 쓰기",
-        isHidden: true,
-      }}
-      onClose={onClose}
-    >
-      {isOpen && (
-        <TimeLetterComposeForm
-          key={initialLetter?.id ?? "create"}
-          initialLetter={initialLetter}
-          partnerName={partnerName}
-          onClose={onClose}
-          onSuccess={onSuccess}
-        />
-      )}
-    </BottomSheet>
+    </>
   );
 }
