@@ -38,7 +38,7 @@ import {
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { josa } from "es-hangul";
-import { Clock, Delete, Search, Settings, Smile } from "lucide-react";
+import { Clock, Delete, LoaderCircle, Search, Settings, Smile } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -2060,10 +2060,18 @@ function SearchPane({
     <div className={cn("flex min-h-0 flex-1 flex-col gap-2xs p-xs", className)}>
       <div className="relative shrink-0 touch-pan-y">
         {/* WARN: The icon is inset by the field's own padding rather than sat against its edge — the pill's radius is half its height, so a glyph at `2xs` is inside the curve rather than beside the text. */}
-        <Search
-          className="pointer-events-none absolute top-1/2 left-sm size-4 -translate-y-1/2 text-meta"
-          strokeWidth={1.75}
-        />
+        {isPending ? (
+          <LoaderCircle
+            className="pointer-events-none absolute top-1/2 left-sm size-4 -translate-y-1/2 animate-spin text-meta"
+            strokeWidth={1.75}
+            aria-hidden
+          />
+        ) : (
+          <Search
+            className="pointer-events-none absolute top-1/2 left-sm size-4 -translate-y-1/2 text-meta"
+            strokeWidth={1.75}
+          />
+        )}
         <Input
           ref={fieldRef}
           // WARN: The two insets are the icon's own (`left-sm` plus its `size-4`, plus a `2xs` gap) and its mirror on the right. Left at `Input`'s defaults the text ran under the icon; trimmed to `2xs` on the right it ran into the pill's cap.
@@ -2083,13 +2091,16 @@ function SearchPane({
       {results.length === 0 ? (
         // INFO: § 13.8. The whole pane below the field, and with no row to scroll it is where the tab swipe has the most room to be made.
         <div className="flex flex-1 touch-pan-y items-center justify-center">
-          {/* WARN: § 13.9.1. Nothing at all while the answer is in flight, where `toEmptyMessage` answers `""` — an icon standing over a blank line is the verdict this pane exists to withhold. */}
-          {emptyMessage !== "" && (
-            <EmptyState
-              className="border-0 bg-transparent"
-              Icon={Search}
-              description={emptyMessage}
-            />
+          {isPending ? (
+            <LoaderCircle className="size-6 animate-spin text-meta" aria-label="이모티콘 검색 중" />
+          ) : (
+            emptyMessage !== "" && (
+              <EmptyState
+                className="border-0 bg-transparent"
+                Icon={Search}
+                description={emptyMessage}
+              />
+            )
           )}
         </div>
       ) : (
