@@ -283,6 +283,12 @@ export function TimeLettersPage({
     return formatJourneyDuration(selectedArrivalDate.getTime() - selectedCreatedDate.getTime());
   }, [selectedArrivalDate, selectedCreatedDate]);
 
+  const targetReplyName = selectedLetter?.senderName ?? partnerName;
+  const formattedReplyName = targetReplyName.endsWith("님")
+    ? targetReplyName
+    : `${targetReplyName}님`;
+  const replyButtonLabel = `${formattedReplyName}에게 답장 보내기`;
+
   const headerBadgeLabel = useMemo(() => {
     if (!selectedLetter) {
       return "";
@@ -675,8 +681,8 @@ export function TimeLettersPage({
                       </div>
                     </div>
 
-                    {/* Reply Action for Delivered Letters */}
-                    {!isScheduled && !selectedLetter.onlyMe && (
+                    {/* Reply Action for Delivered Letters (Recipients Only) */}
+                    {!isScheduled && !isSender && !selectedLetter.onlyMe && (
                       <div className="mt-lg flex justify-end border-t border-hairline pt-md">
                         <Button
                           className="w-auto! px-lg! py-sm!"
@@ -684,7 +690,7 @@ export function TimeLettersPage({
                           variant="primary"
                           onClick={handleReply}
                         >
-                          <span>{partnerName}에게 답장 보내기</span>
+                          <span>{replyButtonLabel}</span>
                         </Button>
                       </div>
                     )}

@@ -89,7 +89,7 @@ export function TimeLetterViewerSheet({
     return `From. ${sender}`;
   }, [letter.onlyMe, isSender, currentUserName, letter.senderName, partnerName]);
 
-  const targetReplyName = isSender ? partnerName : (letter.senderName ?? partnerName);
+  const targetReplyName = letter.senderName ?? partnerName;
   const formattedReplyName = targetReplyName.endsWith("님")
     ? targetReplyName
     : `${targetReplyName}님`;
@@ -310,7 +310,7 @@ export function TimeLetterViewerSheet({
               </div>
             )}
 
-            {letter.status === "sent" && onReply && !letter.onlyMe && (
+            {letter.status === "sent" && onReply && !isSender && !letter.onlyMe && (
               <div className="pt-xs">
                 <Button variant="primary" haptic onClick={handleReply}>
                   {replyButtonLabel}
