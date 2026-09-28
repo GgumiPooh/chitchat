@@ -1,4 +1,4 @@
-import type { EmoticonItemId, Nullable } from "@/shared/lib";
+import type { EmoticonItemId, EmoticonPackId, Nullable } from "@/shared/lib";
 
 /**
  * What one inline emoticon occupies in `messages.text` (REQUIREMENTS.md § 6.).
@@ -29,6 +29,7 @@ export type MessageContent = {
  * INFO: The box comes down with the page rather than being asked for per emoticon, because REQUIREMENTS.md § 8.3. has to reserve the row's height before any asset has loaded.
  */
 export type InlineEmoticonInfo = {
+  packId: EmoticonPackId;
   width: number;
   height: number;
   /** REQUIREMENTS.md § 13.4. The item's `updated_at` in milliseconds — an edit keeps the id, so nothing else tells the cached asset URL apart from the new one. */

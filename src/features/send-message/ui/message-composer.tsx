@@ -25,6 +25,7 @@ import {
   useIsFinePointer,
   useUnsentWork,
   type EmoticonItemId,
+  type EmoticonPackId,
   type Nullable,
 } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
@@ -100,6 +101,7 @@ const TOGGLE_PREVIEW_HIDE_DEBOUNCE = A_SECOND / 3;
 
 /** An emoticon the draft can hold inside its text — REQUIREMENTS.md § 6.'s `OBJECT_PLACEHOLDER`, with what it takes to draw one. */
 export type ComposerEmoticon = {
+  packId: EmoticonPackId;
   /** REQUIREMENTS.md § 13.4. `updated_at` in milliseconds, which is what an edited item's asset URL is told apart by. */
   version: number;
   /** The asset's own pixels; the box is one line tall and takes only their ratio. */

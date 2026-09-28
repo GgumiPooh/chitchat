@@ -1145,7 +1145,7 @@ export function EmoticonPicker({
    */
   function handleSelect(item: Emoticon, { pairExpires = true }: { pairExpires?: boolean } = {}) {
     // WARN: § 13. A mini is inserted rather than staged, on the pointer as well as the keyboard, and that is not a keyboard rule leaking. § 2.2. stores a mini as a fragment of a `text` message and never in `messages.emoticon_item_id`, so a staged one would promise a send with no row to land in.
-    if (isMini(item)) {
+    if (isMini(item) && !isSearching) {
       onInsert?.(item);
 
       return;
@@ -1545,7 +1545,7 @@ export function EmoticonPicker({
     }
 
     // WARN: § 13. A mini has no staged form and therefore no quick send to skip to either, so `⌘Enter` on one is the same insertion the bare key makes — sent outright it would be a `messages.emoticon_item_id` § 2.2. never writes.
-    if (isCommandKey(event) && !isMini(item)) {
+    if (isCommandKey(event) && (!isMini(item) || isSearching)) {
       // WARN: § 13.6. The standing pair is cleared, or a press landing after this send would pair with one the send already spent.
       lastTapRef.current = null;
       onQuickSend(item);

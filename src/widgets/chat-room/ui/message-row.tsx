@@ -365,6 +365,7 @@ export function MessageRow({
                 status !== "sent" && "opacity-60",
               )}
               style={{ ...soloBox, lineHeight: `${soloBox.height}px` }}
+              data-emoticon-bubble
               {...longPressHandlers}
             >
               {soloEmoticon.info.isDeleted ? (
@@ -380,6 +381,7 @@ export function MessageRow({
                   isTappable
                   awaitsArrivalSound={awaitsArrivalSound}
                   onArrivalSoundReady={onArrivalSoundReady}
+                  onFollow={onFollowEmoticon}
                 />
               )}
               {isSilent && <SilentRing className="rounded-sm" />}

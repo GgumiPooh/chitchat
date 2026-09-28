@@ -31,6 +31,7 @@ export async function listInlineEmoticons(
 
   for (const { item, width, height } of rows) {
     byId[item.id] = {
+      packId: item.packId,
       width,
       height,
       version: item.updatedAt.getTime(),

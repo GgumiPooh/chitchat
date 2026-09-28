@@ -1,4 +1,11 @@
-import { A_DAY, A_MEGABYTE, A_MINUTE, A_SECOND, type Nullable } from "@/shared/lib";
+import {
+  A_DAY,
+  A_MEGABYTE,
+  A_MINUTE,
+  A_SECOND,
+  type EmoticonPackId,
+  type Nullable,
+} from "@/shared/lib";
 import { z } from "zod";
 
 // WARN: REQUIREMENTS.md § 13.7.1. Held apart from the fallback below, because the switch has to be able to tell a configured origin from a defaulted one.
@@ -192,6 +199,7 @@ export const EMOTICON_KIND_NOUNS = {
  * the placeholders leaves the message no words of its own.
  */
 export type InlineEmoticonInfo = {
+  packId: EmoticonPackId;
   width: number;
   height: number;
   version: number;
