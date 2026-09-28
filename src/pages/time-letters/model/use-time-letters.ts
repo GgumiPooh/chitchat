@@ -130,6 +130,10 @@ export function useTimeLetters({
     setLetters((prev) => [letter, ...prev.filter((l) => l.id !== letter.id)]);
   }, []);
 
+  const updateLetterOptimistic = useCallback((letter: TimeLetter) => {
+    setLetters((prev) => prev.map((l) => (l.id === letter.id ? letter : l)));
+  }, []);
+
   return {
     letters,
     filter,
@@ -142,5 +146,6 @@ export function useTimeLetters({
     handleFilterChange,
     cancelLetter,
     addLetterOptimistic,
+    updateLetterOptimistic,
   };
 }

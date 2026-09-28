@@ -45,6 +45,7 @@ export function getDefaultScheduledDateTime(): { dayKey: string; time: string } 
 export function validateLetterDate(
   dayKey: string,
   time: string,
+  initialScheduledDate?: Nullable<Date>,
 ): { isValid: boolean; issue: Nullable<string>; scheduledDate: Nullable<Date> } {
   if (!dayKey || !time) {
     return {
@@ -65,6 +66,19 @@ export function validateLetterDate(
 
   const scheduledDate = new Date(instant);
   const scheduledTimeMs = scheduledDate.getTime();
+
+  // INFO: When editing an existing letter, allow keeping the scheduled time as long as it has not passed.
+  if (initialScheduledDate && Math.abs(scheduledTimeMs - initialScheduledDate.getTime()) < 1000) {
+    if (scheduledTimeMs <= Date.now()) {
+      return {
+        isValid: false,
+        issue: "도착 예정 시각이 이미 지났어요",
+        scheduledDate,
+      };
+    }
+    return { isValid: true, issue: null, scheduledDate };
+  }
+
   // INFO: Minimum 10 minutes in the future requirement
   const minAllowedMs = Date.now() + 10 * 60 * 1000;
 

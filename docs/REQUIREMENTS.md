@@ -2436,6 +2436,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 - **Draft Auto-Save & Restoration**:
   - Debounced 500ms auto-save to `localStorage` under `jandh:draft:time-letter`.
   - Restoration prompt on open with `[불러오기]` and `[삭제]` options.
+- **Edit Mode & Debounced Auto-Save**: Senders can edit existing scheduled letters before delivery (`status === 'scheduled'`). In edit mode, modifications to title, content, theme, scheduled delivery, recipient mode, teaser, and attached photos/videos auto-save directly to the server via debounced 600ms `PATCH /api/time-letters/[id]` requests with real-time save status indicators ('저장 중...', '저장됨', '저장 실패') rather than requiring a manual save button. Closing or clicking `[완료]` flushes any pending debounced save immediately.
 - **Sealing Interaction**:
   - `[편지 봉인하기]` action button with `haptic`.
   - 3D envelope folding transition and physical wax seal stamp animation with visual ripple and tactile vibration feedback.
@@ -2451,6 +2452,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
   - Multi-line letter body preserving line breaks and full emoji support.
   - Photo gallery grid integrating with `MediaViewer` for full-screen zoom and inspection.
 - **Chat Reply Action**: Bottom action button `[{partner}에게 답장 보내기]` on delivered letters received from the partner (hidden when viewing letters sent by self or addressed to self), triggering `onReply(letter)` to quote reply directly in the chat room.
+- **Edit Action (편지 수정)**: Senders of scheduled letters can enter edit mode from both the desktop reading pane action bar and the mobile viewer sheet (accessible during sealed envelope preview and unsealed parchment), opening `TimeLetterComposeSheet` pre-populated with existing letter content and media.
 - **Cancel Seal Action (봉인 취소)**: Senders of scheduled letters can cancel and destroy their sealed letters from both the desktop reading pane and the mobile viewer sheet (accessible during the sealed envelope unboxing preview and within the unsealed parchment).
 - **Chat Timeline Arrival Notice Card (타임머신 우체부 도착 카드)**: Delivered letters announce themselves in the chat room as a dedicated rich left-aligned message row with a "타임머신 우체부" persona rather than a mundane generic system pill.
   - Avatar & Sender: Features a distinct postman avatar (`size-9` rounded-full `bg-primary-tint` with postal `Mail` icon) and sender header (`{sender}님의 타임머신` or `과거의 나 (타임머신)`).

@@ -4,7 +4,7 @@ import type { TimeLetter } from "@/entities/time-letter";
 import { formatJourneyDuration, THEME_STYLES } from "@/shared/config";
 import { cn, formatDate, formatTime, type Nullable } from "@/shared/lib";
 import { BottomSheet, Button, MediaViewer, Modal, type MediaCell } from "@/shared/ui";
-import { Clock, RotateCcw, Trash2, Video } from "lucide-react";
+import { Clock, Pencil, RotateCcw, Trash2, Video } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { WaxSealUnboxing } from "./wax-seal-unboxing";
 
@@ -18,6 +18,7 @@ export type TimeLetterViewerSheetProps = {
   onClose: () => void;
   onReply?: (letter: TimeLetter) => void;
   onCancel?: () => void;
+  onEdit?: (letter: TimeLetter) => void;
 };
 
 const LETTER_THEME_STYLES: Record<string, string> = {
@@ -39,6 +40,7 @@ export function TimeLetterViewerSheet({
   onClose,
   onReply,
   onCancel,
+  onEdit,
 }: TimeLetterViewerSheetProps) {
   const isSent = letter.status === "sent";
   const [isUnsealed, setIsUnsealed] = useState<boolean>(false);
@@ -141,6 +143,7 @@ export function TimeLetterViewerSheet({
   }, [letter.media]);
 
   const canCancel = isSender && letter.status === "scheduled" && Boolean(onCancel);
+  const canEdit = isSender && letter.status === "scheduled" && Boolean(onEdit);
 
   const handleReply = () => {
     onReply?.(letter);
@@ -178,6 +181,7 @@ export function TimeLetterViewerSheet({
           onUnsealed={() => setIsUnsealed(true)}
           onClose={onClose}
           onCancel={canCancel ? onCancel : undefined}
+          onEdit={canEdit ? () => onEdit?.(letter) : undefined}
         />
       </Modal>
 
@@ -308,18 +312,31 @@ export function TimeLetterViewerSheet({
           </div>
 
           {/* 8. Bottom action buttons */}
-          {canCancel && (
-            <div className="pt-xs">
-              <Button
-                className="w-full"
-                buttonClassName="text-semantic-error hover:bg-semantic-error/10 active:bg-semantic-error/20"
-                haptic
-                variant="ghost"
-                onClick={onCancel}
-              >
-                <Trash2 className="size-4" />
-                <span>봉인 취소 및 파기</span>
-              </Button>
+          {(canEdit || canCancel) && (
+            <div className="flex items-center gap-sm pt-xs">
+              {canEdit && (
+                <Button
+                  className="flex-1"
+                  haptic
+                  variant="secondary"
+                  onClick={() => onEdit?.(letter)}
+                >
+                  <Pencil className="size-4" />
+                  <span>편지 수정</span>
+                </Button>
+              )}
+              {canCancel && (
+                <Button
+                  className={canEdit ? "w-auto" : "w-full"}
+                  buttonClassName="text-semantic-error hover:bg-semantic-error/10 active:bg-semantic-error/20"
+                  haptic
+                  variant="ghost"
+                  onClick={onCancel}
+                >
+                  <Trash2 className="size-4" />
+                  <span>{canEdit ? "봉인 취소" : "봉인 취소 및 파기"}</span>
+                </Button>
+              )}
             </div>
           )}
 

@@ -41,6 +41,7 @@ import {
   Lock,
   Mail,
   MailOpen,
+  Pencil,
   Plus,
   RotateCw,
   Sparkles,
@@ -95,6 +96,7 @@ export function TimeLettersPage({
     handleFilterChange,
     cancelLetter,
     addLetterOptimistic,
+    updateLetterOptimistic,
   } = useTimeLetters({
     initialLetters,
     initialNextCursor,
@@ -113,9 +115,20 @@ export function TimeLettersPage({
   });
 
   const [isComposeOpen, setIsComposeOpen] = useState(false);
+  const [editingLetter, setEditingLetter] = useState<Nullable<TimeLetter>>(null);
   const [isMobileViewerOpen, setIsMobileViewerOpen] = useState(() => Boolean(initialLetterId));
   const [isCancelSheetOpen, setIsCancelSheetOpen] = useState(false);
   const [activeMediaIndex, setActiveMediaIndex] = useState<Nullable<number>>(null);
+
+  const handleOpenCompose = useCallback(() => {
+    setEditingLetter(null);
+    setIsComposeOpen(true);
+  }, []);
+
+  const handleStartEdit = useCallback((letter: TimeLetter) => {
+    setEditingLetter(letter);
+    setIsComposeOpen(true);
+  }, []);
 
   const effectiveIndex = letters.length > 0 && selectedIndex >= letters.length ? 0 : selectedIndex;
   const selectedLetter = letters[effectiveIndex] ?? null;
@@ -160,7 +173,7 @@ export function TimeLettersPage({
         setSelectedIndex((prev) => Math.max(0, prev - 1));
       } else if (isBareKey(event) && (isLetterKey(event, "c") || isLetterKey(event, "n"))) {
         event.preventDefault();
-        setIsComposeOpen(true);
+        handleOpenCompose();
       } else if (event.key === "Enter" && selectedLetter) {
         setIsMobileViewerOpen(true);
       }
@@ -168,7 +181,7 @@ export function TimeLettersPage({
 
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [letters.length, selectedLetter]);
+  }, [letters.length, selectedLetter, handleOpenCompose]);
 
   const handleRovingKeyDown = useRovingTabIndex({
     orientation: "vertical",
@@ -365,7 +378,7 @@ export function TimeLettersPage({
               buttonClassName="min-h-8 w-auto px-sm py-1 text-button-sm font-medium"
               haptic
               variant="primary"
-              onClick={() => setIsComposeOpen(true)}
+              onClick={handleOpenCompose}
             >
               <Plus className="size-3.5" />
               <span>새 편지</span>
@@ -453,7 +466,7 @@ export function TimeLettersPage({
               buttonClassName="min-h-9 w-auto px-sm py-1 text-button-sm font-medium"
               haptic
               variant="primary"
-              onClick={() => setIsComposeOpen(true)}
+              onClick={handleOpenCompose}
             >
               <Plus className="size-4" />
               <span>새 편지</span>
@@ -546,16 +559,28 @@ export function TimeLettersPage({
                 </div>
 
                 {isScheduled && isSender && (
-                  <Button
-                    className="w-auto"
-                    buttonClassName="min-h-8 w-auto px-sm py-1 text-button-sm text-semantic-error hover:bg-semantic-error/10"
-                    haptic
-                    variant="ghost"
-                    onClick={() => setIsCancelSheetOpen(true)}
-                  >
-                    <Trash2 className="size-3.5" />
-                    <span>봉인 취소</span>
-                  </Button>
+                  <div className="flex items-center gap-1.5">
+                    <Button
+                      className="w-auto"
+                      buttonClassName="min-h-8 w-auto px-sm py-1 text-button-sm"
+                      haptic
+                      variant="secondary"
+                      onClick={() => handleStartEdit(selectedLetter)}
+                    >
+                      <Pencil className="size-3.5" />
+                      <span>편지 수정</span>
+                    </Button>
+                    <Button
+                      className="w-auto"
+                      buttonClassName="min-h-8 w-auto px-sm py-1 text-button-sm text-semantic-error hover:bg-semantic-error/10"
+                      haptic
+                      variant="ghost"
+                      onClick={() => setIsCancelSheetOpen(true)}
+                    >
+                      <Trash2 className="size-3.5" />
+                      <span>봉인 취소</span>
+                    </Button>
+                  </div>
                 )}
               </div>
 
@@ -741,22 +766,33 @@ export function TimeLettersPage({
             setIsMobileViewerOpen(false);
             setIsCancelSheetOpen(true);
           }}
+          onEdit={(letter) => {
+            setIsMobileViewerOpen(false);
+            handleStartEdit(letter);
+          }}
           onClose={() => setIsMobileViewerOpen(false)}
           onReply={handleReply}
         />
       )}
 
-      {/* Compose Sheet */}
+      {/* Compose Sheet (Create & Edit) */}
       <TimeLetterComposeSheet
+        initialLetter={editingLetter}
         isOpen={isComposeOpen}
         partnerName={partnerName}
         onSuccess={(letter) => {
-          setIsComposeOpen(false);
-          addLetterOptimistic(letter);
-          setSelectedIndex(0);
+          if (editingLetter) {
+            updateLetterOptimistic(letter);
+          } else {
+            addLetterOptimistic(letter);
+            setSelectedIndex(0);
+          }
           void refresh();
         }}
-        onClose={() => setIsComposeOpen(false)}
+        onClose={() => {
+          setIsComposeOpen(false);
+          setEditingLetter(null);
+        }}
       />
 
       {/* Cancel Confirmation ActionSheet */}

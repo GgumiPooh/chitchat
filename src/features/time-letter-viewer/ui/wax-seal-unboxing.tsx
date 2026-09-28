@@ -1,7 +1,7 @@
 "use client";
 
 import { cn } from "@/shared/lib";
-import { Sparkles, Trash2, X } from "lucide-react";
+import { Pencil, Sparkles, Trash2, X } from "lucide-react";
 import { useState } from "react";
 
 export type WaxSealUnboxingProps = {
@@ -12,6 +12,7 @@ export type WaxSealUnboxingProps = {
   onUnsealed: () => void;
   onClose?: () => void;
   onCancel?: () => void;
+  onEdit?: () => void;
 };
 
 export function WaxSealUnboxing({
@@ -22,6 +23,7 @@ export function WaxSealUnboxing({
   onUnsealed,
   onClose,
   onCancel,
+  onEdit,
 }: WaxSealUnboxingProps) {
   const [isBreaking, setIsBreaking] = useState<boolean>(false);
 
@@ -174,15 +176,29 @@ export function WaxSealUnboxing({
               : "실링 왁스를 터치하여 봉인 해제"}
         </p>
 
-        {onCancel && (
-          <button
-            className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-caption text-semantic-error transition-colors hover:bg-semantic-error/10 active:bg-semantic-error/20"
-            type="button"
-            onClick={onCancel}
-          >
-            <Trash2 className="size-3.5" />
-            <span>봉인 취소</span>
-          </button>
+        {(onEdit || onCancel) && (
+          <div className="flex items-center gap-2">
+            {onEdit && (
+              <button
+                className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-caption text-ink transition-colors hover:bg-surface-soft active:bg-surface-strong"
+                type="button"
+                onClick={onEdit}
+              >
+                <Pencil className="size-3.5" />
+                <span>편지 수정</span>
+              </button>
+            )}
+            {onCancel && (
+              <button
+                className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-caption text-semantic-error transition-colors hover:bg-semantic-error/10 active:bg-semantic-error/20"
+                type="button"
+                onClick={onCancel}
+              >
+                <Trash2 className="size-3.5" />
+                <span>봉인 취소</span>
+              </button>
+            )}
+          </div>
         )}
       </div>
     </div>
