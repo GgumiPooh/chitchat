@@ -67,6 +67,7 @@ export function MediaGrid({
   const isFiles = Boolean(cells[0].filename);
   // WARN: The wrapper's clip radius must equal what its corner cells draw — `rounded-md` over a `rounded-sm` grid cut diagonally through the tiles' outer corners (and § 16.1.'s ring), since a 12px arc reaches ~1px deeper into the corner than the 8px arc the cell painted.
   const isTileGrid = !isFiles && cells.length > 1;
+  const isUploading = cells.some((cell) => cell.downloadUrl === null && !cell.isDeleted);
 
   return (
     <div
@@ -82,13 +83,13 @@ export function MediaGrid({
         // INFO: DESIGN.md § 6.5. Dims media under a scrim wash rather than applying container opacity, so the photo stays opaque and chat background never bleeds through.
         <span className="pointer-events-none absolute inset-0 bg-scrim/30" aria-hidden="true" />
       )}
-      {isPending && progress < 1 && encodeProgress === null && (
+      {isPending && isUploading && encodeProgress === null && (
         // INFO: The one progress affordance in the chat column. DESIGN.md § 6.5. dims an optimistic bubble rather than spinning it, so this reads as the dimmed bubble filling in.
         // INFO: DESIGN.md § 6.5.1. Withheld while `encodeProgress` is set — the centred percentage over the encoding cell is the phase's own indicator, and the byte bar would otherwise sit at 0% beside it.
         <div className="absolute inset-x-0 bottom-0 z-10 h-1 bg-scrim/45">
           <div
             className="h-full bg-primary transition-[width] duration-200"
-            style={{ width: `${Math.round(progress * 100)}%` }}
+            style={{ width: `${Math.round(Math.min(Math.max(progress, 0), 1) * 100)}%` }}
           />
         </div>
       )}

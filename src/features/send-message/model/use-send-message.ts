@@ -165,6 +165,26 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
         });
       };
 
+      // INFO: § 9. Each slot contributes equally to the bundle's progress (loaded / total per slot), preventing denominator distortion where uncompressed draft sizes in unfinished slots dwarf the progress of an already-optimized slot.
+      const computeProgress = () => {
+        const slotProgressSum = sum(
+          loaded.map((bytes, i) => Math.min(1, Math.max(0, bytes / Math.max(totals[i], 1)))),
+        );
+        return Math.min(1, Math.max(0, slotProgressSum / Math.max(message.media.length, 1)));
+      };
+
+      const reportProgress = () => {
+        const progress = computeProgress();
+        const percent = Math.round(progress * 100);
+
+        if (percent === lastPercent) {
+          return;
+        }
+
+        lastPercent = percent;
+        patch(message.clientMsgId, { progress });
+      };
+
       // WARN: The byte budget is doing the work here, not the concurrency limit — nine slots of `MAX_VIDEO_SIZE` is what this path can be handed, and § 13.4.'s reason for not firing those at once still stands. Nine small photos do go out `UPLOAD_CONCURRENCY` wide.
       await mapPooled(
         message.media,
@@ -190,29 +210,23 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
               },
               onUploadSize: (bytes) => {
                 totals[index] = bytes;
+                reportProgress();
               },
               onProgress: (loadedBytes) => {
                 // INFO: The PUT moving bytes is what ends this slot's encode phase — the bar it hands over to is about to start.
                 clearEncoding();
 
                 loaded[index] = loadedBytes;
-
-                const progress = sum(loaded) / Math.max(sum(totals), 1);
-                const percent = Math.round(progress * 100);
-
-                if (percent === lastPercent) {
-                  return;
-                }
-
-                lastPercent = percent;
-                patch(message.clientMsgId, { progress });
+                reportProgress();
               },
             });
 
             uploaded[index] = upload;
             loaded[index] = totals[index];
+            const progress = computeProgress();
+            lastPercent = Math.round(progress * 100);
             // WARN: Recorded as each one lands, so a failure halfway through leaves the retry nothing to re-upload but the remainder. `mapPooled` settles everything in flight before it rethrows precisely so this holds.
-            patch(message.clientMsgId, { uploadedMedia: [...uploaded] });
+            patch(message.clientMsgId, { uploadedMedia: [...uploaded], progress });
           } finally {
             // WARN: A send that fails between the encode and the first byte never reaches `onProgress`, and the cell would keep a stale percentage over it with the byte bar still withheld.
             clearEncoding();
@@ -225,6 +239,8 @@ export function useSendMessage({ onSent }: UseSendMessageParams) {
           weigh: (draft, index) => (uploaded[index] ? 0 : draft.file.size),
         },
       );
+
+      patch(message.clientMsgId, { progress: 1 });
 
       // WARN: Indexed, so `media` stays in the picked order however the uploads interleaved — § 6. renders the grid in exactly this order.
       return uploaded.filter((upload): upload is MediaAttachmentInput => Boolean(upload));

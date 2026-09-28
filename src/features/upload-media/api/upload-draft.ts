@@ -136,6 +136,7 @@ function putWithProgress(
 
     request.onload = () => {
       if (request.status >= 200 && request.status < 300) {
+        onProgress(body.size);
         resolve();
         return;
       }
