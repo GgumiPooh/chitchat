@@ -4,7 +4,7 @@ import type { TimeLetter } from "@/entities/time-letter";
 import { THEME_STYLES } from "@/shared/config";
 import { cn, formatDate, formatTime, type Nullable } from "@/shared/lib";
 import { BottomSheet, Button, MediaViewer, type MediaCell } from "@/shared/ui";
-import { Calendar, RotateCcw, Video } from "lucide-react";
+import { Calendar, RotateCcw, Trash2, Video } from "lucide-react";
 import { useMemo, useState } from "react";
 import { WaxSealUnboxing } from "./wax-seal-unboxing";
 
@@ -12,18 +12,22 @@ export type TimeLetterViewerSheetProps = {
   className?: string;
   isOpen: boolean;
   letter: TimeLetter;
+  isSender?: boolean;
   partnerName?: string;
   onClose: () => void;
   onReply?: (letter: TimeLetter) => void;
+  onCancel?: () => void;
 };
 
 export function TimeLetterViewerSheet({
   className,
   isOpen,
   letter,
+  isSender = false,
   partnerName = "상대방",
   onClose,
   onReply,
+  onCancel,
 }: TimeLetterViewerSheetProps) {
   const [isUnsealed, setIsUnsealed] = useState<boolean>(false);
   const [activeMediaIndex, setActiveMediaIndex] = useState<Nullable<number>>(null);
@@ -59,6 +63,8 @@ export function TimeLetterViewerSheet({
     }));
   }, [letter.media]);
 
+  const canCancel = isSender && letter.status === "scheduled" && Boolean(onCancel);
+
   const handleReply = () => {
     onReply?.(letter);
     onClose();
@@ -78,11 +84,27 @@ export function TimeLetterViewerSheet({
         <div className="pt-xs pb-xl">
           {!isUnsealed ? (
             /* Unboxing interaction */
-            <WaxSealUnboxing
-              theme={letter.theme}
-              title={letter.title}
-              onUnsealed={() => setIsUnsealed(true)}
-            />
+            <div className="flex flex-col items-center">
+              <WaxSealUnboxing
+                theme={letter.theme}
+                title={letter.title}
+                onUnsealed={() => setIsUnsealed(true)}
+              />
+
+              {canCancel && (
+                <div className="pt-xs pb-sm">
+                  <Button
+                    className="min-h-9! w-auto! px-md! py-1.5! text-button-sm text-semantic-error hover:bg-semantic-error/10 active:bg-semantic-error/20"
+                    haptic
+                    variant="ghost"
+                    onClick={onCancel}
+                  >
+                    <Trash2 className="size-4" />
+                    <span>봉인 취소</span>
+                  </Button>
+                </div>
+              )}
+            </div>
           ) : (
             /* Unfolded letter in theme parchment styling */
             <div className="animate-in space-y-lg duration-500 fade-in-50">
@@ -104,14 +126,26 @@ export function TimeLetterViewerSheet({
                     <span>📮 타임머신 편지 • {createdDateStr}에 묻어둠</span>
                   </div>
 
-                  <button
-                    className="inline-flex items-center gap-1 text-caption text-meta transition-colors hover:text-ink"
-                    type="button"
-                    onClick={() => setIsUnsealed(false)}
-                  >
-                    <RotateCcw className="size-3" aria-hidden />
-                    <span>봉인 다시 보기</span>
-                  </button>
+                  <div className="flex items-center gap-2">
+                    {canCancel && (
+                      <button
+                        className="inline-flex cursor-pointer items-center gap-1 text-caption font-medium text-semantic-error transition-colors hover:underline"
+                        type="button"
+                        onClick={onCancel}
+                      >
+                        <Trash2 className="size-3" aria-hidden />
+                        <span>봉인 취소</span>
+                      </button>
+                    )}
+                    <button
+                      className="inline-flex cursor-pointer items-center gap-1 text-caption text-meta transition-colors hover:text-ink"
+                      type="button"
+                      onClick={() => setIsUnsealed(false)}
+                    >
+                      <RotateCcw className="size-3" aria-hidden />
+                      <span>봉인 다시 보기</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Letter title (if provided) */}
@@ -182,7 +216,21 @@ export function TimeLetterViewerSheet({
                 )}
               </div>
 
-              {/* Bottom action button (only for delivered letters) */}
+              {/* Bottom action button (for scheduled sender or delivered recipient) */}
+              {canCancel && (
+                <div className="pt-xs">
+                  <Button
+                    className="w-full text-semantic-error hover:bg-semantic-error/10 active:bg-semantic-error/20"
+                    haptic
+                    variant="ghost"
+                    onClick={onCancel}
+                  >
+                    <Trash2 className="size-4" />
+                    <span>봉인 취소 및 파기</span>
+                  </Button>
+                </div>
+              )}
+
               {letter.status === "sent" && onReply && (
                 <div className="pt-xs">
                   <Button variant="primary" haptic onClick={handleReply}>

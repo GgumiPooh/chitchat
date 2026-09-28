@@ -2447,6 +2447,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
   - Multi-line letter body preserving line breaks and full emoji support.
   - Photo gallery grid integrating with `MediaViewer` for full-screen zoom and inspection.
 - **Chat Reply Action**: Bottom action button `[{partner}에게 답장 보내기]` triggering `onReply(letter)` to quote reply directly in the chat room.
+- **Cancel Seal Action (봉인 취소)**: Senders of scheduled letters can cancel and destroy their sealed letters from both the desktop reading pane and the mobile viewer sheet (accessible during the sealed envelope unboxing preview and within the unsealed parchment).
 
 ## 18.3. Delivery Engine & 1-Minute Cron Worker (`dispatch-letters-worker`)
 

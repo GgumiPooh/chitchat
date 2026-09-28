@@ -184,6 +184,7 @@ export function TimeLettersPage({
     const success = await cancelLetter(selectedLetter.id);
     if (success) {
       setIsCancelSheetOpen(false);
+      setIsMobileViewerOpen(false);
       setSelectedIndex((prev) => Math.max(0, prev - 1));
     }
   }, [cancelLetter, selectedLetter]);
@@ -536,8 +537,13 @@ export function TimeLettersPage({
       {selectedLetter && (
         <TimeLetterViewerSheet
           isOpen={isMobileViewerOpen}
+          isSender={isSender}
           letter={selectedLetter}
           partnerName={partnerName}
+          onCancel={() => {
+            setIsMobileViewerOpen(false);
+            setIsCancelSheetOpen(true);
+          }}
           onClose={() => setIsMobileViewerOpen(false)}
           onReply={handleReply}
         />
@@ -567,6 +573,7 @@ export function TimeLettersPage({
         items={[
           {
             label: "봉인 취소 및 파기",
+            Icon: Trash2,
             variant: "destructive",
             onSelect: () => void handleConfirmCancel(),
           },
