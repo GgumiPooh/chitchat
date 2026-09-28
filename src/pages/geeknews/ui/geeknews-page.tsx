@@ -284,11 +284,13 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
   const selectedArticle = articles[selectedIndex] ?? null;
   const sheetArticle = articles.find((a) => a.id === openedArticleId) ?? null;
   const isSheetOpen = sheetArticle !== null;
-  const lastSheetArticleRef = useRef<GeeknewsFeedArticle | null>(null);
-  if (sheetArticle) {
-    lastSheetArticleRef.current = sheetArticle;
+  const [cachedSheetArticle, setCachedSheetArticle] = useState<GeeknewsFeedArticle | null>(
+    () => sheetArticle,
+  );
+  if (sheetArticle && sheetArticle.id !== cachedSheetArticle?.id) {
+    setCachedSheetArticle(sheetArticle);
   }
-  const displayedSheetArticle = sheetArticle ?? lastSheetArticleRef.current;
+  const displayedSheetArticle = sheetArticle ?? cachedSheetArticle;
 
   return (
     <TwoPane
@@ -312,7 +314,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                   <button
                     key={article.id}
                     className={cn(
-                      "group flex w-full cursor-pointer flex-col gap-1.5 rounded-xl border p-md text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                      "group flex w-full cursor-pointer flex-col rounded-xl border p-md text-left transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
                       isSelected
                         ? "border-primary bg-primary-tint"
                         : "bg-surface border-hairline hover:border-hairline-strong hover:bg-surface-soft active:bg-surface-strong",
@@ -330,13 +332,13 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                     </div>
                     <h3
                       className={cn(
-                        "line-clamp-2 text-body-md transition-colors",
+                        "mt-2xs line-clamp-2 text-body-md transition-colors",
                         isRead ? "font-normal text-meta" : "font-semibold text-ink",
                       )}
                     >
                       {article.title}
                     </h3>
-                    <p className="line-clamp-2 text-body-sm text-meta">
+                    <p className="mt-xs line-clamp-2 text-body-sm text-meta">
                       {stripMarkdown(article.summary)}
                     </p>
                   </button>
@@ -422,7 +424,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
               return (
                 <button
                   key={article.id}
-                  className="group bg-surface flex w-full cursor-pointer flex-col gap-1.5 rounded-xl border border-hairline p-md text-left transition-colors outline-none hover:border-hairline-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-strong"
+                  className="group bg-surface flex w-full cursor-pointer flex-col rounded-xl border border-hairline p-md text-left transition-colors outline-none hover:border-hairline-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-strong"
                   type="button"
                   onClick={() => handleOpenArticle(article)}
                 >
@@ -434,13 +436,13 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                   </div>
                   <h3
                     className={cn(
-                      "line-clamp-2 text-body-md transition-colors",
+                      "mt-2xs line-clamp-2 text-body-md transition-colors",
                       isRead ? "font-normal text-meta" : "font-semibold text-ink",
                     )}
                   >
                     {article.title}
                   </h3>
-                  <p className="line-clamp-2 text-body-sm text-meta">
+                  <p className="mt-xs line-clamp-2 text-body-sm text-meta">
                     {stripMarkdown(article.summary)}
                   </p>
                 </button>
@@ -467,7 +469,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
               Icon={Newspaper}
             />
           ) : selectedArticle ? (
-            <article className="flex flex-col gap-lg">
+            <article className="flex flex-col">
               <div className="flex flex-wrap items-center gap-xs text-caption text-meta">
                 <span className="rounded-full bg-surface-soft px-2 py-0.5 font-medium text-meta">
                   {toDomain(selectedArticle.sourceUrl ?? selectedArticle.url)}
@@ -491,18 +493,18 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
                 )}
               </div>
 
-              <h1 className="text-display-xs leading-tight font-bold text-ink">
+              <h1 className="text-display-xs mt-xs leading-tight font-bold text-ink">
                 {selectedArticle.title}
               </h1>
 
-              <div onClick={handleContentClick}>
+              <div className="mt-md" onClick={handleContentClick}>
                 <MarkdownBody
                   className="space-y-xs text-body-md leading-relaxed text-body [&_strong]:font-semibold [&_strong]:text-ink"
                   text={selectedArticle.summary}
                 />
               </div>
 
-              <div className="flex flex-wrap items-center gap-sm border-t border-hairline pt-md">
+              <div className="mt-lg flex flex-wrap items-center gap-sm border-t border-hairline pt-md">
                 {selectedArticle.sourceUrl ? (
                   <>
                     <a
