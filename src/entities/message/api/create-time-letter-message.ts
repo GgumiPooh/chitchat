@@ -10,6 +10,7 @@ export type CreateTimeLetterMessageParams = {
   senderId: UserId;
   letterId: TimeLetterId;
   title: Nullable<string>;
+  theme?: string;
   tx?: DbTransaction;
 };
 
@@ -18,6 +19,7 @@ export async function createTimeLetterMessage({
   senderId,
   letterId,
   title,
+  theme,
   tx,
 }: CreateTimeLetterMessageParams): Promise<ChatMessage> {
   const db = tx ?? getDb();
@@ -28,7 +30,7 @@ export async function createTimeLetterMessage({
       senderId,
       type: "system",
       systemAction: "time_letter_delivered",
-      text: JSON.stringify({ letterId, title: title ?? "" }),
+      text: JSON.stringify({ letterId, title: title ?? "", theme }),
       clientMsgId: crypto.randomUUID(),
     })
     .returning();

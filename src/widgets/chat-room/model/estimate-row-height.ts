@@ -241,6 +241,9 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
     // INFO: DESIGN.md § 6.5. Unlike the divider this one is a sentence, and § 11.5.'s notices are long enough to wrap on a phone.
     // WARN: § 6.11. A system row is always translated (`isTranslatedRow`), so it always gives back the selection gutter — never conditioned on `isMine`, which it has none of.
     case "system":
+      if (row.message.systemAction === "time_letter_delivered") {
+        return toTimeLetterNoticeHeight(row.message, toTranslatedWidthContext(context));
+      }
       return (
         SPACING_SM * 2 +
         PILL_PADDING +
@@ -694,6 +697,38 @@ function toNoticeHeight(
     countTextLines(readNotice(message), { ...PILL, family: fontFamily }, available, "pre-wrap") *
     LINE.caption()
   );
+}
+
+// INFO: Time letter arrival card rendered in chat timeline for `time_letter_delivered`.
+function toTimeLetterNoticeHeight(
+  message: ChatMessage,
+  { contentWidth = DEFAULT_CONTENT_WIDTH, fontFamily }: RowEstimateContext,
+): number {
+  let title = "";
+  try {
+    if (message.text) {
+      const parsed = JSON.parse(message.text) as { title?: string };
+      title = parsed.title ?? "";
+    }
+  } catch {
+    // fallback
+  }
+
+  // Card is max 340px, with padding px-md (16px * 2 = 32px)
+  const cardWidth = Math.min(340, contentWidth - SPACING_MD * 2);
+  const titleAvailableWidth = Math.max(cardWidth - SPACING_MD * 2, 100);
+  const titleLines = title
+    ? Math.min(
+        2,
+        Math.max(
+          1,
+          countTextLines(title, { size: 15, weight: 700, family: fontFamily }, titleAvailableWidth),
+        ),
+      )
+    : 1;
+
+  // Base height (single line title) is 178px; 2-line title is 200px.
+  return 178 + (titleLines - 1) * 22;
 }
 
 function toQuoteHeight(replyTo: ReplyPreview, variant: "rule" | "card", isMine: boolean): number {

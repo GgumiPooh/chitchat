@@ -300,6 +300,8 @@ export type ChatRoomProps = {
   onAddEvent?: () => void;
   /** REQUIREMENTS.md § 11.5. A calendar notice was tapped; the screen opens `EventDetailDialog`, which it already owns. */
   onOpenEvent?: (message: ChatMessage) => void;
+  /** A time machine letter notice was tapped; opens TimeLetterViewerSheet in place. */
+  onOpenTimeLetter?: (letterId: string) => void;
   /** @see AiSelectionHeaderState */
   onAiSelectionChange?: (state: Nullable<AiSelectionHeaderState>) => void;
   /** REQUIREMENTS.md § 8.19. `isBookmarked` is the state the message is in *now* — the sheet toggles it and reports which way it went. */
@@ -368,6 +370,7 @@ export function ChatRoom({
   onToggleSilentSend,
   onAddEvent,
   onOpenEvent,
+  onOpenTimeLetter,
   onAiSelectionChange,
   onToggleBookmark,
 }: ChatRoomProps) {
@@ -3468,9 +3471,11 @@ export function ChatRoom({
       case "system":
         return (
           <SystemNotice
+            currentUserId={currentUserId}
             message={row.message}
             sender={participantById.get(row.message.senderId)}
             onOpenEvent={onOpenEvent}
+            onOpenTimeLetter={onOpenTimeLetter}
           />
         );
       case "assistant": {

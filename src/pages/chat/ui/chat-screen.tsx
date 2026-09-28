@@ -2,6 +2,7 @@
 
 import type { CalendarSummary, EventOccurrence } from "@/entities/event";
 import type { ChatMessage } from "@/entities/message";
+import type { TimeLetter } from "@/entities/time-letter";
 import {
   BookmarkCornerButton,
   MessageBookmarkSheet,
@@ -25,8 +26,14 @@ import {
   useMessageSearch,
 } from "@/features/search-messages";
 import { SilentSendButton, useSilentSend } from "@/features/silent-send";
+import { fetchTimeLetter, TimeLetterViewerSheet } from "@/features/time-letter-viewer";
 import type { InlineEmoticonMap } from "@/shared/config";
-import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE, LOGIN_ROUTE } from "@/shared/config";
+import {
+  CALENDAR_DAY_PARAM,
+  CALENDAR_ROUTE,
+  LOGIN_ROUTE,
+  TIME_LETTERS_ROUTE,
+} from "@/shared/config";
 import {
   cn,
   getPreviousAppRoute,
@@ -36,6 +43,7 @@ import {
   type Maybe,
   type MessageId,
   type Nullable,
+  type TimeLetterId,
   type UserId,
 } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
@@ -102,6 +110,7 @@ export function ChatScreen({
   // INFO: REQUIREMENTS.md § 8.5. `ChatRoom` owns `useAiSelection` — `messages` lives there — and reports the header-relevant slice up, the way `AiSelectionHeaderState`'s own doc comment explains.
   const [aiSelection, setAiSelection] = useState<Nullable<AiSelectionHeaderState>>(null);
   const { participants, typingUserIds, chatBackgroundBlurhash } = useChatStream();
+  const partner = participants.find((p) => p.id !== currentUserId);
   const router = useRouter();
 
   // INFO: 이전 앱 라우트가 있고 로그인 페이지가 아니면 router.back(), 없으면 캘린더로 폴백.
@@ -140,6 +149,27 @@ export function ChatScreen({
         });
     })();
   }
+
+  const [activeLetter, setActiveLetter] = useState<Nullable<TimeLetter>>(null);
+
+  const openNoticeTimeLetter = useCallback(
+    (letterId: string) => {
+      noticeGate.guard(() => {
+        fetchTimeLetter(letterId as TimeLetterId)
+          .then((letter) => {
+            if (letter) {
+              setActiveLetter(letter);
+            } else {
+              router.push(`${TIME_LETTERS_ROUTE}?id=${letterId}`);
+            }
+          })
+          .catch(() => {
+            router.push(`${TIME_LETTERS_ROUTE}?id=${letterId}`);
+          });
+      })();
+    },
+    [noticeGate, router],
+  );
 
   function openForm() {
     setFormToken((token) => (token ?? 0) + 1);
@@ -412,6 +442,7 @@ export function ChatScreen({
             onToggleSilentSend={silentSend.cycle}
             onAddEvent={openForm}
             onOpenEvent={openNoticeEvent}
+            onOpenTimeLetter={openNoticeTimeLetter}
             onAiSelectionChange={setAiSelection}
           />
           {search.isOpen && (
@@ -440,6 +471,18 @@ export function ChatScreen({
             onRename={bookmarks.rename}
             onRemoveAll={bookmarks.removeAll}
           />
+          {activeLetter && (
+            <TimeLetterViewerSheet
+              isOpen={activeLetter !== null}
+              isSender={activeLetter.senderId === currentUserId}
+              letter={activeLetter}
+              partnerName={partner?.name ?? "상대방"}
+              onReply={() => {
+                setActiveLetter(null);
+              }}
+              onClose={() => setActiveLetter(null)}
+            />
+          )}
         </div>
       </div>
     </Container>

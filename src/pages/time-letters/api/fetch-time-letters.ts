@@ -57,16 +57,4 @@ export async function cancelTimeLetterRequest(id: TimeLetterId): Promise<boolean
   return response.status === 204;
 }
 
-export async function getTimeLetterRequest(id: TimeLetterId): Promise<Nullable<TimeLetter>> {
-  const response = await request(`${TIME_LETTERS_PATH}/${id}`);
-
-  if (response.status === 404) {
-    return null;
-  }
-  if (!response.ok) {
-    throw new Error(`GET ${TIME_LETTERS_PATH}/${id} failed: ${response.status}`);
-  }
-
-  const data = (await response.json()) as { letter: TimeLetter };
-  return data.letter;
-}
+export { fetchTimeLetter as getTimeLetterRequest } from "@/features/time-letter-viewer";

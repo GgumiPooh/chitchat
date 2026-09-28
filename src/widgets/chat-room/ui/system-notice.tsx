@@ -1,24 +1,29 @@
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import {
-  CALENDAR_DAY_PARAM,
-  CALENDAR_ROUTE,
-  TIME_LETTERS_ROUTE,
-  VOCA_ROUTE,
-} from "@/shared/config";
-import { cn, composeEventNotice, toDayKey, type Optional } from "@/shared/lib";
+import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE, VOCA_ROUTE } from "@/shared/config";
+import { cn, composeEventNotice, toDayKey, type Optional, type UserId } from "@/shared/lib";
 import { Link } from "@/shared/ui";
+import { TimeLetterArrivalNoticeCard } from "./time-letter-arrival-notice-card";
 
 export type SystemNoticeProps = {
   className?: string;
   message: ChatMessage;
   sender: Optional<Participant>;
+  currentUserId?: UserId;
   /** REQUIREMENTS.md § 11.5. Opens the event in place; only a notice still carrying an `eventId` can, the rest link to the day. */
   onOpenEvent?: (message: ChatMessage) => void;
+  onOpenTimeLetter?: (letterId: string) => void;
 };
 
 // INFO: DESIGN.md § 6.5. Date-divider treatment, so a calendar notice reads as timeline furniture rather than as someone speaking.
-export function SystemNotice({ className, message, sender, onOpenEvent }: SystemNoticeProps) {
+export function SystemNotice({
+  className,
+  message,
+  sender,
+  currentUserId,
+  onOpenEvent,
+  onOpenTimeLetter,
+}: SystemNoticeProps) {
   const pillClassName =
     "min-w-0 rounded-full bg-chat-pill px-md py-2xs text-center text-caption whitespace-pre-wrap text-chat-pill-ink transition-colors outline-none hover:bg-chat-pill-pressed focus-visible:ring-2 focus-visible:ring-primary active:bg-chat-pill-pressed";
 
@@ -39,27 +44,23 @@ export function SystemNotice({ className, message, sender, onOpenEvent }: System
   if (message.systemAction === "time_letter_delivered") {
     const actor = sender?.name ?? "파트너";
     let letterId = "";
-    let title = "";
     try {
       if (message.text) {
-        const parsed = JSON.parse(message.text) as { letterId?: string; title?: string };
+        const parsed = JSON.parse(message.text) as { letterId?: string };
         letterId = parsed.letterId ?? "";
-        title = parsed.title ?? "";
       }
     } catch {
       letterId = message.text ?? "";
     }
 
-    const titleSnippet = title ? ` · ${title}` : "";
-    const notice = `💌 ${actor}님이 보낸 타임머신 편지가 도착했어요!${titleSnippet}`;
-    const href = letterId ? `${TIME_LETTERS_ROUTE}?id=${letterId}` : TIME_LETTERS_ROUTE;
-
     return (
-      <div className={cn("flex justify-center px-md py-sm", className)}>
-        <Link className={pillClassName} href={href}>
-          {notice}
-        </Link>
-      </div>
+      <TimeLetterArrivalNoticeCard
+        className={className}
+        isMine={Boolean(currentUserId && message.senderId === currentUserId)}
+        message={message}
+        senderName={actor}
+        onOpen={letterId && onOpenTimeLetter ? () => onOpenTimeLetter(letterId) : undefined}
+      />
     );
   }
 
