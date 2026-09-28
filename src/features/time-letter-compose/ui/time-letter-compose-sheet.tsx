@@ -327,90 +327,7 @@ export function TimeLetterComposeSheet({
             </div>
           )}
 
-          {/* 1. Theme selector chips with haptic */}
-          <section className="space-y-xs">
-            <label className="text-caption text-meta">편지 테마</label>
-            <div className="flex flex-wrap gap-xs">
-              {TIME_LETTER_THEMES.map((item) => (
-                <Chip
-                  key={item.id}
-                  haptic
-                  isSelected={theme === item.id}
-                  onClick={() => setTheme(item.id)}
-                >
-                  {item.label}
-                </Chip>
-              ))}
-            </div>
-          </section>
-
-          {/* 2. Date selection */}
-          <section className="space-y-sm">
-            <div className="flex items-center justify-between">
-              <label className="text-caption text-meta">도착 일시</label>
-              {dateValidation.scheduledDate && dateValidation.isValid && (
-                <span className="text-caption text-primary">
-                  {dateValidation.scheduledDate.toLocaleDateString("ko-KR", {
-                    day: "numeric",
-                    month: "long",
-                    weekday: "short",
-                  })}{" "}
-                  {scheduledTime} 도착
-                </span>
-              )}
-            </div>
-
-            {/* Presets */}
-            <div className="flex flex-wrap gap-xs">
-              {DATE_PRESETS.map((preset) => {
-                const targetDayKey = preset.getDayKey(todayKey);
-                const isSelected =
-                  scheduledDayKey === targetDayKey && scheduledTime === preset.time;
-
-                return (
-                  <Chip
-                    key={preset.id}
-                    haptic
-                    isSelected={isSelected}
-                    onClick={() => {
-                      setScheduledDayKey(targetDayKey);
-                      setScheduledTime(preset.time);
-                    }}
-                  >
-                    {preset.label}
-                  </Chip>
-                );
-              })}
-            </div>
-
-            {/* Custom Date & Time pickers */}
-            <div className="flex gap-xs">
-              <Input
-                className="min-w-0 flex-1"
-                min={todayKey}
-                type="date"
-                value={scheduledDayKey}
-                aria-invalid={!dateValidation.isValid}
-                onChange={(e) => setScheduledDayKey(e.target.value)}
-              />
-              <Input
-                className="w-32 shrink-0"
-                type="time"
-                value={scheduledTime}
-                aria-invalid={!dateValidation.isValid}
-                onChange={(e) => setScheduledTime(e.target.value)}
-              />
-            </div>
-
-            {/* Date validation issue warning */}
-            {!dateValidation.isValid && dateValidation.issue && (
-              <p className="text-caption text-semantic-error" role="alert">
-                {dateValidation.issue}
-              </p>
-            )}
-          </section>
-
-          {/* 3. Recipient selection */}
+          {/* 1. Recipient selection */}
           <section className="space-y-xs">
             <label className="text-caption text-meta">받는 사람</label>
             <div className="flex flex-wrap gap-xs">
@@ -427,26 +344,24 @@ export function TimeLetterComposeSheet({
             </div>
           </section>
 
-          {/* 4. Show Teaser toggle switch with haptic */}
-          <section className="flex items-center justify-between gap-md rounded-lg border border-hairline bg-surface-soft/60 px-md py-sm">
-            <div className="space-y-0.5">
-              <p className="text-body-sm font-medium text-ink">
-                상대방에게 D-Day 카운트다운 보여주기
-              </p>
-              <p className="text-caption text-meta">
-                편지 내용은 숨겨지고, 개봉일까지 남은 날짜만 대화방에 표시돼요
-              </p>
+          {/* 2. Theme selector chips with haptic */}
+          <section className="space-y-xs">
+            <label className="text-caption text-meta">편지 테마</label>
+            <div className="flex flex-wrap gap-xs">
+              {TIME_LETTER_THEMES.map((item) => (
+                <Chip
+                  key={item.id}
+                  haptic
+                  isSelected={theme === item.id}
+                  onClick={() => setTheme(item.id)}
+                >
+                  {item.label}
+                </Chip>
+              ))}
             </div>
-            <Switch
-              checked={showTeaser}
-              disabled={recipientMode === "me"}
-              haptic
-              aria-label="상대방에게 D-Day 카운트다운 보여주기"
-              onCheckedChange={setShowTeaser}
-            />
           </section>
 
-          {/* 5. Title (optional) & Content textarea (required) - Styled as live themed stationery paper */}
+          {/* 3. Title (optional) & Content textarea (required) - Styled as live themed stationery paper */}
           <section className="space-y-xs">
             <div className="flex items-center justify-between">
               <label className="text-caption text-meta">편지 내용</label>
@@ -502,7 +417,7 @@ export function TimeLetterComposeSheet({
             </div>
           </section>
 
-          {/* 6. Media uploader: Attach up to 10 photos/videos */}
+          {/* 4. Media uploader: Attach up to 10 photos/videos */}
           <section className="space-y-xs">
             <div className="flex items-center justify-between">
               <label className="text-caption text-meta">
@@ -577,6 +492,91 @@ export function TimeLetterComposeSheet({
               multiple
               type="file"
               onChange={handleFilesSelected}
+            />
+          </section>
+
+          {/* 5. Date selection */}
+          <section className="space-y-sm">
+            <div className="flex items-center justify-between">
+              <label className="text-caption text-meta">도착 일시</label>
+              {dateValidation.scheduledDate && dateValidation.isValid && (
+                <span className="text-caption text-primary">
+                  {dateValidation.scheduledDate.toLocaleDateString("ko-KR", {
+                    day: "numeric",
+                    month: "long",
+                    weekday: "short",
+                  })}{" "}
+                  {scheduledTime} 도착
+                </span>
+              )}
+            </div>
+
+            {/* Presets */}
+            <div className="flex flex-wrap gap-xs">
+              {DATE_PRESETS.map((preset) => {
+                const targetDayKey = preset.getDayKey(todayKey);
+                const isSelected =
+                  scheduledDayKey === targetDayKey && scheduledTime === preset.time;
+
+                return (
+                  <Chip
+                    key={preset.id}
+                    haptic
+                    isSelected={isSelected}
+                    onClick={() => {
+                      setScheduledDayKey(targetDayKey);
+                      setScheduledTime(preset.time);
+                    }}
+                  >
+                    {preset.label}
+                  </Chip>
+                );
+              })}
+            </div>
+
+            {/* Custom Date & Time pickers */}
+            <div className="flex gap-xs">
+              <Input
+                className="min-w-0 flex-1"
+                min={todayKey}
+                type="date"
+                value={scheduledDayKey}
+                aria-invalid={!dateValidation.isValid}
+                onChange={(e) => setScheduledDayKey(e.target.value)}
+              />
+              <Input
+                className="w-32 shrink-0"
+                type="time"
+                value={scheduledTime}
+                aria-invalid={!dateValidation.isValid}
+                onChange={(e) => setScheduledTime(e.target.value)}
+              />
+            </div>
+
+            {/* Date validation issue warning */}
+            {!dateValidation.isValid && dateValidation.issue && (
+              <p className="text-caption text-semantic-error" role="alert">
+                {dateValidation.issue}
+              </p>
+            )}
+          </section>
+
+          {/* 6. Show Teaser toggle switch with haptic */}
+          <section className="flex items-center justify-between gap-md rounded-lg border border-hairline bg-surface-soft/60 px-md py-sm">
+            <div className="space-y-0.5">
+              <p className="text-body-sm font-medium text-ink">
+                상대방에게 D-Day 카운트다운 보여주기
+              </p>
+              <p className="text-caption text-meta">
+                편지 내용은 숨겨지고, 개봉일까지 남은 날짜만 대화방에 표시돼요
+              </p>
+            </div>
+            <Switch
+              checked={showTeaser}
+              disabled={recipientMode === "me"}
+              haptic
+              aria-label="상대방에게 D-Day 카운트다운 보여주기"
+              onCheckedChange={setShowTeaser}
             />
           </section>
 
