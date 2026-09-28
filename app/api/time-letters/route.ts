@@ -1,7 +1,12 @@
 import "server-only";
 
 import { mediaUploadSchema, validateMediaUpload, type ValidatedMedia } from "@/entities/media";
-import { createTimeLetter, listTimeLetters, type TimeLetterStatus } from "@/entities/time-letter";
+import {
+  createTimeLetter,
+  listTimeLetters,
+  type TimeLetterBoxFilter,
+  type TimeLetterStatus,
+} from "@/entities/time-letter";
 import { apiError } from "@/shared/api";
 import { getCurrentUser } from "@/shared/auth";
 import { snowflakeSchema } from "@/shared/config";
@@ -13,6 +18,7 @@ export const dynamic = "force-dynamic";
 
 const querySchema = z.object({
   status: z.enum(["scheduled", "delivering", "sent", "canceled"]).optional(),
+  filter: z.enum(["all", "received", "sent", "self"]).optional(),
   cursor: z.string().optional(),
   limit: z.coerce.number().int().positive().optional(),
 });
@@ -41,11 +47,12 @@ export async function GET(request: Request) {
     return apiError("invalid_request");
   }
 
-  const { status, cursor, limit } = parsed.data;
+  const { status, filter, cursor, limit } = parsed.data;
 
   const result = await listTimeLetters({
     currentUserId: user.id,
     status: status as TimeLetterStatus | undefined,
+    filter: filter as TimeLetterBoxFilter | undefined,
     cursor,
     limit,
   });

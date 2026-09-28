@@ -1,12 +1,12 @@
 "use client";
 
-import type { TimeLetter, TimeLetterStatus } from "@/entities/time-letter";
+import type { TimeLetter } from "@/entities/time-letter";
 import type { Nullable, TimeLetterId } from "@/shared/lib";
 import { toast } from "@/shared/ui";
 import { useCallback, useRef, useState } from "react";
 import { cancelTimeLetterRequest, fetchTimeLetters } from "../api/fetch-time-letters";
 
-export type TimeLetterFilter = "all" | "scheduled" | "sent";
+export type TimeLetterFilter = "all" | "received" | "sent" | "self";
 
 export type UseTimeLettersParams = {
   initialLetters: TimeLetter[];
@@ -36,7 +36,7 @@ export function useTimeLetters({
 
     try {
       const response = await fetchTimeLetters({
-        status: filter === "all" ? undefined : (filter as TimeLetterStatus),
+        filter,
         cursor,
         limit: 20,
       });
@@ -64,7 +64,7 @@ export function useTimeLetters({
       setIsRefreshing(true);
       try {
         const response = await fetchTimeLetters({
-          status: newFilter === "all" ? undefined : (newFilter as TimeLetterStatus),
+          filter: newFilter,
           limit: 20,
         });
         setLetters(response.items);

@@ -65,8 +65,9 @@ export type TimeLettersPageProps = {
 
 const FILTER_TABS: readonly { label: string; id: TimeLetterFilter }[] = [
   { id: "all", label: "전체" },
-  { id: "scheduled", label: "봉인된 편지" },
-  { id: "sent", label: "전송된 편지" },
+  { id: "received", label: "받은 편지" },
+  { id: "sent", label: "보낸 편지" },
+  { id: "self", label: "나에게" },
 ] as const;
 
 export function TimeLettersPage({
@@ -112,7 +113,7 @@ export function TimeLettersPage({
   });
 
   const [isComposeOpen, setIsComposeOpen] = useState(false);
-  const [isMobileViewerOpen, setIsMobileViewerOpen] = useState(false);
+  const [isMobileViewerOpen, setIsMobileViewerOpen] = useState(() => Boolean(initialLetterId));
   const [isCancelSheetOpen, setIsCancelSheetOpen] = useState(false);
   const [activeMediaIndex, setActiveMediaIndex] = useState<Nullable<number>>(null);
 
@@ -283,6 +284,64 @@ export function TimeLettersPage({
     return formatJourneyDuration(selectedArrivalDate.getTime() - selectedCreatedDate.getTime());
   }, [selectedArrivalDate, selectedCreatedDate]);
 
+  const headerBadgeLabel = useMemo(() => {
+    if (!selectedLetter) {
+      return "";
+    }
+    if (isTeaser) {
+      return "비밀 편지 (봉인 중)";
+    }
+    if (isScheduled) {
+      return "봉인 보관 중";
+    }
+    if (selectedLetter.onlyMe) {
+      return "나에게 도착";
+    }
+    if (isSender) {
+      return "배달 완료";
+    }
+    return "도착 완료";
+  }, [selectedLetter, isTeaser, isScheduled, isSender]);
+
+  const emptyListMessage = useMemo(() => {
+    switch (filter) {
+      case "received":
+        return "받은 편지가 없어요";
+      case "sent":
+        return "보낸 편지가 없어요";
+      case "self":
+        return "나에게 쓴 편지가 없어요";
+      default:
+        return "보관된 편지가 없어요";
+    }
+  }, [filter]);
+
+  const emptyStateMessage = useMemo(() => {
+    switch (filter) {
+      case "received":
+        return "아직 상대방에게 받은 편지가 없어요. 먼저 편지를 보내보는 건 어떨까요?";
+      case "sent":
+        return "아직 보낸 편지가 없어요. 미래의 소중한 순간에 도착할 편지를 적어보세요.";
+      case "self":
+        return "미래의 나에게 보낸 편지가 아직 없어요. 미래의 나에게 응원의 편지를 남겨보세요.";
+      default:
+        return "아직 등록된 타임머신 편지가 없어요. 미래의 소중한 순간에 도착할 편지를 적어보세요.";
+    }
+  }, [filter]);
+
+  const desktopEmptyStateMessage = useMemo(() => {
+    switch (filter) {
+      case "received":
+        return "아직 상대방에게 받은 편지가 없어요. 상단의 '새 편지' 버튼을 눌러 먼저 편지를 보내보세요.";
+      case "sent":
+        return "아직 보낸 편지가 없어요. 상단의 '새 편지' 버튼을 눌러 미래로 편지를 보내보세요.";
+      case "self":
+        return "미래의 나에게 보낸 편지가 아직 없어요. 상단의 '새 편지' 버튼을 눌러 미래의 나에게 응원의 편지를 남겨보세요.";
+      default:
+        return "아직 등록된 타임머신 편지가 없어요. 상단의 '새 편지' 버튼을 눌러 미래로 편지를 보내보세요.";
+    }
+  }, [filter]);
+
   return (
     <TwoPane
       className={className}
@@ -319,13 +378,14 @@ export function TimeLettersPage({
 
           {/* Letters List */}
           {letters.length === 0 ? (
-            <p className="p-md text-center text-body-sm text-meta">보관된 편지가 없어요</p>
+            <p className="p-md text-center text-body-sm text-meta">{emptyListMessage}</p>
           ) : (
             <div className="flex flex-col gap-sm" onKeyDown={handleRovingKeyDown}>
               {letters.map((letter, index) => (
                 <TimeLetterCard
                   key={letter.id}
                   currentUserId={currentUserId}
+                  partnerName={partnerName}
                   isSelected={index === selectedIndex}
                   letter={letter}
                   onClick={() => handleSelectLetter(index)}
@@ -407,16 +467,14 @@ export function TimeLettersPage({
         </div>
 
         {letters.length === 0 ? (
-          <EmptyState
-            description="아직 등록된 타임머신 편지가 없어요. 미래의 소중한 순간에 도착할 편지를 적어보세요."
-            Icon={Mail}
-          />
+          <EmptyState description={emptyStateMessage} Icon={Mail} />
         ) : (
           <div className="flex flex-col gap-sm">
             {letters.map((letter, index) => (
               <TimeLetterCard
                 key={letter.id}
                 currentUserId={currentUserId}
+                partnerName={partnerName}
                 letter={letter}
                 onClick={() => handleSelectLetter(index)}
               />
@@ -439,10 +497,7 @@ export function TimeLettersPage({
       <div className="hidden flex-1 flex-col pt-[calc(var(--app-header-inset)+var(--spacing-xs))] pb-2xl lg:flex">
         <Container className="space-y-lg" size="md">
           {letters.length === 0 ? (
-            <EmptyState
-              description="아직 등록된 타임머신 편지가 없어요. 상단의 '새 편지' 버튼을 눌러 미래로 편지를 보내보세요."
-              Icon={Mail}
-            />
+            <EmptyState description={desktopEmptyStateMessage} Icon={Mail} />
           ) : selectedLetter ? (
             <div className="flex flex-col gap-lg">
               {/* Header Info Banner */}
@@ -454,7 +509,7 @@ export function TimeLettersPage({
                     ) : (
                       <MailOpen className="size-3.5" />
                     )}
-                    <span>{isScheduled ? "봉인 보관 중" : "전송 완료"}</span>
+                    <span>{headerBadgeLabel}</span>
                   </span>
                   <span className="text-caption text-meta">
                     {formatDate(selectedLetter.createdAt)}

@@ -6,9 +6,12 @@ import { and, asc, desc, eq, gt, lt, ne, or, type SQL } from "drizzle-orm";
 import { toTimeLetter, type TimeLetter, type TimeLetterStatus } from "../model/types";
 import { listLettersMedia } from "./list-letters-media";
 
+export type TimeLetterBoxFilter = "all" | "received" | "sent" | "self";
+
 export type ListTimeLettersOptions = {
   currentUserId: UserId;
   status?: TimeLetterStatus;
+  filter?: TimeLetterBoxFilter;
   cursor?: string;
   limit?: number;
 };
@@ -40,22 +43,47 @@ function parseCursor(raw?: string): { instant: Date; id: TimeLetterId } | null {
 export async function listTimeLetters({
   currentUserId,
   status,
+  filter = "all",
   cursor,
   limit = 20,
 }: ListTimeLettersOptions): Promise<ListTimeLettersResult> {
   const db = getDb();
 
-  // WARN: Privacy rule: Sender sees all their letters. Recipient only sees non-canceled letters with onlyMe=false,
+  // WARN: Privacy rule: Sender sees all their non-canceled letters. Recipient only sees non-canceled letters with onlyMe=false,
   // and scheduled letters only if showTeaser is true.
-  const visibilityCondition = or(
-    eq(timeLetters.senderId, currentUserId),
-    and(
+  let visibilityCondition: SQL | undefined;
+
+  if (filter === "received") {
+    visibilityCondition = and(
       eq(timeLetters.recipientId, currentUserId),
       eq(timeLetters.onlyMe, false),
+      ne(timeLetters.senderId, currentUserId),
       ne(timeLetters.status, "canceled"),
       or(ne(timeLetters.status, "scheduled"), eq(timeLetters.showTeaser, true)),
-    ),
-  );
+    );
+  } else if (filter === "sent") {
+    visibilityCondition = and(
+      eq(timeLetters.senderId, currentUserId),
+      eq(timeLetters.onlyMe, false),
+      ne(timeLetters.status, "canceled"),
+    );
+  } else if (filter === "self") {
+    visibilityCondition = and(
+      eq(timeLetters.senderId, currentUserId),
+      eq(timeLetters.onlyMe, true),
+      ne(timeLetters.status, "canceled"),
+    );
+  } else {
+    visibilityCondition = or(
+      and(eq(timeLetters.senderId, currentUserId), ne(timeLetters.status, "canceled")),
+      and(
+        eq(timeLetters.recipientId, currentUserId),
+        eq(timeLetters.onlyMe, false),
+        ne(timeLetters.status, "canceled"),
+        or(ne(timeLetters.status, "scheduled"), eq(timeLetters.showTeaser, true)),
+      ),
+    );
+  }
 
   const filters: SQL[] = [visibilityCondition!];
 

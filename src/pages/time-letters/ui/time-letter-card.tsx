@@ -7,6 +7,7 @@ import { Clock, ImageIcon, Lock, MailOpen } from "lucide-react";
 export type TimeLetterCardProps = {
   className?: string;
   currentUserId: UserId;
+  partnerName?: string;
   isSelected?: boolean;
   letter: TimeLetter;
   onClick: () => void;
@@ -15,6 +16,7 @@ export type TimeLetterCardProps = {
 export function TimeLetterCard({
   className,
   currentUserId,
+  partnerName = "상대방",
   isSelected = false,
   letter,
   onClick,
@@ -22,16 +24,26 @@ export function TimeLetterCard({
   const isSender = letter.senderId === currentUserId;
   const isScheduled = letter.status === "scheduled";
   const isTeaser = isScheduled && !isSender;
+  const isSelf = Boolean(letter.onlyMe);
 
   const targetDateStr = formatDate(
     isScheduled ? letter.scheduledAt : (letter.sentAt ?? letter.scheduledAt),
   );
 
   let senderLabel = "";
-  if (isSender) {
-    senderLabel = letter.onlyMe ? "나에게" : "내가 보냄";
+  let badgeLabel = "";
+  let badgeIsPrimary = false;
+
+  if (isSelf) {
+    senderLabel = isScheduled ? "미래의 나에게" : "과거의 나";
+    badgeLabel = isScheduled ? "봉인됨" : "나에게 도착";
+  } else if (isSender) {
+    senderLabel = "내가 보냄";
+    badgeLabel = isScheduled ? "봉인됨" : "배달 완료";
   } else {
-    senderLabel = `${letter.senderName ?? "상대방"}님이 보냄`;
+    senderLabel = `${letter.senderName ?? partnerName}님이 보냄`;
+    badgeLabel = isScheduled ? "비밀 편지" : "받은 편지";
+    badgeIsPrimary = true;
   }
 
   const hasTitle = Boolean(letter.title?.trim());
@@ -65,14 +77,24 @@ export function TimeLetterCard({
       <div className="flex items-center justify-between gap-xs text-caption text-meta">
         <div className="flex items-center gap-1 font-medium">
           {isScheduled ? (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-surface-soft px-2 py-0.5 text-primary">
+            <span
+              className={cn(
+                "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5",
+                badgeIsPrimary ? "bg-primary-tint/30 text-primary" : "bg-surface-soft text-primary",
+              )}
+            >
               <Lock className="size-3" />
-              <span>{isSender ? "봉인됨" : "전송 예정"}</span>
+              <span>{badgeLabel}</span>
             </span>
           ) : (
-            <span className="inline-flex items-center gap-0.5 rounded-full bg-surface-soft px-2 py-0.5 text-meta">
+            <span
+              className={cn(
+                "inline-flex items-center gap-0.5 rounded-full px-2 py-0.5",
+                badgeIsPrimary ? "bg-primary-tint/25 text-primary" : "bg-surface-soft text-meta",
+              )}
+            >
               <MailOpen className="size-3" />
-              <span>전송됨</span>
+              <span>{badgeLabel}</span>
             </span>
           )}
           <span>·</span>
