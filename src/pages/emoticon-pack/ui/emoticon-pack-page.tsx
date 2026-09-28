@@ -12,8 +12,19 @@ import {
   type KeywordRateLimit,
 } from "@/features/author-emoticon";
 import { useMediaPicker } from "@/features/upload-media";
-import { EMOTICON_KIND_NOUNS, EMOTICON_SETTINGS_ROUTE, MINI_SETTINGS_ROUTE } from "@/shared/config";
-import { cn, type EmoticonItemId, type Maybe, type Nullable } from "@/shared/lib";
+import {
+  EMOTICON_KIND_NOUNS,
+  EMOTICON_SETTINGS_ROUTE,
+  LOGIN_ROUTE,
+  MINI_SETTINGS_ROUTE,
+} from "@/shared/config";
+import {
+  cn,
+  getPreviousAppRoute,
+  type EmoticonItemId,
+  type Maybe,
+  type Nullable,
+} from "@/shared/lib";
 import { OFFLINE_MESSAGES, OfflineStaleNotice, useOfflineGate } from "@/shared/offline-ux";
 import { ActionSheet, AppHeader, Button, EmptyState, IconButton, Modal, toast } from "@/shared/ui";
 import { josa } from "es-hangul";
@@ -28,7 +39,7 @@ import {
   Trash2,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 
 /** REQUIREMENTS.md § 13.8.1. What a 429 from Google is told to the user as. */
 const RATE_LIMIT_MESSAGES: Record<KeywordRateLimit, string> = {
@@ -91,6 +102,18 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   // INFO: § 13.8. Only the items nobody has described. Suggestions never overwrite a keyword somebody typed — the model is filling gaps, not revising work.
   const untagged = items.filter((item) => item.keywords.length === 0);
 
+  const fallbackSettingsRoute = type === "mini" ? MINI_SETTINGS_ROUTE : EMOTICON_SETTINGS_ROUTE;
+
+  const handleBack = useCallback(() => {
+    const prevAppRoute = getPreviousAppRoute();
+
+    if (prevAppRoute && !prevAppRoute.includes(LOGIN_ROUTE)) {
+      router.back();
+    } else {
+      router.push(fallbackSettingsRoute);
+    }
+  }, [router, fallbackSettingsRoute]);
+
   return (
     <div
       className={cn("mx-auto flex w-full max-w-(--content-max-width) flex-1 flex-col", className)}
@@ -103,9 +126,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
             Icon={ChevronLeft}
             haptic
             aria-label="뒤로"
-            onClick={() =>
-              router.push(type === "mini" ? MINI_SETTINGS_ROUTE : EMOTICON_SETTINGS_ROUTE)
-            }
+            onClick={handleBack}
           />
         }
         trailing={

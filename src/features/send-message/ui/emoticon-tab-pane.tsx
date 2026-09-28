@@ -1,11 +1,13 @@
 "use client";
 
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
+import { EMOTICON_SETTINGS_ROUTE, MINI_SETTINGS_ROUTE } from "@/shared/config";
 import type { EmoticonPackType } from "@/shared/db";
 import { cn, type Nullable } from "@/shared/lib";
 import { EmptyState, LoadMoreSentinel, Skeleton } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
-import { ChevronDown, Smile } from "lucide-react";
+import { ChevronDown, ChevronRight, Smile } from "lucide-react";
+import { useRouter } from "next/navigation";
 import {
   useRef,
   type FocusEvent,
@@ -93,6 +95,7 @@ export function EmoticonTabPane({
   onFocusCell,
   onSelect,
 }: EmoticonTabPaneProps) {
+  const router = useRouter();
   const localScrollerRef = useRef<Nullable<HTMLDivElement>>(null);
   const targetScrollerRef = scrollerRef ?? localScrollerRef;
 
@@ -108,6 +111,9 @@ export function EmoticonTabPane({
 
   const isRecents = isRecentsTabId(tabId);
   const isAll = isAllTabId(tabId);
+
+  const toPackSettingsRoute = (packId: string) =>
+    `${menuKind === "mini" ? MINI_SETTINGS_ROUTE : EMOTICON_SETTINGS_ROUTE}/${packId}`;
 
   const columns = menuKind === "mini" ? 6 : 4;
   const hasMoreRecents = recents.length > recentsVisibleRows * columns;
@@ -131,7 +137,22 @@ export function EmoticonTabPane({
     >
       {!isRecents && !isAll && tabLabel !== "" && (
         <h2 className="pb-xs text-body-sm text-meta" {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}>
-          {tabLabel}
+          {isPack ? (
+            <button
+              className="group -ml-1 inline-flex max-w-full items-center gap-1 rounded-xs px-1 text-left text-meta transition-colors select-none hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:text-ink"
+              type="button"
+              aria-label={`${tabLabel} 설정으로 이동`}
+              onClick={() => router.push(toPackSettingsRoute(tabId))}
+            >
+              <span className="truncate">{tabLabel}</span>
+              <ChevronRight
+                className="size-3.5 shrink-0 text-meta-soft transition-transform group-hover:translate-x-0.5 group-hover:text-ink group-active:text-ink"
+                strokeWidth={2}
+              />
+            </button>
+          ) : (
+            tabLabel
+          )}
         </h2>
       )}
 
@@ -262,7 +283,18 @@ export function EmoticonTabPane({
             return (
               <section key={section.pack.id}>
                 <h2 className="pb-xs text-body-sm text-meta" {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}>
-                  {section.pack.name}
+                  <button
+                    className="group -ml-1 inline-flex max-w-full items-center gap-1 rounded-xs px-1 text-left text-meta transition-colors select-none hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:text-ink"
+                    type="button"
+                    aria-label={`${section.pack.name} 설정으로 이동`}
+                    onClick={() => router.push(toPackSettingsRoute(section.pack.id))}
+                  >
+                    <span className="truncate">{section.pack.name}</span>
+                    <ChevronRight
+                      className="size-3.5 shrink-0 text-meta-soft transition-transform group-hover:translate-x-0.5 group-hover:text-ink group-active:text-ink"
+                      strokeWidth={2}
+                    />
+                  </button>
                 </h2>
                 <EmoticonGrid
                   items={section.items}
