@@ -40,6 +40,8 @@ export function useArchiveMedia(
   // INFO: A short first page cannot have more behind it, so the downward fetch is never even attempted.
   const hasMoreRef = useRef(initialMedia.length >= ARCHIVE_PAGE_SIZE);
   const hasNewerRef = useRef(toHasNewer(initialMedia, targetId));
+  // INFO: Guards `seekTo` window replacements against out-of-order responses when the reader taps multiple months in succession.
+  const seekGenerationRef = useRef(0);
   /**
    * WARN: The newest row that came from a **page**, which is not `media[0]` — an
    * upload prepends ahead of it (REQUIREMENTS.md § 10.). Paging upward off `media[0]`
@@ -209,6 +211,52 @@ export function useArchiveMedia(
     [commit],
   );
 
+  /**
+   * Replaces the loaded window with one centred on `targetId` via the server's
+   * `around` query — the `lg` panel's month jump when the target month has not
+   * been paged in yet. All paging state is reset so both directions work from
+   * the new position, exactly as the SSR position jump (`?target=`) sets them
+   * up at mount.
+   */
+  const seekTo = useCallback(
+    async (seekTargetId: string): Promise<boolean> => {
+      const generation = ++seekGenerationRef.current;
+
+      try {
+        const page = await fetchArchiveMedia({
+          shelf,
+          around: seekTargetId,
+          modeFilter,
+        });
+
+        if (seekGenerationRef.current !== generation) {
+          return false;
+        }
+
+        hasMoreRef.current = page.length >= ARCHIVE_PAGE_SIZE;
+        hasNewerRef.current = toHasNewer(page, seekTargetId);
+        windowTopRef.current = page[0] ?? null;
+        heldNewerRef.current = [];
+        isLoadingRef.current = false;
+        isLoadingNewerRef.current = false;
+        setHasHeldNewer(false);
+        setIsLoadingMore(false);
+        setIsLoadingNewer(false);
+        mediaRef.current = page;
+        setMedia(page);
+
+        return true;
+      } catch {
+        if (seekGenerationRef.current === generation) {
+          toast.error(`${josa(LOAD_FAILURE_SUBJECTS[shelf], "을/를")} 더 불러오지 못했어요`);
+        }
+
+        return false;
+      }
+    },
+    [modeFilter, shelf],
+  );
+
   return {
     media,
     isLoadingMore,
@@ -219,6 +267,7 @@ export function useArchiveMedia(
     insertNewer,
     prepend,
     remove,
+    seekTo,
   };
 }
 

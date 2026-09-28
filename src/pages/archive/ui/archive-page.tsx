@@ -36,7 +36,7 @@ import {
 } from "@/widgets/archive-shelves";
 import { ImagePlus, Images, LayoutGrid, ListChecks, MessageCircle, Send, X } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useArchiveJump } from "../model/archive-jump-context";
 import { useInvalidateArchiveMonthCounts } from "../model/archive-month-counts-context";
 import { ArchiveFilterButton } from "./archive-filter-button";
@@ -77,6 +77,7 @@ export function ArchivePage({
     insertNewer,
     prepend,
     remove,
+    seekTo,
   } = useArchiveMedia(initialMedia, "gallery", targetId, modeFilter);
   useWriteArchiveSnapshot("archive-gallery", modeFilter === "all" ? media : null);
   // INFO: REQUIREMENTS.md § 10. The `lg` panel's totals follow what this grid adds and removes.
@@ -116,13 +117,31 @@ export function ArchivePage({
   const [jumpTo, setJumpTo] = useState<Nullable<{ monthKey: string; token: number }>>(null);
   // INFO: AGENTS.md § 4.1. `archive/layout.tsx`'s panel persists across shelf routes and reaches this grid's own `jumpTo` state through the wire `ArchiveJumpProvider` is.
   const { registerJumpHandler } = useArchiveJump();
+  // INFO: Held in a ref so the handler registered once at mount always reads the current media without needing to re-register (which would briefly leave no handler during the route's own mount).
+  const mediaRef = useRef(media);
+
+  useEffect(() => {
+    mediaRef.current = media;
+  }, [media]);
 
   useEffect(
     () =>
-      registerJumpHandler((monthKey) =>
-        setJumpTo((previous) => ({ monthKey, token: (previous?.token ?? 0) + 1 })),
-      ),
-    [registerJumpHandler],
+      registerJumpHandler(async (monthKey, firstId) => {
+        // INFO: If the month's first (newest) item is already in the loaded window, the month header is guaranteed to be present — no fetch needed.
+        const isLoaded = mediaRef.current.some((item) => item.id === firstId);
+
+        if (!isLoaded) {
+          // INFO: One `around` fetch replaces the window with one centred on the month's newest item, then both directions page from there — no sequential loading of every intermediate page.
+          const didSeek = await seekTo(firstId);
+
+          if (!didSeek) {
+            return;
+          }
+        }
+
+        setJumpTo((previous) => ({ monthKey, token: (previous?.token ?? 0) + 1 }));
+      }),
+    [registerJumpHandler, seekTo],
   );
 
   return (

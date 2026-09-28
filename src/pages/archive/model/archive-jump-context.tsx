@@ -1,13 +1,13 @@
 "use client";
 
-import type { Nullable } from "@/shared/lib";
+import type { MediaId, Nullable } from "@/shared/lib";
 import { createContext, useCallback, useContext, useRef, type PropsWithChildren } from "react";
 
-type JumpHandler = (monthKey: string) => void;
+type JumpHandler = (monthKey: string, firstId: MediaId) => void;
 
 type ArchiveJumpValue = {
   /** Called by the `lg` panel's month row; does nothing while no shelf page has registered a handler. */
-  jump: (monthKey: string) => void;
+  jump: (monthKey: string, firstId: MediaId) => void;
   /** Called by the mounted shelf page; returns the cleanup that un-registers it. */
   registerJumpHandler: (handler: JumpHandler) => () => void;
 };
@@ -38,8 +38,8 @@ export function ArchiveJumpProvider({ children }: ArchiveJumpProviderProps) {
     };
   }, []);
 
-  const jump = useCallback((monthKey: string) => {
-    handlerRef.current?.(monthKey);
+  const jump = useCallback((monthKey: string, firstId: MediaId) => {
+    handlerRef.current?.(monthKey, firstId);
   }, []);
 
   return <ArchiveJumpContext value={{ jump, registerJumpHandler }}>{children}</ArchiveJumpContext>;

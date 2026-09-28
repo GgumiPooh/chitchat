@@ -86,4 +86,6 @@ export type ArchiveMedia = ChatMedia & {
 export type ArchiveMonthCount = {
   monthKey: string;
   count: number;
+  /** The newest media id in this month — the panel's month jump seeks via `around` on this rather than paging sequentially through every intermediate page. */
+  firstId: MediaId;
 };

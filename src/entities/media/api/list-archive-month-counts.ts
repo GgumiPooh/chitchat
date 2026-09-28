@@ -2,7 +2,7 @@ import "server-only";
 
 import type { ArchiveModeFilter, LibraryShelf } from "@/shared/config";
 import { getDb, media } from "@/shared/db";
-import { SNOWFLAKE_EPOCH, type UserId } from "@/shared/lib";
+import { SNOWFLAKE_EPOCH, type MediaId, type UserId } from "@/shared/lib";
 import { and, desc, sql } from "drizzle-orm";
 import type { ArchiveMonthCount } from "../model/types";
 import { isInLibrary, isOfShelf } from "./list-archive-media";
@@ -21,6 +21,10 @@ const MONTH_KEY = sql<string>`to_char(
  * paged in so far. Filters on the same predicate as `listArchiveMedia`
  * (`isInLibrary` + `isOfShelf`, `modeFilter` included), or a count could list a
  * month the grid can never actually show a tile from.
+ *
+ * INFO: `firstId` is the newest (largest) id in each month — the panel's month
+ * jump seeks via `around` on this, so one fetch replaces the window rather than
+ * paging through every intermediate page.
  */
 export async function listArchiveMonthCounts(
   shelf: LibraryShelf,
@@ -28,7 +32,11 @@ export async function listArchiveMonthCounts(
   modeFilter: ArchiveModeFilter = "all",
 ): Promise<ArchiveMonthCount[]> {
   return getDb()
-    .select({ monthKey: MONTH_KEY, count: sql<number>`count(*)::int` })
+    .select({
+      monthKey: MONTH_KEY,
+      count: sql<number>`count(*)::int`,
+      firstId: sql<MediaId>`max(${media.id})::text`,
+    })
     .from(media)
     .where(and(isInLibrary(currentUserId, modeFilter), isOfShelf(shelf)))
     .groupBy(MONTH_KEY)

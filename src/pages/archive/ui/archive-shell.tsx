@@ -37,7 +37,7 @@ export function ArchiveShell({ className, children }: ArchiveShellProps) {
                   key={month.monthKey}
                   className="flex cursor-pointer items-center justify-between gap-sm rounded-md px-sm py-xs text-left text-body-sm text-body transition-colors outline-none hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-strong"
                   type="button"
-                  onClick={() => jump(month.monthKey)}
+                  onClick={() => jump(month.monthKey, month.firstId)}
                 >
                   {formatYearMonth(month.monthKey)}
                   {/* INFO: AGENTS.md § 4.1. `listArchiveMonthCounts`'s own aggregate — the shelf's true count, not "however many `useArchiveMedia` has paged in so far". */}
