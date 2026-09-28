@@ -4,7 +4,7 @@ import type { TimeLetter } from "@/entities/time-letter";
 import { formatJourneyDuration, THEME_STYLES } from "@/shared/config";
 import { cn, formatDate, formatTime, type Nullable } from "@/shared/lib";
 import { BottomSheet, Button, MediaViewer, Modal, type MediaCell } from "@/shared/ui";
-import { Clock, RotateCcw, Sparkles, Trash2, Video } from "lucide-react";
+import { Clock, RotateCcw, Trash2, Video } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { WaxSealUnboxing } from "./wax-seal-unboxing";
 
@@ -180,139 +180,113 @@ export function TimeLetterViewerSheet({
         header={{
           title: "타임머신 편지",
           isHidden: true,
+          action: (
+            <button
+              className="inline-flex cursor-pointer items-center gap-1 rounded-full px-2.5 py-1 text-caption text-meta transition-colors hover:bg-surface-soft hover:text-ink active:bg-surface-strong"
+              type="button"
+              onClick={() => setIsUnsealed(false)}
+            >
+              <RotateCcw className="size-3.5" aria-hidden />
+              <span>봉인 다시 보기</span>
+            </button>
+          ),
         }}
         onClose={onClose}
       >
-        <div className="animate-in space-y-lg pt-xs pb-md duration-500 fade-in-50">
-          <div className="space-y-md">
-            {/* 1. Top utility row: Badge & re-seal interaction button */}
-            <div className="flex flex-wrap items-center justify-between gap-sm">
+        <div className="animate-in space-y-md pt-xs pb-md duration-500 fade-in-50">
+          {/* 1. Addressee (To. ...) */}
+          <div className="pt-xs">
+            <span className={cn("text-title-lg font-bold tracking-tight", themeStyle.title)}>
+              {toLabel}
+            </span>
+          </div>
+
+          {/* 2. Letter title (if provided) */}
+          {letter.title && (
+            <div className="-mt-1">
+              <span className={cn("text-title-sm font-medium italic opacity-85", themeStyle.title)}>
+                &ldquo;{letter.title}&rdquo;
+              </span>
+            </div>
+          )}
+
+          {/* 3. Elegant separator */}
+          <hr className={cn("my-xs border-t", themeStyle.divider)} />
+
+          {/* 4. Letter body */}
+          <div
+            className={cn(
+              "min-h-28 py-xs text-body-md leading-relaxed break-keep whitespace-pre-wrap",
+              themeStyle.body,
+            )}
+          >
+            {letter.content ??
+              "개봉일까지 본문과 사진은 안전하게 암호화 및 봉인 처리되어 보호돼요."}
+          </div>
+
+          {/* 6. Photo gallery grid (tap opens MediaViewer) */}
+          {letter.media && letter.media.length > 0 && (
+            <div className="space-y-xs pt-xs">
+              <p className={cn("text-caption", themeStyle.dateStamp)}>
+                첨부된 추억 ({letter.media.length}장)
+              </p>
               <div
                 className={cn(
-                  "inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-caption font-medium",
-                  themeStyle.headerBadge,
+                  "grid gap-xs",
+                  letter.media.length === 1 && "max-w-xs grid-cols-1",
+                  letter.media.length === 2 && "grid-cols-2",
+                  letter.media.length >= 3 && "grid-cols-3",
                 )}
               >
-                <Sparkles className="size-3" aria-hidden />
-                <span>타임머신 편지</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                {canCancel && (
+                {letter.media.map((item, index) => (
                   <button
-                    className="inline-flex cursor-pointer items-center gap-1 text-caption font-medium text-semantic-error transition-colors hover:underline"
+                    key={item.id}
+                    className="group relative aspect-square cursor-pointer overflow-hidden rounded-md border border-hairline bg-surface-soft transition-opacity outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary active:opacity-80"
                     type="button"
-                    onClick={onCancel}
+                    onClick={() => setActiveMediaIndex(index)}
                   >
-                    <Trash2 className="size-3" aria-hidden />
-                    <span>봉인 취소</span>
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
+                    <img
+                      className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
+                      src={item.previewUrl}
+                      alt="편지 첨부 미디어"
+                    />
+                    {item.isVideo && (
+                      <div className="absolute right-1 bottom-1 rounded-sm bg-scrim/75 p-1 text-on-scrim">
+                        <Video className="size-3.5" />
+                      </div>
+                    )}
                   </button>
-                )}
-                <button
-                  className="inline-flex cursor-pointer items-center gap-1 text-caption text-meta transition-colors hover:text-ink"
-                  type="button"
-                  onClick={() => setIsUnsealed(false)}
-                >
-                  <RotateCcw className="size-3" aria-hidden />
-                  <span>봉인 다시 보기</span>
-                </button>
+                ))}
               </div>
             </div>
+          )}
 
-            {/* 2. Addressee (To. ...) */}
-            <div className="pt-xs">
-              <span className={cn("text-title-md font-bold tracking-tight", themeStyle.title)}>
-                {toLabel}
+          {/* 7. Sign-off and Written Date (Right-aligned) */}
+          <div className="flex flex-col items-end gap-0.5 pt-sm text-right">
+            <span className={cn("text-caption", themeStyle.dateStamp)}>{writtenDateFullStr}</span>
+            <span className={cn("text-title-sm font-semibold tracking-tight", themeStyle.title)}>
+              {fromLabel}
+            </span>
+          </div>
+
+          {/* 8. Delivery Journey Log Card (타임머신 배달 기록) */}
+          <div className={cn("mt-md rounded-xl border p-md text-caption", themeStyle.headerBadge)}>
+            <div className="flex items-center justify-between border-b border-hairline/30 pb-xs">
+              <span className="flex items-center gap-1.5 font-medium">
+                <Clock className="size-3.5" aria-hidden />
+                <span>타임머신 배달 기록</span>
               </span>
+              {journeyDuration && <span className="font-semibold">{journeyDuration}</span>}
             </div>
-
-            {/* 3. Letter title (if provided) */}
-            {letter.title && (
-              <h2 className={cn("text-title-lg font-bold tracking-tight", themeStyle.title)}>
-                {letter.title}
-              </h2>
-            )}
-
-            {/* 4. Elegant separator */}
-            <hr className={cn("border-t", themeStyle.divider)} />
-
-            {/* 5. Letter body */}
-            <div
-              className={cn(
-                "min-h-24 font-sans text-body-md leading-relaxed break-keep whitespace-pre-wrap",
-                themeStyle.body,
-              )}
-            >
-              {letter.content ??
-                "개봉일까지 본문과 사진은 안전하게 암호화 및 봉인 처리되어 보호돼요."}
-            </div>
-
-            {/* 6. Photo gallery grid (tap opens MediaViewer) */}
-            {letter.media && letter.media.length > 0 && (
-              <div className="space-y-xs pt-xs">
-                <p className={cn("text-caption", themeStyle.dateStamp)}>
-                  첨부된 추억 ({letter.media.length}장)
-                </p>
-                <div
-                  className={cn(
-                    "grid gap-xs",
-                    letter.media.length === 1 && "max-w-xs grid-cols-1",
-                    letter.media.length === 2 && "grid-cols-2",
-                    letter.media.length >= 3 && "grid-cols-3",
-                  )}
-                >
-                  {letter.media.map((item, index) => (
-                    <button
-                      key={item.id}
-                      className="group relative aspect-square cursor-pointer overflow-hidden rounded-md border border-hairline bg-surface-soft transition-opacity outline-none hover:opacity-90 focus-visible:ring-2 focus-visible:ring-primary active:opacity-80"
-                      type="button"
-                      onClick={() => setActiveMediaIndex(index)}
-                    >
-                      {/* eslint-disable-next-line @next/next/no-img-element */}
-                      <img
-                        className="size-full object-cover transition-transform duration-300 group-hover:scale-105"
-                        src={item.previewUrl}
-                        alt="편지 첨부 미디어"
-                      />
-                      {item.isVideo && (
-                        <div className="absolute right-1 bottom-1 rounded-sm bg-scrim/75 p-1 text-on-scrim">
-                          <Video className="size-3.5" />
-                        </div>
-                      )}
-                    </button>
-                  ))}
-                </div>
+            <div className="grid grid-cols-2 gap-sm pt-xs">
+              <div>
+                <span className="block text-[11px] opacity-75">묻어둔 시각</span>
+                <span className="font-medium">{writtenDateFullStr}</span>
               </div>
-            )}
-
-            {/* 7. Sign-off and Written Date (Right-aligned) */}
-            <div className="flex flex-col items-end gap-0.5 pt-sm text-right">
-              <span className={cn("text-caption", themeStyle.dateStamp)}>{writtenDateFullStr}</span>
-              <span className={cn("text-title-sm font-semibold tracking-tight", themeStyle.title)}>
-                {fromLabel}
-              </span>
-            </div>
-
-            {/* 8. Delivery Journey Log Card (타임머신 배달 기록) */}
-            <div
-              className={cn("mt-md rounded-xl border p-md text-caption", themeStyle.headerBadge)}
-            >
-              <div className="flex items-center justify-between border-b border-hairline/30 pb-xs">
-                <span className="flex items-center gap-1.5 font-medium">
-                  <Clock className="size-3.5" aria-hidden />
-                  <span>타임머신 배달 기록</span>
-                </span>
-                {journeyDuration && <span className="font-semibold">{journeyDuration}</span>}
-              </div>
-              <div className="grid grid-cols-2 gap-sm pt-xs">
-                <div>
-                  <span className="block text-[11px] opacity-75">묻어둔 시각</span>
-                  <span className="font-medium">{writtenDateFullStr}</span>
-                </div>
-                <div>
-                  <span className="block text-[11px] opacity-75">{arrivalLabel}</span>
-                  <span className="font-medium">{targetDateStr}</span>
-                </div>
+              <div>
+                <span className="block text-[11px] opacity-75">{arrivalLabel}</span>
+                <span className="font-medium">{targetDateStr}</span>
               </div>
             </div>
           </div>

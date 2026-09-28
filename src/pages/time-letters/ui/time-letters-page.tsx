@@ -506,28 +506,37 @@ export function TimeLettersPage({
                 ) : (
                   <div className="flex flex-col gap-md">
                     {/* Addressee (To. ...) */}
-                    <div className="text-title-md font-bold tracking-tight">
-                      <span className={selectedThemeStyle.title}>{selectedToLabel}</span>
-                    </div>
-
-                    {/* Title */}
-                    {selectedLetter.title && (
-                      <h1
+                    <div className="pt-xs">
+                      <span
                         className={cn(
-                          "text-display-xs leading-tight font-bold",
+                          "text-title-lg font-bold tracking-tight",
                           selectedThemeStyle.title,
                         )}
                       >
-                        {selectedLetter.title}
-                      </h1>
+                        {selectedToLabel}
+                      </span>
+                    </div>
+
+                    {/* Title (if provided) */}
+                    {selectedLetter.title && (
+                      <div className="-mt-1">
+                        <span
+                          className={cn(
+                            "text-title-sm font-medium italic opacity-85",
+                            selectedThemeStyle.title,
+                          )}
+                        >
+                          &ldquo;{selectedLetter.title}&rdquo;
+                        </span>
+                      </div>
                     )}
 
-                    <hr className={cn("border-t", selectedThemeStyle.divider)} />
+                    <hr className={cn("my-xs border-t", selectedThemeStyle.divider)} />
 
                     {/* Content Body */}
                     <div
                       className={cn(
-                        "min-h-24 font-sans text-body-md leading-relaxed break-keep whitespace-pre-wrap",
+                        "min-h-28 py-xs text-body-md leading-relaxed break-keep whitespace-pre-wrap",
                         selectedThemeStyle.body,
                       )}
                     >
