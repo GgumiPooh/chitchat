@@ -13,7 +13,7 @@ import {
   uploadDraft,
   validateFile,
 } from "@/features/upload-media/@x/time-letter-compose";
-import { TIME_LETTER_THEMES } from "@/shared/config";
+import { THEME_STYLES, TIME_LETTER_THEMES } from "@/shared/config";
 import { cn, toDayKey, type Nullable } from "@/shared/lib";
 import { BottomSheet, Button, Chip, Input, Switch, Textarea, toast } from "@/shared/ui";
 import { josa } from "es-hangul";
@@ -59,6 +59,7 @@ export function TimeLetterComposeSheet({
   const [initialDateTime] = useState(() => getDefaultScheduledDateTime());
 
   const [theme, setTheme] = useState<TimeLetterTheme>("classic");
+  const selectedThemeStyle = THEME_STYLES[theme] ?? THEME_STYLES.classic;
   const [scheduledDayKey, setScheduledDayKey] = useState<string>(initialDateTime.dayKey);
   const [scheduledTime, setScheduledTime] = useState<string>(initialDateTime.time);
   const [recipientMode, setRecipientMode] = useState<TimeLetterRecipientMode>("partner");
@@ -445,25 +446,58 @@ export function TimeLetterComposeSheet({
             />
           </section>
 
-          {/* 5. Title (optional) & Content textarea (required) */}
+          {/* 5. Title (optional) & Content textarea (required) - Styled as live themed stationery paper */}
           <section className="space-y-xs">
-            <label className="text-caption text-meta">편지 내용</label>
-            <Input
-              maxLength={100}
-              placeholder="편지 제목 (선택)"
-              value={title}
-              onChange={(e) => setTitle(e.target.value)}
-            />
-            <div className="relative">
-              <Textarea
-                className="min-h-44 resize-none"
-                maxLength={MAX_CONTENT_LENGTH}
-                placeholder="미래의 우리에게 보낼 편지를 작성해 보세요..."
-                value={content}
-                onChange={(e) => setContent(e.target.value)}
+            <div className="flex items-center justify-between">
+              <label className="text-caption text-meta">편지 내용</label>
+              <span className="font-mono text-caption tracking-widest uppercase opacity-60">
+                Time Letter
+              </span>
+            </div>
+            <div
+              className={cn(
+                "relative flex flex-col gap-sm rounded-xl p-md transition-all duration-300",
+                selectedThemeStyle.parchment,
+              )}
+            >
+              <div className="flex items-center justify-between text-caption opacity-70">
+                <span className={cn("font-medium", selectedThemeStyle.title)}>
+                  {recipientMode === "me"
+                    ? "To. 미래의 나에게"
+                    : partnerName
+                      ? `To. ${partnerName}에게`
+                      : "To. 너에게"}
+                </span>
+                <span className={cn("text-[11px]", selectedThemeStyle.dateStamp)}>
+                  {todayKey} 작성 중
+                </span>
+              </div>
+
+              <Input
+                className={cn(
+                  "min-h-9! rounded-none border-0 border-b bg-transparent px-0 text-title-sm font-semibold shadow-none focus-visible:ring-0",
+                  selectedThemeStyle.title,
+                  selectedThemeStyle.divider,
+                )}
+                maxLength={100}
+                placeholder="편지 제목 (선택)"
+                value={title}
+                onChange={(e) => setTitle(e.target.value)}
               />
-              <div className="mt-1 text-right text-caption text-meta">
-                {content.length.toLocaleString()} / {MAX_CONTENT_LENGTH.toLocaleString()}자
+              <div className="relative">
+                <Textarea
+                  className={cn(
+                    "min-h-48 resize-none border-0 bg-transparent px-0 py-xs text-body-md leading-relaxed shadow-none focus-visible:ring-0",
+                    selectedThemeStyle.body,
+                  )}
+                  maxLength={MAX_CONTENT_LENGTH}
+                  placeholder="미래의 소중한 순간에 전해질 이야기를 적어보세요..."
+                  value={content}
+                  onChange={(e) => setContent(e.target.value)}
+                />
+                <div className={cn("mt-1 text-right text-caption", selectedThemeStyle.dateStamp)}>
+                  {content.length.toLocaleString()} / {MAX_CONTENT_LENGTH.toLocaleString()}자
+                </div>
               </div>
             </div>
           </section>

@@ -6,7 +6,7 @@ import { toast } from "@/shared/ui";
 import { useCallback, useRef, useState } from "react";
 import { cancelTimeLetterRequest, fetchTimeLetters } from "../api/fetch-time-letters";
 
-export type TimeLetterFilter = "all" | "received" | "sent" | "self";
+export type TimeLetterFilter = "all" | "received" | "sent";
 
 export type UseTimeLettersParams = {
   initialLetters: TimeLetter[];

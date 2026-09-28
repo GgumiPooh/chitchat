@@ -67,7 +67,6 @@ const FILTER_TABS: readonly { label: string; id: TimeLetterFilter }[] = [
   { id: "all", label: "전체" },
   { id: "received", label: "받은 편지" },
   { id: "sent", label: "보낸 편지" },
-  { id: "self", label: "나에게" },
 ] as const;
 
 export function TimeLettersPage({
@@ -309,8 +308,6 @@ export function TimeLettersPage({
         return "받은 편지가 없어요";
       case "sent":
         return "보낸 편지가 없어요";
-      case "self":
-        return "나에게 쓴 편지가 없어요";
       default:
         return "보관된 편지가 없어요";
     }
@@ -319,11 +316,9 @@ export function TimeLettersPage({
   const emptyStateMessage = useMemo(() => {
     switch (filter) {
       case "received":
-        return "아직 상대방에게 받은 편지가 없어요. 먼저 편지를 보내보는 건 어떨까요?";
+        return "아직 받은 편지가 없어요. 먼저 편지를 보내보는 건 어떨까요?";
       case "sent":
         return "아직 보낸 편지가 없어요. 미래의 소중한 순간에 도착할 편지를 적어보세요.";
-      case "self":
-        return "미래의 나에게 보낸 편지가 아직 없어요. 미래의 나에게 응원의 편지를 남겨보세요.";
       default:
         return "아직 등록된 타임머신 편지가 없어요. 미래의 소중한 순간에 도착할 편지를 적어보세요.";
     }
@@ -332,11 +327,9 @@ export function TimeLettersPage({
   const desktopEmptyStateMessage = useMemo(() => {
     switch (filter) {
       case "received":
-        return "아직 상대방에게 받은 편지가 없어요. 상단의 '새 편지' 버튼을 눌러 먼저 편지를 보내보세요.";
+        return "아직 받은 편지가 없어요. 상단의 '새 편지' 버튼을 눌러 먼저 편지를 보내보세요.";
       case "sent":
         return "아직 보낸 편지가 없어요. 상단의 '새 편지' 버튼을 눌러 미래로 편지를 보내보세요.";
-      case "self":
-        return "미래의 나에게 보낸 편지가 아직 없어요. 상단의 '새 편지' 버튼을 눌러 미래의 나에게 응원의 편지를 남겨보세요.";
       default:
         return "아직 등록된 타임머신 편지가 없어요. 상단의 '새 편지' 버튼을 눌러 미래로 편지를 보내보세요.";
     }

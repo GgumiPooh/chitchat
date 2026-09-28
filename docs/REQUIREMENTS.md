@@ -2423,6 +2423,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 
 - **Responsive Surface**: Uses `BottomSheet` on mobile and `DialogShell` (`size="lg"`) on desktop with a flat props API (`isOpen`, `onClose`, `onSuccess`).
 - **Theme Selection**: 4 parchment themes ('classic', 'romantic', 'midnight', 'kraft') selectable via `Chip` with `haptic`.
+- **Live Stationery Preview**: Selecting among the 4 parchment themes immediately applies the corresponding parchment color, typography, watermark, and subtle divider to the writing card with smooth CSS transitions.
 - **Date & Time Scheduling**:
   - Quick Presets: '내일 아침 8시', '100일 뒤', '1년 뒤 오늘' via `Chip` with `haptic`.
   - Custom Date & Time pickers with validation guaranteeing at least 10 minutes in the future.
@@ -2456,7 +2457,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
   - Card Body: Opaque canvas surface (`bg-canvas`), primary-tint borders, floating shadow (`shadow-card`), written date (`{작성일} 작성`), elapsed duration statement (`{N}개월 전 과거에서 보낸 편지예요`), two-line bold title quote, and a prominent CTA button (`[ ✉️ 실링 왁스 풀고 개봉하기 ]`).
   - Timeline Placement: Accompanied by the delivery arrival timestamp beside the card. Tapping the card opens `TimeLetterViewerSheet` in place directly over the chat room without losing conversational context.
   - Context Menu & Long-Press: Supports mobile long-press and desktop right-click contextual actions: `[편지 개봉]`, `[답장]`, `[책갈피 등록/해제]`, `[보관함에서 보기]`, `[제목 복사]`, `[공유]`. Quoting a time letter notice formats as `“{title}” (타임머신 편지)`.
-- **Mailbox Filter Tabs & Card Badges (우편함 탭 및 뱃지)**: Categorizes letters into 4 intuitive tabs ('전체', '받은 편지', '보낸 편지', '나에게') backed by server-side query filters. Letter cards feature refined role-aware badges ('[받은 편지]', '[비밀 편지]', '[보낸 편지]', '[봉인 보관 중]', '[나에게 도착]') with distinct primary-tint highlights for received letters, and contextual empty state prompts.
+- **Mailbox Filter Tabs & Card Badges (우편함 탭 및 뱃지)**: Categorizes letters into 3 intuitive tabs ('전체', '받은 편지', '보낸 편지') backed by server-side query filters, where '받은 편지' collects both letters from the partner and self-addressed letters. Letter cards feature refined role-aware badges ('[받은 편지]', '[비밀 편지]', '[보낸 편지]', '[봉인 보관 중]', '[나에게 도착]') with distinct primary-tint highlights for received letters, and contextual empty state prompts.
 
 ## 18.3. Delivery Engine & 1-Minute Cron Worker (`dispatch-letters-worker`)
 

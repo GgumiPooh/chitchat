@@ -54,12 +54,19 @@ export async function listTimeLetters({
   let visibilityCondition: SQL | undefined;
 
   if (filter === "received") {
-    visibilityCondition = and(
-      eq(timeLetters.recipientId, currentUserId),
-      eq(timeLetters.onlyMe, false),
-      ne(timeLetters.senderId, currentUserId),
-      ne(timeLetters.status, "canceled"),
-      or(ne(timeLetters.status, "scheduled"), eq(timeLetters.showTeaser, true)),
+    visibilityCondition = or(
+      and(
+        eq(timeLetters.recipientId, currentUserId),
+        eq(timeLetters.onlyMe, false),
+        ne(timeLetters.senderId, currentUserId),
+        ne(timeLetters.status, "canceled"),
+        or(ne(timeLetters.status, "scheduled"), eq(timeLetters.showTeaser, true)),
+      ),
+      and(
+        eq(timeLetters.senderId, currentUserId),
+        eq(timeLetters.onlyMe, true),
+        ne(timeLetters.status, "canceled"),
+      ),
     );
   } else if (filter === "sent") {
     visibilityCondition = and(
