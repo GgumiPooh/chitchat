@@ -62,6 +62,7 @@ export function TimeLetterComposeSheet({
   const selectedThemeStyle = THEME_STYLES[theme] ?? THEME_STYLES.classic;
   const [scheduledDayKey, setScheduledDayKey] = useState<string>(initialDateTime.dayKey);
   const [scheduledTime, setScheduledTime] = useState<string>(initialDateTime.time);
+  const [selectedPresetId, setSelectedPresetId] = useState<string>("tomorrow");
   const [recipientMode, setRecipientMode] = useState<TimeLetterRecipientMode>("partner");
   const [showTeaser, setShowTeaser] = useState<boolean>(true);
   const [title, setTitle] = useState<string>("");
@@ -78,6 +79,7 @@ export function TimeLetterComposeSheet({
   const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   // Validation
@@ -152,11 +154,53 @@ export function TimeLetterComposeSheet({
     if (pendingDraft.scheduledTime) {
       setScheduledTime(pendingDraft.scheduledTime);
     }
+    if (pendingDraft.scheduledDayKey && pendingDraft.scheduledTime) {
+      const matched = DATE_PRESETS.find(
+        (preset) =>
+          preset.getDayKey(todayKey) === pendingDraft.scheduledDayKey &&
+          preset.time === pendingDraft.scheduledTime,
+      );
+      setSelectedPresetId(matched ? matched.id : "custom");
+    } else if (pendingDraft.scheduledDayKey || pendingDraft.scheduledTime) {
+      setSelectedPresetId("custom");
+    }
     setRecipientMode(pendingDraft.recipientMode);
     setShowTeaser(pendingDraft.showTeaser);
     setPendingDraft(null);
 
     toast.success("임시 저장된 편지를 불러왔어요");
+  };
+
+  const handleSelectPreset = (preset: (typeof DATE_PRESETS)[number]) => {
+    setSelectedPresetId(preset.id);
+    setScheduledDayKey(preset.getDayKey(todayKey));
+    setScheduledTime(preset.time);
+  };
+
+  const handleSelectCustom = () => {
+    setSelectedPresetId("custom");
+    try {
+      dateInputRef.current?.showPicker?.();
+    } catch {
+      // INFO: Handled gracefully when showPicker is unsupported
+    }
+    dateInputRef.current?.focus();
+  };
+
+  const handleDayKeyChange = (newDayKey: string) => {
+    setScheduledDayKey(newDayKey);
+    const matched = DATE_PRESETS.find(
+      (preset) => preset.getDayKey(todayKey) === newDayKey && preset.time === scheduledTime,
+    );
+    setSelectedPresetId(matched ? matched.id : "custom");
+  };
+
+  const handleTimeChange = (newTime: string) => {
+    setScheduledTime(newTime);
+    const matched = DATE_PRESETS.find(
+      (preset) => preset.getDayKey(todayKey) === scheduledDayKey && preset.time === newTime,
+    );
+    setSelectedPresetId(matched ? matched.id : "custom");
   };
 
   const handleDiscardDraft = () => {
@@ -514,42 +558,41 @@ export function TimeLetterComposeSheet({
             {/* Presets */}
             <div className="flex flex-wrap gap-xs">
               {DATE_PRESETS.map((preset) => {
-                const targetDayKey = preset.getDayKey(todayKey);
-                const isSelected =
-                  scheduledDayKey === targetDayKey && scheduledTime === preset.time;
+                const isSelected = selectedPresetId === preset.id;
 
                 return (
                   <Chip
                     key={preset.id}
                     haptic
                     isSelected={isSelected}
-                    onClick={() => {
-                      setScheduledDayKey(targetDayKey);
-                      setScheduledTime(preset.time);
-                    }}
+                    onClick={() => handleSelectPreset(preset)}
                   >
                     {preset.label}
                   </Chip>
                 );
               })}
+              <Chip haptic isSelected={selectedPresetId === "custom"} onClick={handleSelectCustom}>
+                직접 설정
+              </Chip>
             </div>
 
             {/* Custom Date & Time pickers */}
             <div className="flex gap-xs">
               <Input
+                ref={dateInputRef}
                 className="min-w-0 flex-1"
                 min={todayKey}
                 type="date"
                 value={scheduledDayKey}
                 aria-invalid={!dateValidation.isValid}
-                onChange={(e) => setScheduledDayKey(e.target.value)}
+                onChange={(e) => handleDayKeyChange(e.target.value)}
               />
               <Input
-                className="w-32 shrink-0"
+                className="w-36 shrink-0 px-3"
                 type="time"
                 value={scheduledTime}
                 aria-invalid={!dateValidation.isValid}
-                onChange={(e) => setScheduledTime(e.target.value)}
+                onChange={(e) => handleTimeChange(e.target.value)}
               />
             </div>
 

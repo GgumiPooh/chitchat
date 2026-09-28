@@ -2425,8 +2425,8 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 - **Theme Selection**: 4 parchment themes ('classic', 'romantic', 'midnight', 'kraft') selectable via `Chip` with `haptic`.
 - **Live Stationery Preview**: Selecting among the 4 parchment themes immediately applies the corresponding parchment color, typography, watermark, and subtle divider to the writing card with smooth CSS transitions.
 - **Date & Time Scheduling**:
-  - Quick Presets: '내일 아침 8시', '100일 뒤', '1년 뒤 오늘' via `Chip` with `haptic`.
-  - Custom Date & Time pickers with validation guaranteeing at least 10 minutes in the future.
+  - Quick Presets: '내일 아침 8시', '100일 뒤', '1년 뒤 오늘', '직접 설정' via `Chip` with `haptic`.
+  - Custom Date & Time pickers with validation guaranteeing at least 10 minutes in the future, automatically switching to '직접 설정' when modified.
 - **Recipient & Teaser Controls**:
   - Recipient mode selection ('상대방에게', '우리 둘 모두에게', '나에게만') with `Chip` and `haptic`.
   - '상대방에게 D-Day 카운트다운 보여주기' teaser toggle switch (`Switch` with `haptic`).
