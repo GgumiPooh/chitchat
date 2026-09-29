@@ -18,6 +18,10 @@ export type MessageBookmarkSheetProps = {
   isOpen: boolean;
   bookmarks: MessageBookmark[];
   participants: Participant[];
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  totalCount?: number;
+  onLoadMore?: () => void;
   onClose: () => void;
   onSelect: (id: MessageId) => void;
   onRemove: (id: MessageId) => Promise<boolean>;
@@ -31,6 +35,10 @@ export function MessageBookmarkSheet({
   isOpen,
   bookmarks,
   participants,
+  hasMore,
+  isLoadingMore,
+  totalCount,
+  onLoadMore,
   onClose,
   onSelect,
   onRemove,
@@ -41,11 +49,8 @@ export function MessageBookmarkSheet({
   const [isEditing, setIsEditing] = useState(false);
   const [isConfirmingRemoveAll, setIsConfirmingRemoveAll] = useState(false);
 
-  const title = isEditing
-    ? "책갈피 편집"
-    : bookmarks.length > 0
-      ? `책갈피 ${bookmarks.length}`
-      : "책갈피";
+  const count = totalCount ?? bookmarks.length;
+  const title = isEditing ? "책갈피 편집" : count > 0 ? `책갈피 ${count}` : "책갈피";
 
   function handleClose() {
     setIsEditing(false);
@@ -96,6 +101,9 @@ export function MessageBookmarkSheet({
           bookmarks={bookmarks}
           participants={participants}
           isEditing={isEditing}
+          hasMore={hasMore}
+          isLoadingMore={isLoadingMore}
+          onLoadMore={onLoadMore}
           onSelect={onSelect}
           onRemove={onRemove}
           onRename={onRename}

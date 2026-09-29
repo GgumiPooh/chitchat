@@ -210,7 +210,6 @@ export function ChatScreen({
             return;
           }
 
-          search.open({ focusesField: false });
           toast("책갈피가 설정되었습니다.", {
             action: { label: "목록보기", onClick: bookmarks.openList },
           });
@@ -223,7 +222,7 @@ export function ChatScreen({
         });
       }
     },
-    [bookmarks, isSidePanelOpen, openSidePanel, search],
+    [bookmarks, isSidePanelOpen, openSidePanel],
   );
 
   const openBookmarksFromComposer = useCallback(() => {
@@ -236,11 +235,23 @@ export function ChatScreen({
       return;
     }
 
-    if (!search.isOpen) {
-      search.open({ focusesField: false });
-    }
     bookmarks.openList();
-  }, [bookmarks, isSidePanelOpen, openSidePanel, search]);
+  }, [bookmarks, isSidePanelOpen, openSidePanel]);
+
+  // INFO: Widening past `lg` transitions from mobile search mode to desktop side-panel search.
+  useEffect(() => {
+    const media = window.matchMedia(SIDE_PANEL_MEDIA_QUERY);
+
+    function handleChange(event: MediaQueryListEvent) {
+      if (event.matches && search.isOpen) {
+        search.close();
+      }
+    }
+
+    media.addEventListener("change", handleChange);
+
+    return () => media.removeEventListener("change", handleChange);
+  }, [search]);
 
   // INFO: REQUIREMENTS.md § 8.14. Escape closes search mode if active.
   useEffect(() => {
@@ -322,8 +333,11 @@ export function ChatScreen({
             hasMoreUpcoming={upcoming.hasMore}
             isLoadingMoreUpcoming={upcoming.isLoadingMore}
             bookmarks={bookmarks.bookmarks}
+            hasMoreBookmarks={bookmarks.hasMore}
+            isLoadingMoreBookmarks={bookmarks.isLoadingMore}
             activeTab={sidePanelTab}
             onLoadMoreUpcoming={upcoming.loadMore}
+            onLoadMoreBookmarks={bookmarks.loadMore}
             onSelectEvent={setDetailed}
             onTabChange={setSidePanelTab}
             onSelectBookmark={jumpToBookmark}
@@ -489,7 +503,7 @@ export function ChatScreen({
                   hasOlder={search.hasOlder}
                   hasNewer={search.hasNewer}
                   hasNoResults={search.hasNoResults}
-                  bookmarkCount={bookmarks.bookmarks.length}
+                  bookmarkCount={bookmarks.ids.size}
                   onOpenList={search.openList}
                   onOlder={search.goOlder}
                   onNewer={search.goNewer}
@@ -499,7 +513,7 @@ export function ChatScreen({
               ) : undefined
             }
             composerCorner={
-              bookmarks.bookmarks.length > 0 ? (
+              bookmarks.ids.size > 0 ? (
                 <BookmarkCornerButton onClick={openBookmarksFromComposer} />
               ) : undefined
             }
@@ -530,6 +544,10 @@ export function ChatScreen({
             isOpen={bookmarks.isListOpen}
             bookmarks={bookmarks.bookmarks}
             participants={participants}
+            hasMore={bookmarks.hasMore}
+            isLoadingMore={bookmarks.isLoadingMore}
+            totalCount={bookmarks.ids.size}
+            onLoadMore={bookmarks.loadMore}
             onClose={bookmarks.closeList}
             onSelect={jumpToBookmark}
             onRemove={bookmarks.remove}

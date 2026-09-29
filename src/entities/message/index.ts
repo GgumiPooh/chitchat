@@ -32,6 +32,7 @@ export { isQuotable } from "./api/is-quotable";
 export { listAssistantRepliesAfter } from "./api/list-assistant-replies-after";
 export { listChangedMessages } from "./api/list-changed-messages";
 export {
+  listAllMessageBookmarkIds,
   listMessageBookmarks,
   type ListMessageBookmarksParams,
 } from "./api/list-message-bookmarks";

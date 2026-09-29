@@ -22,7 +22,10 @@ function toIds(bookmarks: MessageBookmark[]): Set<MessageId> {
 export function useMessageBookmarks(hideOthers: boolean) {
   const [bookmarks, setBookmarks] = useState<MessageBookmark[]>([]);
   const [ids, setIds] = useState<Set<MessageId>>(new Set());
+  const [hasMore, setHasMore] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
   const [isListOpen, setIsListOpen] = useState(false);
+  const bookmarksRef = useRef<MessageBookmark[]>([]);
   // WARN: Every fetch carries one, and only the newest may write — toggling `hideOthers` twice fires two requests, and a slow first one landing last would overwrite the second's answer.
   const requestId = useRef(0);
   // WARN: A ref, not a dependency — `add`/`remove` reload after their request lands, and a `reload` closed over the filter of the render that started them would fetch under a filter the reader has since left.
@@ -32,20 +35,69 @@ export function useMessageBookmarks(hideOthers: boolean) {
     const generation = (requestId.current += 1);
 
     try {
-      const page = await fetchMessageBookmarks(hideOthersRef.current);
+      const page = await fetchMessageBookmarks({ hideOthers: hideOthersRef.current });
 
       if (generation !== requestId.current) {
         return;
       }
 
-      setBookmarks(page);
-      setIds(toIds(page));
+      bookmarksRef.current = page.bookmarks;
+      setBookmarks(page.bookmarks);
+      if (page.allIds) {
+        setIds(new Set(page.allIds));
+      } else {
+        setIds(toIds(page.bookmarks));
+      }
+      setHasMore(page.hasMore);
     } catch {
       if (generation === requestId.current) {
         toast.error("책갈피 목록을 불러오지 못했어요");
       }
     }
   }, []);
+
+  const loadMore = useCallback(async () => {
+    const oldest = bookmarksRef.current.at(-1);
+
+    if (!hasMore || isLoadingMore || !oldest) {
+      return false;
+    }
+
+    setIsLoadingMore(true);
+    const generation = requestId.current;
+
+    try {
+      const page = await fetchMessageBookmarks({
+        hideOthers: hideOthersRef.current,
+        before: oldest.id,
+      });
+
+      if (generation !== requestId.current) {
+        return false;
+      }
+
+      const known = new Set(bookmarksRef.current.map((item) => item.id));
+      const next = [
+        ...bookmarksRef.current,
+        ...page.bookmarks.filter((item) => !known.has(item.id)),
+      ];
+      bookmarksRef.current = next;
+      setBookmarks(next);
+      setHasMore(page.hasMore);
+
+      return page.bookmarks.length > 0;
+    } catch {
+      if (generation === requestId.current) {
+        toast.error("책갈피를 더 불러오지 못했어요");
+      }
+
+      return false;
+    } finally {
+      if (generation === requestId.current) {
+        setIsLoadingMore(false);
+      }
+    }
+  }, [hasMore, isLoadingMore]);
 
   useEffect(() => {
     hideOthersRef.current = hideOthers;
@@ -123,8 +175,10 @@ export function useMessageBookmarks(hideOthers: boolean) {
   const removeAll = useCallback(async () => {
     try {
       await requestRemoveAllMessageBookmarks();
+      bookmarksRef.current = [];
       setBookmarks([]);
       setIds(new Set());
+      setHasMore(false);
       void reload();
 
       return true;
@@ -138,6 +192,9 @@ export function useMessageBookmarks(hideOthers: boolean) {
   return {
     bookmarks,
     ids,
+    hasMore,
+    isLoadingMore,
+    loadMore,
     isListOpen,
     openList: useCallback(() => {
       if (document.activeElement instanceof HTMLElement) {

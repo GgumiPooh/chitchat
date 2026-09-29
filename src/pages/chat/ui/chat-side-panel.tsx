@@ -27,8 +27,11 @@ export type ChatSidePanelProps = {
   hasMoreUpcoming: boolean;
   isLoadingMoreUpcoming: boolean;
   bookmarks: MessageBookmark[];
+  hasMoreBookmarks?: boolean;
+  isLoadingMoreBookmarks?: boolean;
   activeTab: "upcoming" | "bookmarks";
   onLoadMoreUpcoming: () => void;
+  onLoadMoreBookmarks?: () => void;
   onSelectEvent: (occurrence: EventOccurrence) => void;
   onTabChange: (tab: "upcoming" | "bookmarks") => void;
   onSelectBookmark: (id: MessageId) => void;
@@ -58,8 +61,11 @@ export function ChatSidePanel({
   hasMoreUpcoming,
   isLoadingMoreUpcoming,
   bookmarks,
+  hasMoreBookmarks,
+  isLoadingMoreBookmarks,
   activeTab,
   onLoadMoreUpcoming,
+  onLoadMoreBookmarks,
   onSelectEvent,
   onTabChange,
   onSelectBookmark,
@@ -233,6 +239,9 @@ export function ChatSidePanel({
               bookmarks={bookmarks}
               participants={participants}
               isEditing={isEditingBookmarks}
+              hasMore={hasMoreBookmarks}
+              isLoadingMore={isLoadingMoreBookmarks}
+              onLoadMore={onLoadMoreBookmarks}
               onSelect={onSelectBookmark}
               onRemove={onRemoveBookmark}
               onRename={onRenameBookmark}

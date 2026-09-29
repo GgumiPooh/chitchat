@@ -5,14 +5,18 @@ import type { Participant } from "@/entities/user";
 import { MAX_BOOKMARK_NAME_LENGTH, toLlmProviderName, toReplySummary } from "@/shared/config";
 import { cn, formatMonthDay, formatTime, idToDate, type MessageId } from "@/shared/lib";
 import { Button, EmptyState, HapticTarget, Input, Modal, QuoteThumbnailTile } from "@/shared/ui";
-import { Bookmark } from "lucide-react";
-import { useState, type KeyboardEvent } from "react";
+import { Bookmark, LoaderCircle } from "lucide-react";
+import { useEffect, useState, type KeyboardEvent } from "react";
+import { useInView } from "react-intersection-observer";
 
 export type MessageBookmarkListProps = {
   className?: string;
   bookmarks: MessageBookmark[];
   participants: Participant[];
   isEditing?: boolean;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
   onSelect: (id: MessageId) => void;
   onRemove?: (id: MessageId) => Promise<boolean>;
   onRename?: (id: MessageId, name: string) => Promise<boolean>;
@@ -32,12 +36,22 @@ export function MessageBookmarkList({
   bookmarks,
   participants,
   isEditing = false,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
   onSelect,
   onRemove,
   onRename,
   onStopEditing,
 }: MessageBookmarkListProps) {
   const [renaming, setRenaming] = useState<MessageBookmark | null>(null);
+  const { ref: sentinelRef, inView } = useInView({ rootMargin: "200px" });
+
+  useEffect(() => {
+    if (inView && hasMore && !isLoadingMore) {
+      onLoadMore?.();
+    }
+  }, [inView, hasMore, isLoadingMore, onLoadMore]);
 
   const nameById = new Map(participants.map((participant) => [participant.id, participant.name]));
 
@@ -141,6 +155,11 @@ export function MessageBookmarkList({
             )}
           </div>
         ))}
+        {(hasMore || isLoadingMore) && (
+          <div ref={sentinelRef} className="flex h-10 shrink-0 items-center justify-center">
+            {isLoadingMore && <LoaderCircle className="size-4 animate-spin text-meta-soft" />}
+          </div>
+        )}
       </div>
 
       {onRename && (

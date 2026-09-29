@@ -1094,12 +1094,12 @@ A message is folded to its quote, **one clamped line** and a 펼치기 row (`DES
 
 `message_bookmarks` — `(user_id, message_id)`, per-user unlike § 8.17.'s shared fold, so each participant keeps their own list over the same message.
 
-- `GET /api/messages/bookmarks?hideOthers=`, `DELETE /api/messages/bookmarks` (전체 해제), `PUT`/`PATCH`/`DELETE /api/messages/{id}/bookmark` — `PATCH` sets the row's own `name`
+- `GET /api/messages/bookmarks?hideOthers=&before=`, `DELETE /api/messages/bookmarks` (전체 해제), `PUT`/`PATCH`/`DELETE /api/messages/{id}/bookmark` — `PATCH` sets the row's own `name`. `GET` supports keyset pagination via `before` (`BOOKMARK_PAGE_SIZE = 20`); initial load returns `{ bookmarks, allIds, hasMore }` so chat bubbles retain full bookmark marks while preview cards load lazily via infinite scroll sentinel
 - The § 8.13. action sheet carries a 책갈피 등록/책갈피 해제 row, resolved by id the way 접기 is
-- The list opens from the nav bar's own button, the composer's corner button, or the toast — a row jumps through § 8.6.1.'s target the way a search result does. Opening the list blurs any active input to dismiss the keyboard; the corner button and post-registration open both open search mode without focusing its field. `ExpandableSheet` caps its height below the header so it never overflows off the top under a keyboard or compact viewport
+- The list opens from the nav bar's own button, the composer's corner button, or the toast — a row jumps through § 8.6.1.'s target the way a search result does. Opening the list blurs any active input to dismiss the keyboard. Bookmarking and opening bookmarks preserve the composer and do not enter search mode. `ExpandableSheet` caps its height below the header so it never overflows off the top under a keyboard or compact viewport. On desktop (`lg`), the bookmark list is integrated into `ChatSidePanel` as a tab beside 일정 with infinite scroll and row edit mode, and widening past `lg` automatically exits any active mobile search mode
 - Its sheet is § 8.18.'s shell, now shared as `ExpandableSheet`
 - A bookmarked bubble shows a bookmark mark on the § 8.8. marker line, priced into `estimateRowHeight` like the unread count
-- 편집 mode (header pill, hidden when the list is empty) expands the sheet and lets each row 수정 (rename, via the `PATCH`) or 해제; a footer 전체 해제 confirms before clearing every row. The mode is component state that survives a drag back to rest and resets on close
+- 편집 mode (header pill, hidden when the list is empty) expands the sheet and lets each row 수정 (rename, via the `PATCH`) or 해제; a footer 전체 해제 confirms before clearing every row. The mode is component state that survives a drag back to rest and resets on close. Cards maintain constant `min-h-[58px]` between view and edit modes to prevent row height jitter
 
 ---
 
