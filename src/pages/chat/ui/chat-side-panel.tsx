@@ -10,7 +10,7 @@ import {
   type MessageSearch,
 } from "@/features/search-messages";
 import { useProfileViewer } from "@/features/view-profile";
-import { cn, type MessageId, type UserId } from "@/shared/lib";
+import { cn, useRovingTabIndex, type MessageId, type UserId } from "@/shared/lib";
 import { Avatar, Button, HeaderTextButton, Modal } from "@/shared/ui";
 import { UpcomingEventsList } from "@/widgets/upcoming-events";
 import { useState } from "react";
@@ -73,6 +73,12 @@ export function ChatSidePanel({
 
   const partner = participants.find((participant) => participant.id !== currentUserId);
   const hasSearchResults = search.submitted.trim().length > 0;
+
+  const activeIndex = activeTab === "upcoming" ? 0 : 1;
+  const handleKeyDown = useRovingTabIndex({
+    orientation: "horizontal",
+    selector: "[data-chat-side-tab]",
+  });
 
   return (
     <div className={cn("flex h-full flex-col gap-xs p-md", className)}>
@@ -142,35 +148,61 @@ export function ChatSidePanel({
       </div>
 
       <section className="flex min-h-0 grow basis-0 flex-col gap-xs">
-        <div className="flex items-center justify-between px-xs">
+        <div className="flex h-11 items-center justify-between px-xs">
           <div className="flex items-stretch rounded-full border border-hairline glass p-2xs">
-            <button
-              className={cn(
-                "cursor-pointer rounded-full px-sm py-0.5 text-button-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                activeTab === "upcoming"
-                  ? "bg-primary-tint font-medium text-primary"
-                  : "text-meta hover:text-ink",
-              )}
-              type="button"
-              onClick={() => onTabChange("upcoming")}
-            >
-              다가오는 일정
-            </button>
-            <button
-              className={cn(
-                "flex cursor-pointer items-center gap-1 rounded-full px-sm py-0.5 text-button-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
-                activeTab === "bookmarks"
-                  ? "bg-primary-tint font-medium text-primary"
-                  : "text-meta hover:text-ink",
-              )}
-              type="button"
-              onClick={() => onTabChange("bookmarks")}
-            >
-              <span>책갈피</span>
-              {bookmarks.length > 0 && (
-                <span className="text-caption tabular-nums opacity-80">{bookmarks.length}</span>
-              )}
-            </button>
+            <div className="relative flex items-stretch" onKeyDown={handleKeyDown}>
+              <span
+                className="pointer-events-none absolute inset-y-0 left-0 rounded-full bg-primary-tint transition-[translate] duration-(--duration-tab-travel) ease-route motion-reduce:duration-0"
+                aria-hidden="true"
+                style={{
+                  translate: `${activeIndex * 100}% 0`,
+                  width: "50%",
+                }}
+              />
+              <div className="relative z-10 flex items-stretch" role="tablist">
+                <button
+                  className="flex w-[100px] cursor-pointer items-center justify-center rounded-full py-1 text-button-sm outline-none select-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                  role="tab"
+                  tabIndex={activeTab === "upcoming" ? 0 : -1}
+                  type="button"
+                  data-chat-side-tab=""
+                  aria-selected={activeTab === "upcoming"}
+                  onClick={() => onTabChange("upcoming")}
+                >
+                  <span
+                    className={cn(
+                      "transition-colors duration-(--duration-tab-travel) motion-reduce:duration-0",
+                      activeTab === "upcoming" ? "text-primary" : "text-meta hover:text-ink",
+                    )}
+                  >
+                    다가오는 일정
+                  </span>
+                </button>
+                <button
+                  className="flex w-[100px] cursor-pointer items-center justify-center gap-1 rounded-full py-1 text-button-sm outline-none select-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                  role="tab"
+                  tabIndex={activeTab === "bookmarks" ? 0 : -1}
+                  type="button"
+                  data-chat-side-tab=""
+                  aria-selected={activeTab === "bookmarks"}
+                  onClick={() => onTabChange("bookmarks")}
+                >
+                  <span
+                    className={cn(
+                      "flex items-center gap-1 transition-colors duration-(--duration-tab-travel) motion-reduce:duration-0",
+                      activeTab === "bookmarks" ? "text-primary" : "text-meta hover:text-ink",
+                    )}
+                  >
+                    <span>책갈피</span>
+                    {bookmarks.length > 0 && (
+                      <span className="text-caption tabular-nums opacity-80">
+                        {bookmarks.length}
+                      </span>
+                    )}
+                  </span>
+                </button>
+              </div>
+            </div>
           </div>
           {activeTab === "bookmarks" && bookmarks.length > 0 && (
             <HeaderTextButton
