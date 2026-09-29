@@ -32,11 +32,13 @@ export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDia
     setContextSentence("");
     toast.success(`${rawTokens.length}개 단어 생성을 시작했어요. 생성이 끝나면 알림을 보내드려요.`);
 
+    const trimmedContext = contextSentence.trim();
+
     // Fire individual independent background generation requests
     for (const word of rawTokens) {
       void fetch("/api/voca/ai-generate", {
         body: JSON.stringify({
-          contextSentence: rawTokens.length === 1 ? contextSentence.trim() : undefined,
+          contextSentence: trimmedContext || undefined,
           word,
         }),
         headers: { "Content-Type": "application/json" },
@@ -87,6 +89,9 @@ export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDia
             value={contextSentence}
             onChange={(e) => setContextSentence(e.target.value)}
           />
+          <p className="text-caption text-meta">
+            여러 단어 입력 시 문장에 포함된 단어에만 문맥이 적용돼요.
+          </p>
         </div>
 
         <div className="flex gap-2 pt-2">

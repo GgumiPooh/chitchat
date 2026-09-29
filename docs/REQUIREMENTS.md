@@ -2375,7 +2375,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 ## 17.3. Non-Blocking AI Generation
 
 - **Prompt Isolation**: Uses an immutable, dedicated prompt based on `/anki-voca`. Never uses `readLlmSystemPrompt()`.
-- **Individual Per-Word Dispatch**: Multi-word submissions dispatch isolated `POST /api/voca/ai-generate` requests per word.
+- **Individual Per-Word Dispatch & Context Adaptation**: Multi-word submissions dispatch isolated `POST /api/voca/ai-generate` requests per word. When a reference context sentence is provided, each word's prompt instructs the LLM to adapt the sentence if the target word (or its inflected forms / lemmas) appears in it, and to generate an authentic standalone sentence otherwise.
 - **Non-blocking Execution**: The endpoint responds in 0.1s with 200, delegating generation and audio synthesis to Next.js `after()`.
 - **Transactional Push**: Sends Web Push notification (`pushToUser`) to user on card creation.
 

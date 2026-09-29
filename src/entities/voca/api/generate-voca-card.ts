@@ -92,7 +92,8 @@ export async function generateVocaCard(
 
   let prompt = `Create an English vocabulary flashcard for the word: "${cleanWord}".`;
   if (contextSentence && contextSentence.trim().length > 0) {
-    prompt += ` Context sentence provided by learner: "${contextSentence.trim()}". Please use or adapt this sentence for the context/sentence field if suitable.`;
+    // INFO: REQUIREMENTS.md § 17.3. Adapt context sentence if target word or its inflections/lemmas appear; otherwise fall back to standalone sentence.
+    prompt += ` Context sentence provided by learner: "${contextSentence.trim()}". If the target word (or any of its inflected forms or lemmas, e.g. past tense, plural, participle) appears in or directly relates to this context sentence, prioritize using or adapting it for the 'sentence' field (1T principle). If the word does NOT appear in or relate to this context sentence, ignore the context sentence completely and generate an authentic, standalone sentence.`;
   }
 
   for (const agent of candidateAgents) {
