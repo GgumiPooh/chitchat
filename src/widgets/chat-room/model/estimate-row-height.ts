@@ -240,31 +240,33 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
       return SPACING_MD * 2 + PILL_PADDING + LINE.caption();
     // INFO: DESIGN.md § 6.5. Unlike the divider this one is a sentence, and § 11.5.'s notices are long enough to wrap on a phone.
     // WARN: § 6.11. A system row is always translated (`isTranslatedRow`), so it always gives back the selection gutter — never conditioned on `isMine`, which it has none of.
-    case "system":
+    case "system": {
+      const translatedContext = toTranslatedWidthContext(context);
+      let baseHeight = 0;
       if (row.message.systemAction === "time_letter_delivered") {
-        return toTimeLetterNoticeHeight(row.message, toTranslatedWidthContext(context));
+        baseHeight = toTimeLetterNoticeHeight(row.message, translatedContext);
+      } else if (row.message.systemAction === "voca_completed") {
+        baseHeight = toVocaNoticeHeight();
+      } else if (row.message.systemAction && row.message.systemAction.startsWith("event_")) {
+        baseHeight = toEventNoticeHeight(row.message, translatedContext);
+      } else {
+        return SPACING_SM * 2 + PILL_PADDING + toNoticeHeight(row.message, translatedContext);
       }
-      if (row.message.systemAction === "voca_completed") {
-        return toVocaNoticeHeight();
-      }
-      if (row.message.systemAction && row.message.systemAction.startsWith("event_")) {
-        return toEventNoticeHeight(row.message, toTranslatedWidthContext(context));
-      }
-      return (
-        SPACING_SM * 2 +
-        PILL_PADDING +
-        toNoticeHeight(row.message, toTranslatedWidthContext(context))
-      );
+      return baseHeight + toReactionsHeight(row.message.reactions, translatedContext);
+    }
     // INFO: DESIGN.md § 6.2., § 7.7. The finished AI answer — avatar, name, then a wide `MarkdownBody` bubble, never grouped with a neighbor (`buildChatRows`).
     // WARN: § 6.11. An assistant row is always translated, exactly as a system row is — it always gives back the selection gutter.
-    case "assistant":
+    case "assistant": {
+      const translatedContext = toTranslatedWidthContext(context);
       return (
         SPACING_SM +
         Math.max(
-          toAssistantColumnHeight(row.message, row.isCollapsed, toTranslatedWidthContext(context)),
+          toAssistantColumnHeight(row.message, row.isCollapsed, translatedContext),
           AVATAR_SIZE,
-        )
+        ) +
+        toReactionsHeight(row.message.reactions, translatedContext)
       );
+    }
     case "message":
       /**
        * WARN: REQUIREMENTS.md § 8.13. Ahead of everything the payload could say. A
@@ -377,26 +379,35 @@ function estimateMessageRow(
     flags,
   );
 
-  if (payload.reactions && payload.reactions.length > 0) {
-    const uniqueGroups = new Set(
-      payload.reactions.map((r) =>
-        r.reactionType === "emoji" ? `emoji:${r.emoji}` : `emoticon:${r.emoticonItemId}`,
-      ),
-    ).size;
-
-    // INFO: A badge with padding and gap is ~48px wide. `toWideColumnWidth` is the available column width.
-    const badgesPerLine = Math.max(1, Math.floor(toWideColumnWidth(context) / 48));
-    const lines = Math.ceil(uniqueGroups / badgesPerLine);
-
-    // INFO: The first line is REACTION_BADGES_HEIGHT (34px). Each wrapped line adds `gap-1` (4px) + `h-7` (28px) = 32px.
-    column += REACTION_BADGES_HEIGHT + (lines - 1) * 32;
-  }
+  column += toReactionsHeight(payload.reactions, context);
 
   // INFO: DESIGN.md § 6.1. The gap between rows is this padding, so it belongs to the row below it.
   const top = flags.isFirstOfGroup ? SPACING_SM : SPACING_2XS;
 
   // INFO: DESIGN.md § 6.3. The avatar, and the spacer standing in for it through the rest of a group, are siblings of this column — so a bubble shorter than one cannot make the row shorter than one.
   return top + (isMine ? column : Math.max(column, AVATAR_SIZE));
+}
+
+function toReactionsHeight(
+  reactions: Optional<MessageReaction[]>,
+  context: RowEstimateContext,
+): number {
+  if (!reactions || reactions.length === 0) {
+    return 0;
+  }
+
+  const uniqueGroups = new Set(
+    reactions.map((r) =>
+      r.reactionType === "emoji" ? `emoji:${r.emoji}` : `emoticon:${r.emoticonItemId}`,
+    ),
+  ).size;
+
+  // INFO: A badge with padding and gap is ~48px wide. `toWideColumnWidth` is the available column width.
+  const badgesPerLine = Math.max(1, Math.floor(toWideColumnWidth(context) / 48));
+  const lines = Math.ceil(uniqueGroups / badgesPerLine);
+
+  // INFO: The first line is REACTION_BADGES_HEIGHT (34px). Each wrapped line adds `gap-1` (4px) + `h-7` (28px) = 32px.
+  return REACTION_BADGES_HEIGHT + (lines - 1) * 32;
 }
 
 function toPayloadHeight(

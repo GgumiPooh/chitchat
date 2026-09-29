@@ -3570,12 +3570,15 @@ export function ChatRoom({
         return (
           <SystemNotice
             currentUserId={currentUserId}
+            isBookmarked={bookmarkedIds.has(row.message.id)}
             isSelecting={aiSelection.isSelecting}
             message={row.message}
+            reactions={row.message.reactions ?? []}
             sender={participantById.get(row.message.senderId)}
+            onLongPress={(anchor, point) => openMessageMenu(row.message, anchor, point)}
             onOpenEvent={onOpenEvent}
             onOpenTimeLetter={onOpenTimeLetter}
-            onLongPress={(anchor, point) => openMessageMenu(row.message, anchor, point)}
+            onToggleReaction={(reaction) => void handleReaction(row.message.id, reaction)}
           />
         );
       case "assistant": {

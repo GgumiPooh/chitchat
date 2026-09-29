@@ -1,6 +1,7 @@
 "use client";
 
-import type { ChatMessage } from "@/entities/message";
+import type { ChatMessage, MessageReaction } from "@/entities/message";
+import { ReactionBadges, type ReactionPayload } from "@/features/react-message";
 import { TIME_LETTERS_ROUTE } from "@/shared/config";
 import {
   cn,
@@ -12,10 +13,11 @@ import {
   useLongPress,
   type LongPressPoint,
   type Nullable,
+  type UserId,
 } from "@/shared/lib";
 import { HapticTarget, Link, toast } from "@/shared/ui";
 import { josa } from "es-hangul";
-import { ChevronRight, Lock, Mail, Sparkles } from "lucide-react";
+import { Bookmark, ChevronRight, Lock, Mail, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { MouseEvent } from "react";
 
@@ -24,8 +26,12 @@ export type TimeLetterArrivalNoticeCardProps = {
   cardClassName?: string;
   message: ChatMessage;
   senderName: string;
+  currentUserId?: UserId;
   isMine?: boolean;
   isSelecting?: boolean;
+  isBookmarked?: boolean;
+  reactions?: MessageReaction[];
+  onToggleReaction?: (reaction: ReactionPayload) => void;
   onOpen?: () => void;
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
 };
@@ -66,8 +72,12 @@ export function TimeLetterArrivalNoticeCard({
   cardClassName,
   message,
   senderName,
+  currentUserId,
   isMine = false,
   isSelecting = false,
+  isBookmarked = false,
+  reactions = [],
+  onToggleReaction,
   onOpen,
   onLongPress,
 }: TimeLetterArrivalNoticeCardProps) {
@@ -252,9 +262,23 @@ export function TimeLetterArrivalNoticeCard({
 
           {/* Time beside bubble */}
           <div className="flex shrink-0 flex-col items-start pb-0.5 text-chat-time whitespace-nowrap text-chat-meta select-none [[data-wallpaper]_&]:on-wallpaper">
+            {isBookmarked && (
+              <span className="flex h-[1lh] items-center" role="img" aria-label="책갈피">
+                <Bookmark className="size-3 fill-current" />
+              </span>
+            )}
             <time dateTime={message.createdAt}>{timeString}</time>
           </div>
         </div>
+
+        {reactions.length > 0 && currentUserId && onToggleReaction && (
+          <ReactionBadges
+            className="justify-start"
+            reactions={reactions}
+            currentUserId={currentUserId}
+            onToggleReaction={onToggleReaction}
+          />
+        )}
       </div>
     </div>
   );

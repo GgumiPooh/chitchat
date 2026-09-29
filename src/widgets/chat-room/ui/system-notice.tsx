@@ -1,5 +1,6 @@
-import type { ChatMessage } from "@/entities/message";
+import type { ChatMessage, MessageReaction } from "@/entities/message";
 import type { Participant } from "@/entities/user";
+import type { ReactionPayload } from "@/features/react-message";
 import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE } from "@/shared/config";
 import {
   cn,
@@ -20,6 +21,9 @@ export type SystemNoticeProps = {
   sender: Optional<Participant>;
   currentUserId?: UserId;
   isSelecting?: boolean;
+  isBookmarked?: boolean;
+  reactions?: MessageReaction[];
+  onToggleReaction?: (reaction: ReactionPayload) => void;
   /** REQUIREMENTS.md § 11.5. Opens the event in place; only a notice still carrying an `eventId` can, the rest link to the day. */
   onOpenEvent?: (message: ChatMessage) => void;
   onOpenTimeLetter?: (letterId: string) => void;
@@ -33,6 +37,9 @@ export function SystemNotice({
   sender,
   currentUserId,
   isSelecting = false,
+  isBookmarked = false,
+  reactions,
+  onToggleReaction,
   onOpenEvent,
   onOpenTimeLetter,
   onLongPress,
@@ -45,11 +52,15 @@ export function SystemNotice({
     return (
       <VocaCompletionNoticeCard
         className={className}
+        currentUserId={currentUserId}
+        isBookmarked={isBookmarked}
         isMine={isMine}
         isSelecting={isSelecting}
         message={message}
+        reactions={reactions}
         senderName={actor}
         onLongPress={onLongPress}
+        onToggleReaction={onToggleReaction}
       />
     );
   }
@@ -68,12 +79,16 @@ export function SystemNotice({
     return (
       <TimeLetterArrivalNoticeCard
         className={className}
+        currentUserId={currentUserId}
+        isBookmarked={isBookmarked}
         isMine={Boolean(currentUserId && message.senderId === currentUserId)}
         isSelecting={isSelecting}
         message={message}
+        reactions={reactions}
         senderName={actor}
         onOpen={letterId && onOpenTimeLetter ? () => onOpenTimeLetter(letterId) : undefined}
         onLongPress={onLongPress}
+        onToggleReaction={onToggleReaction}
       />
     );
   }
@@ -82,13 +97,17 @@ export function SystemNotice({
     return (
       <EventNoticeCard
         className={className}
+        currentUserId={currentUserId}
+        isBookmarked={isBookmarked}
         isMine={Boolean(currentUserId && message.senderId === currentUserId)}
         isSelecting={isSelecting}
         message={message}
+        reactions={reactions}
         sender={sender}
         senderName={actor}
         onOpenEvent={onOpenEvent}
         onLongPress={onLongPress}
+        onToggleReaction={onToggleReaction}
       />
     );
   }

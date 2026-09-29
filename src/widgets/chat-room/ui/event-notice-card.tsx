@@ -1,7 +1,8 @@
 "use client";
 
-import type { ChatMessage } from "@/entities/message";
+import type { ChatMessage, MessageReaction } from "@/entities/message";
 import type { Participant } from "@/entities/user";
+import { ReactionBadges, type ReactionPayload } from "@/features/react-message";
 import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE } from "@/shared/config";
 import type { SystemAction } from "@/shared/db";
 import {
@@ -15,10 +16,12 @@ import {
   type Maybe,
   type Nullable,
   type Optional,
+  type UserId,
 } from "@/shared/lib";
 import { HapticTarget, Link } from "@/shared/ui";
 import {
   Bell,
+  Bookmark,
   Calendar,
   CalendarClock,
   CalendarDays,
@@ -35,8 +38,12 @@ export type EventNoticeCardProps = {
   message: ChatMessage;
   sender: Optional<Participant>;
   senderName: string;
+  currentUserId?: UserId;
   isMine?: boolean;
   isSelecting?: boolean;
+  isBookmarked?: boolean;
+  reactions?: MessageReaction[];
+  onToggleReaction?: (reaction: ReactionPayload) => void;
   onOpenEvent?: (message: ChatMessage) => void;
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
 };
@@ -95,8 +102,12 @@ export function EventNoticeCard({
   message,
   sender,
   senderName,
+  currentUserId,
   isMine = false,
   isSelecting = false,
+  isBookmarked = false,
+  reactions = [],
+  onToggleReaction,
   onOpenEvent,
   onLongPress,
 }: EventNoticeCardProps) {
@@ -199,8 +210,8 @@ export function EventNoticeCard({
             onClick={handleClick}
             {...longPressHandlers}
           >
-            {/* Top Header Badge & Created Time */}
-            <div className="flex min-w-0 items-center justify-between gap-xs">
+            {/* Top Header Badge */}
+            <div className="flex items-center">
               <span
                 className={cn(
                   "inline-flex shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-caption font-semibold whitespace-nowrap",
@@ -209,9 +220,6 @@ export function EventNoticeCard({
               >
                 <BadgeIcon className="size-3" aria-hidden />
                 <span>{badge.label}</span>
-              </span>
-              <span className="shrink-0 text-caption font-medium whitespace-nowrap text-meta">
-                {timeString}
               </span>
             </div>
 
@@ -245,9 +253,23 @@ export function EventNoticeCard({
 
           {/* Time beside bubble */}
           <div className="flex shrink-0 flex-col items-start pb-0.5 text-chat-time whitespace-nowrap text-chat-meta select-none [[data-wallpaper]_&]:on-wallpaper">
+            {isBookmarked && (
+              <span className="flex h-[1lh] items-center" role="img" aria-label="책갈피">
+                <Bookmark className="size-3 fill-current" />
+              </span>
+            )}
             <time dateTime={message.createdAt}>{timeString}</time>
           </div>
         </div>
+
+        {reactions.length > 0 && currentUserId && onToggleReaction && (
+          <ReactionBadges
+            className="justify-start"
+            reactions={reactions}
+            currentUserId={currentUserId}
+            onToggleReaction={onToggleReaction}
+          />
+        )}
       </div>
     </div>
   );
