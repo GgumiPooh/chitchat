@@ -2268,29 +2268,33 @@ export function ChatRoom({
           {/* WARN: DESIGN.md § 3.4. Rides the emoticon-sheet drag alone — a keyboard step never FLIPs this stack. It is hidden (`opacity-0`, `pointer-events-none`) for the whole of a list FLIP, since that only runs while pinned to the bottom; the one case it is visible mid-step (scrolled away, composer-only FLIP) reads `--chat-bottom-gap` unanimated and just lands at its new spot. */}
           <div
             className={cn(
-              "absolute right-md bottom-[calc(var(--chat-bottom-gap)+var(--spacing-md))] flex flex-col items-end gap-xs will-change-transform",
+              "pointer-events-none absolute inset-x-0 bottom-[calc(var(--chat-bottom-gap)+var(--spacing-md))] will-change-transform",
               composerTransition,
             )}
             style={{ transform: composerDragTransform }}
           >
-            {composerCorner && (
-              <div
-                className={cn(
-                  "transition-all duration-150",
-                  !isAtBottom || hasNewer
-                    ? "translate-y-0 opacity-100"
-                    : "pointer-events-none translate-y-1 opacity-0",
+            <div className="relative mx-auto w-full max-w-(--content-max-width)">
+              <div className="absolute right-md bottom-0 flex flex-col items-end gap-xs">
+                {composerCorner && (
+                  <div
+                    className={cn(
+                      "transition-all duration-150",
+                      !isAtBottom || hasNewer
+                        ? "pointer-events-auto translate-y-0 opacity-100"
+                        : "pointer-events-none translate-y-1 opacity-0",
+                    )}
+                    aria-hidden={isAtBottom && !hasNewer}
+                  >
+                    {composerCorner}
+                  </div>
                 )}
-                aria-hidden={isAtBottom && !hasNewer}
-              >
-                {composerCorner}
+                <ScrollToBottomPill
+                  isVisible={!isAtBottom || hasNewer}
+                  newMessageCount={unseenCount}
+                  onClick={() => void goToNewest()}
+                />
               </div>
-            )}
-            <ScrollToBottomPill
-              isVisible={!isAtBottom || hasNewer}
-              newMessageCount={unseenCount}
-              onClick={() => void goToNewest()}
-            />
+            </div>
           </div>
         </>
       )}

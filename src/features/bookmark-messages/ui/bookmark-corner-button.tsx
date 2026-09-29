@@ -13,7 +13,7 @@ export type BookmarkCornerButtonProps = {
  */
 export function BookmarkCornerButton({ className, onClick }: BookmarkCornerButtonProps) {
   return (
-    <HapticTarget className={cn("inline-flex shrink-0", className)}>
+    <HapticTarget className={cn("pointer-events-auto inline-flex shrink-0", className)}>
       <button
         className="inline-flex min-h-10 min-w-10 press-bloom cursor-pointer items-center justify-center rounded-full border border-hairline bg-canvas p-2 shadow-raised transition-colors outline-none hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary"
         type="button"

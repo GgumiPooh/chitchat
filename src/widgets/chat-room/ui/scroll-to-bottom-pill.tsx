@@ -27,7 +27,9 @@ export function ScrollToBottomPill({
     <HapticTarget
       className={cn(
         "inline-flex shrink-0 transition-all duration-150",
-        isVisible ? "translate-y-0 opacity-100" : "pointer-events-none translate-y-1 opacity-0",
+        isVisible
+          ? "pointer-events-auto translate-y-0 opacity-100"
+          : "pointer-events-none translate-y-1 opacity-0",
         className,
       )}
       isTicking={isVisible}
