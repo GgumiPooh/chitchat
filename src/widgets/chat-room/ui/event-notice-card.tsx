@@ -2,7 +2,6 @@
 
 import type { ChatMessage } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import { useProfileViewer } from "@/features/view-profile";
 import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE } from "@/shared/config";
 import type { SystemAction } from "@/shared/db";
 import {
@@ -17,7 +16,7 @@ import {
   type Nullable,
   type Optional,
 } from "@/shared/lib";
-import { Avatar, HapticTarget, Link } from "@/shared/ui";
+import { HapticTarget, Link } from "@/shared/ui";
 import {
   Bell,
   Calendar,
@@ -102,7 +101,6 @@ export function EventNoticeCard({
   onLongPress,
 }: EventNoticeCardProps) {
   const router = useRouter();
-  const { openProfile } = useProfileViewer();
 
   const isReminder = message.systemAction === "event_reminder";
   const isDeleted = message.systemAction === "event_deleted";
@@ -111,31 +109,10 @@ export function EventNoticeCard({
   const dateLabel = formatEventDateLabel(message.eventStartsAt);
   const badge = getEventBadge(message.systemAction);
 
-  const formattedSender = senderName.endsWith("님") ? senderName : `${senderName}님`;
-  let senderTitle = "";
-  if (isReminder) {
-    senderTitle = "캘린더 알리미";
-  } else if (isMine) {
-    if (message.systemAction === "event_created") {
-      senderTitle = "내가 등록한 일정";
-    } else if (message.systemAction === "event_rescheduled") {
-      senderTitle = "내가 변경한 일정";
-    } else if (message.systemAction === "event_deleted") {
-      senderTitle = "내가 삭제한 일정";
-    } else {
-      senderTitle = "내 일정";
-    }
-  } else {
-    if (message.systemAction === "event_created") {
-      senderTitle = `${formattedSender}의 일정 등록`;
-    } else if (message.systemAction === "event_rescheduled") {
-      senderTitle = `${formattedSender}의 일정 변경`;
-    } else if (message.systemAction === "event_deleted") {
-      senderTitle = `${formattedSender}의 일정 삭제`;
-    } else {
-      senderTitle = `${formattedSender}의 일정`;
-    }
-  }
+  const actorName = sender?.name ?? (isMine ? "나" : senderName);
+  const baseName =
+    actorName.endsWith("님") && actorName.length > 1 ? actorName.slice(0, -1) : actorName;
+  const senderTitle = "캘린더 알리미";
 
   const longPressHandlers = useLongPress(
     !isSelecting && onLongPress ? (point, element) => onLongPress(element, point) : undefined,
@@ -152,32 +129,24 @@ export function EventNoticeCard({
     if (isReminder) {
       return <span>곧 예정된 일정이 다가오고 있어요!</span>;
     }
-    if (message.systemAction === "event_created") {
-      return isMine ? (
-        <span>새 일정을 캘린더에 추가했어요</span>
+
+    const subject =
+      baseName === "나" ? (
+        <span className="font-semibold text-ink">내가</span>
       ) : (
         <>
-          <span className="font-semibold text-ink">{senderName}</span>님이 새 일정을 추가했어요
+          <span className="font-semibold text-ink">{baseName}</span>님이
         </>
       );
+
+    if (message.systemAction === "event_created") {
+      return <span>{subject} 새 일정을 캘린더에 추가했어요</span>;
     }
     if (message.systemAction === "event_rescheduled") {
-      return isMine ? (
-        <span>일정 일시를 변경했어요</span>
-      ) : (
-        <>
-          <span className="font-semibold text-ink">{senderName}</span>님이 일정을 변경했어요
-        </>
-      );
+      return <span>{subject} 일정을 변경했어요</span>;
     }
     if (message.systemAction === "event_deleted") {
-      return isMine ? (
-        <span>일정을 캘린더에서 삭제했어요</span>
-      ) : (
-        <>
-          <span className="font-semibold text-ink">{senderName}</span>님이 일정을 삭제했어요
-        </>
-      );
+      return <span>{subject} 일정을 삭제했어요</span>;
     }
     return <span>캘린더 일정 알림</span>;
   };
@@ -186,27 +155,22 @@ export function EventNoticeCard({
 
   return (
     <div className={cn("group/row flex items-start gap-xs px-md pt-sm", className)}>
-      {/* 1. Avatar */}
-      {isReminder ? (
-        <HapticTarget keepsScroll>
-          <button
-            className="flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full bg-ai-tint text-ai shadow-xs ring-1 ring-ai/25 transition-transform outline-none hover:scale-105 focus-visible:ring-2 focus-visible:ring-ai focus-visible:ring-offset-2 active:scale-95"
-            type="button"
-            aria-label="캘린더 열기"
-            onClick={() => router.push(href)}
-          >
-            <CalendarDays className="size-4.5 text-ai" strokeWidth={2} />
-          </button>
-        </HapticTarget>
-      ) : (
-        <Avatar
-          haptic
-          keepsScroll
-          mediaId={sender?.avatarMediaId}
-          name={sender?.name ?? senderName}
-          onClick={sender ? () => openProfile(sender.id) : undefined}
-        />
-      )}
+      {/* 1. Calendar Bot Avatar */}
+      <HapticTarget keepsScroll>
+        <button
+          className={cn(
+            "flex size-9 shrink-0 cursor-pointer items-center justify-center rounded-full shadow-xs ring-1 transition-transform outline-none hover:scale-105 focus-visible:ring-2 focus-visible:ring-offset-2 active:scale-95",
+            isReminder
+              ? "bg-ai-tint text-ai ring-ai/25 focus-visible:ring-ai"
+              : "bg-primary-tint text-primary ring-primary/25 focus-visible:ring-primary",
+          )}
+          type="button"
+          aria-label="캘린더 열기"
+          onClick={() => router.push(href)}
+        >
+          <CalendarDays className="size-4.5" strokeWidth={2} />
+        </button>
+      </HapticTarget>
 
       {/* 2. Main Column */}
       <div
