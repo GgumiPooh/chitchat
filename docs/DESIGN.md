@@ -1693,7 +1693,7 @@ The toggle (`SidePanelToggle`) sits in `AppHeader`'s leading slot (§ 7.12.) alo
 - **Heatmap Calendar**: Visualizes study consistency with levels 0–4 mapped to semantic `primary` token tints against `canvas`/`surface-soft`. Mobile renders a 12-week horizontal snap scroller (`overflow-x-auto snap-x`); desktop (`>= lg`) presents a 52-week panoramic calendar grid with hover tooltips showing date and review counts.
 - **4-Rating Bar**: Spaced repetition rating bar with 4 buttons (Again, Hard, Good, Easy) styled with semantic status tints (danger, warning, primary, success). Each button dynamically displays the FSRS estimated interval (`< 10분`, `1일`, `3일`, `7일`) and triggers haptic feedback.
 - **Completion Card (Scenario A)**: Evaluates remaining deck inventory upon queue exhaustion. If new cards remain, displays `+5장 더 배우기`; when no new cards remain, celebrates daily completion (Inbox Zero) and offers `AI로 새 단어 추가하기` (tapping navigates to `${VOCA_ROUTE}?action=add-word`, auto-opening the `AiVocaInputDialog` on entry) and `단어장 보러가기` without confusing ahead-of-time practice simulation.
-- **Keyboard Affordances**: Review screen provides fluid keyboard shortcuts: `Space` (flip card), `1`/`2`/`3`/`4` (ratings), `R` (replay audio), `⌘Z`/`Ctrl+Z` (Undo last rating via `isCommandKey`). All keydown handlers guard on `!e.isComposing`.
+- **Keyboard Affordances**: Review screen provides fluid keyboard shortcuts: `Space`/`Enter` (flip card on front, rate `Good` on back, matching Anki conventions), `1`/`2`/`3`/`4` (ratings), `R` (replay audio), `⌘Z`/`Ctrl+Z` (Undo last rating via `isCommandKey`). All keydown handlers guard on `!e.isComposing`.
 
 ## 7.22. Time Machine Letters (타임머신 편지) UI.
 

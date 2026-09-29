@@ -137,6 +137,7 @@ function MirrorVocaSession({ className, snapshot, savedAt, onBack }: MirrorVocaS
               card={currentCard}
               isFlipped={isFlipped}
               onFlip={() => setIsFlipped((prev) => !prev)}
+              onRate={(r) => void handleRate(r)}
             />
 
             {isFlipped ? (

@@ -34,21 +34,25 @@ export function ReviewCardFrame({
         return;
       }
 
-      // Undo: Cmd+Z / Ctrl+Z
+      // INFO: REQUIREMENTS.md § 17.4. Cmd+Z / Ctrl+Z to undo last rating.
       if (isCommandKey(e) && e.key.toLowerCase() === "z" && !e.shiftKey) {
         e.preventDefault();
         onUndo?.();
         return;
       }
 
-      // Space to flip
-      if (e.code === "Space") {
+      // INFO: REQUIREMENTS.md § 17.4. Space or Enter flips on front, rates Good on back (Anki convention).
+      if (e.code === "Space" || e.code === "Enter") {
         e.preventDefault();
-        handleFlip();
+        if (isFlipped) {
+          onRate?.(Rating.Good);
+        } else {
+          handleFlip();
+        }
         return;
       }
 
-      // 1, 2, 3, 4 to rate when back is showing
+      // INFO: REQUIREMENTS.md § 17.4. 1, 2, 3, 4 to rate when back is showing.
       if (isFlipped && onRate) {
         if (e.key === "1") {
           e.preventDefault();

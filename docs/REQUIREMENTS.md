@@ -2390,7 +2390,7 @@ Deliberately left open. When work reaches the feature, **confirm with the user**
 - **Desktop Experience (`>= lg`)**:
   - 52-week panoramic calendar heatmap with hover tooltips.
   - `TwoPane` card browser (Left: SidePanel roster with roving tabindex; Right: 12-field inline editor).
-  - Keyboard navigation: `Space` (flip), `1` (Again), `2` (Hard), `3` (Good), `4` (Easy), `R` (replay audio), `⌘Z` / `Ctrl+Z` (Undo last rating via `isCommandKey`).
+  - Keyboard navigation: `Space` / `Enter` (flip card on front, rate `Good` on back, matching Anki conventions), `1` (Again), `2` (Hard), `3` (Good), `4` (Easy), `R` (replay audio), `⌘Z` / `Ctrl+Z` (Undo last rating via `isCommandKey`).
 
 ## 17.5. Performance & Pagination
 
