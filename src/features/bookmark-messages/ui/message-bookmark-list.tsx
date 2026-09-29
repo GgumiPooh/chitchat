@@ -77,7 +77,7 @@ export function MessageBookmarkList({
         {bookmarks.map((bookmark) => (
           <div key={bookmark.id} className="flex items-center gap-xs">
             {isEditing ? (
-              <div className="flex w-full min-w-0 items-center gap-xs rounded-md border border-hairline-soft bg-canvas p-sm">
+              <div className="flex min-h-[58px] w-full min-w-0 items-center gap-xs rounded-md border border-hairline-soft bg-canvas p-sm">
                 {bookmark.thumbnail && (
                   <QuoteThumbnailTile className="size-10" thumbnail={bookmark.thumbnail} />
                 )}
@@ -92,7 +92,7 @@ export function MessageBookmarkList({
                   {onRename && (
                     <Button
                       className="w-auto"
-                      buttonClassName="min-h-9 px-sm text-button-sm"
+                      buttonClassName="min-h-8 h-8 px-sm text-button-sm"
                       variant="secondary"
                       haptic
                       onClick={() => setRenaming(bookmark)}
@@ -103,7 +103,7 @@ export function MessageBookmarkList({
                   {onRemove && (
                     <Button
                       className="w-auto"
-                      buttonClassName="min-h-9 px-sm text-button-sm"
+                      buttonClassName="min-h-8 h-8 px-sm text-button-sm"
                       variant="secondary"
                       haptic
                       onClick={() => void handleRemove(bookmark.id)}
@@ -120,7 +120,7 @@ export function MessageBookmarkList({
                 keepsScroll
               >
                 <button
-                  className="flex w-full min-w-0 cursor-pointer items-center gap-xs rounded-md border border-hairline-soft bg-canvas p-sm text-left outline-none group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-strong"
+                  className="flex min-h-[58px] w-full min-w-0 cursor-pointer items-center gap-xs rounded-md border border-hairline-soft bg-canvas p-sm text-left outline-none group-active:bg-surface-strong hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary active:bg-surface-strong"
                   type="button"
                   onClick={() => onSelect(bookmark.id)}
                 >

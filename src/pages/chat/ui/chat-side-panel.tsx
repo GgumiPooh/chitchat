@@ -148,7 +148,7 @@ export function ChatSidePanel({
       </div>
 
       <section className="flex min-h-0 grow basis-0 flex-col gap-xs">
-        <div className="flex h-11 items-center justify-between px-xs">
+        <div className="relative flex items-center justify-center px-xs">
           <div className="flex items-stretch rounded-full border border-hairline glass p-2xs">
             <div className="relative flex items-stretch" onKeyDown={handleKeyDown}>
               <span
@@ -161,7 +161,7 @@ export function ChatSidePanel({
               />
               <div className="relative z-10 flex items-stretch" role="tablist">
                 <button
-                  className="flex w-[100px] cursor-pointer items-center justify-center rounded-full py-1 text-button-sm outline-none select-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                  className="flex w-20 cursor-pointer items-center justify-center rounded-full py-1 text-button-sm outline-none select-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
                   role="tab"
                   tabIndex={activeTab === "upcoming" ? 0 : -1}
                   type="button"
@@ -175,11 +175,11 @@ export function ChatSidePanel({
                       activeTab === "upcoming" ? "text-primary" : "text-meta hover:text-ink",
                     )}
                   >
-                    다가오는 일정
+                    일정
                   </span>
                 </button>
                 <button
-                  className="flex w-[100px] cursor-pointer items-center justify-center gap-1 rounded-full py-1 text-button-sm outline-none select-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
+                  className="flex w-20 cursor-pointer items-center justify-center rounded-full py-1 text-button-sm outline-none select-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
                   role="tab"
                   tabIndex={activeTab === "bookmarks" ? 0 : -1}
                   type="button"
@@ -189,29 +189,27 @@ export function ChatSidePanel({
                 >
                   <span
                     className={cn(
-                      "flex items-center gap-1 transition-colors duration-(--duration-tab-travel) motion-reduce:duration-0",
+                      "transition-colors duration-(--duration-tab-travel) motion-reduce:duration-0",
                       activeTab === "bookmarks" ? "text-primary" : "text-meta hover:text-ink",
                     )}
                   >
-                    <span>책갈피</span>
-                    {bookmarks.length > 0 && (
-                      <span className="text-caption tabular-nums opacity-80">
-                        {bookmarks.length}
-                      </span>
-                    )}
+                    책갈피
                   </span>
                 </button>
               </div>
             </div>
           </div>
           {activeTab === "bookmarks" && bookmarks.length > 0 && (
-            <HeaderTextButton
-              variant="plain"
-              haptic
-              onClick={() => setIsEditingBookmarks((prev) => !prev)}
-            >
-              {isEditingBookmarks ? "완료" : "편집"}
-            </HeaderTextButton>
+            <div className="absolute top-1/2 right-xs -translate-y-1/2">
+              <HeaderTextButton
+                buttonClassName="min-h-0 h-8 px-xs text-button-sm"
+                variant="plain"
+                haptic
+                onClick={() => setIsEditingBookmarks((prev) => !prev)}
+              >
+                {isEditingBookmarks ? "완료" : "편집"}
+              </HeaderTextButton>
+            </div>
           )}
         </div>
 
