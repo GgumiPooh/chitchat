@@ -32,6 +32,7 @@ import {
   CALENDAR_DAY_PARAM,
   CALENDAR_ROUTE,
   LOGIN_ROUTE,
+  SIDE_PANEL_MEDIA_QUERY,
   TIME_LETTERS_ROUTE,
 } from "@/shared/config";
 import {
@@ -40,6 +41,7 @@ import {
   toDayKey,
   useDocumentBackground,
   usePinnedDocument,
+  useSidePanel,
   type Maybe,
   type MessageId,
   type Nullable,
@@ -94,6 +96,8 @@ export function ChatScreen({
   const silentSend = useSilentSend();
   const search = useMessageSearch(silentSend.mode === "onlyMe");
   const bookmarks = useMessageBookmarks(silentSend.mode === "onlyMe");
+  const { isOpen: isSidePanelOpen, open: openSidePanel } = useSidePanel();
+  const [sidePanelTab, setSidePanelTab] = useState<"upcoming" | "bookmarks">("upcoming");
   const upcoming = useUpcomingEvents(initialSummary, currentUserId);
   // INFO: REQUIREMENTS.md § 11.5.1. Arriving with something imminent opens the panel; closing it is what stops that happening again.
   const imminent = useImminentPanel(upcoming.occurrences, currentUserId);
@@ -190,6 +194,22 @@ export function ChatScreen({
             return;
           }
 
+          if (typeof window !== "undefined" && window.matchMedia(SIDE_PANEL_MEDIA_QUERY).matches) {
+            toast("책갈피가 설정되었습니다.", {
+              action: {
+                label: "목록보기",
+                onClick: () => {
+                  if (!isSidePanelOpen) {
+                    openSidePanel();
+                  }
+                  setSidePanelTab("bookmarks");
+                },
+              },
+            });
+
+            return;
+          }
+
           search.open({ focusesField: false });
           toast("책갈피가 설정되었습니다.", {
             action: { label: "목록보기", onClick: bookmarks.openList },
@@ -203,15 +223,41 @@ export function ChatScreen({
         });
       }
     },
-    [bookmarks, search],
+    [bookmarks, isSidePanelOpen, openSidePanel, search],
   );
 
   const openBookmarksFromComposer = useCallback(() => {
+    if (typeof window !== "undefined" && window.matchMedia(SIDE_PANEL_MEDIA_QUERY).matches) {
+      if (!isSidePanelOpen) {
+        openSidePanel();
+      }
+      setSidePanelTab("bookmarks");
+
+      return;
+    }
+
     if (!search.isOpen) {
       search.open({ focusesField: false });
     }
     bookmarks.openList();
-  }, [bookmarks, search]);
+  }, [bookmarks, isSidePanelOpen, openSidePanel, search]);
+
+  // INFO: REQUIREMENTS.md § 8.14. Escape closes search mode if active.
+  useEffect(() => {
+    if (!search.isOpen) {
+      return;
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape" && !event.isComposing) {
+        search.close();
+      }
+    }
+
+    window.addEventListener("keydown", handleKeyDown);
+
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [search]);
 
   const jumpToBookmark = useCallback(
     (id: MessageId) => {
@@ -275,8 +321,15 @@ export function ChatScreen({
             now={upcoming.now}
             hasMoreUpcoming={upcoming.hasMore}
             isLoadingMoreUpcoming={upcoming.isLoadingMore}
+            bookmarks={bookmarks.bookmarks}
+            activeTab={sidePanelTab}
             onLoadMoreUpcoming={upcoming.loadMore}
             onSelectEvent={setDetailed}
+            onTabChange={setSidePanelTab}
+            onSelectBookmark={jumpToBookmark}
+            onRemoveBookmark={bookmarks.remove}
+            onRenameBookmark={bookmarks.rename}
+            onRemoveAllBookmarks={bookmarks.removeAll}
           />
         </SidePanel>
         <div className="relative flex min-w-0 flex-1 flex-col">
@@ -308,17 +361,28 @@ export function ChatScreen({
               }
             />
           ) : search.isOpen ? (
-            <MessageSearchBar
-              // WARN: `lg` keeps 검색 in `ChatSidePanel` (`ChatSidePanel`, above) instead — unhidden here, a search left open across the breakpoint would show both at once.
-              className="lg:hidden"
-              query={search.query}
-              isLoading={search.isLoading}
-              autoFocus={search.focusesField}
-              hasSidePanel
-              onQueryChange={search.setQuery}
-              onSubmit={search.submit}
-              onClose={search.close}
-            />
+            <>
+              <MessageSearchBar
+                // WARN: `lg` keeps 검색 in `ChatSidePanel` (`ChatSidePanel`, above) instead — unhidden here, a search left open across the breakpoint would show both at once.
+                className="lg:hidden"
+                query={search.query}
+                isLoading={search.isLoading}
+                autoFocus={search.focusesField}
+                hasSidePanel
+                onQueryChange={search.setQuery}
+                onSubmit={search.submit}
+                onClose={search.close}
+              />
+              <AppHeader
+                className="hidden lg:flex"
+                hasSidePanel
+                trailing={
+                  <div className="flex items-center gap-2xs">
+                    <SilentSendButton />
+                  </div>
+                }
+              />
+            </>
           ) : (
             // INFO: DESIGN.md § 7.12. No title — the tab bar already says which screen this is, and the messages read better with the full column.
             <AppHeader
@@ -430,6 +494,7 @@ export function ChatScreen({
                   onOlder={search.goOlder}
                   onNewer={search.goNewer}
                   onOpenBookmarks={bookmarks.openList}
+                  onClose={search.close}
                 />
               ) : undefined
             }

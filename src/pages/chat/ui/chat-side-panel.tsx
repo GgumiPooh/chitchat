@@ -1,16 +1,19 @@
 "use client";
 
 import type { EventOccurrence } from "@/entities/event";
+import type { MessageBookmark } from "@/entities/message";
 import type { Participant } from "@/entities/user";
+import { MessageBookmarkList } from "@/features/bookmark-messages";
 import {
   MessageSearchField,
   MessageSearchResultList,
   type MessageSearch,
 } from "@/features/search-messages";
 import { useProfileViewer } from "@/features/view-profile";
-import { cn, type UserId } from "@/shared/lib";
-import { Avatar } from "@/shared/ui";
+import { cn, type MessageId, type UserId } from "@/shared/lib";
+import { Avatar, Button, HeaderTextButton, Modal } from "@/shared/ui";
 import { UpcomingEventsList } from "@/widgets/upcoming-events";
+import { useState } from "react";
 
 export type ChatSidePanelProps = {
   className?: string;
@@ -23,12 +26,19 @@ export type ChatSidePanelProps = {
   now: number;
   hasMoreUpcoming: boolean;
   isLoadingMoreUpcoming: boolean;
+  bookmarks: MessageBookmark[];
+  activeTab: "upcoming" | "bookmarks";
   onLoadMoreUpcoming: () => void;
   onSelectEvent: (occurrence: EventOccurrence) => void;
+  onTabChange: (tab: "upcoming" | "bookmarks") => void;
+  onSelectBookmark: (id: MessageId) => void;
+  onRemoveBookmark?: (id: MessageId) => Promise<boolean>;
+  onRenameBookmark?: (id: MessageId, name: string) => Promise<boolean>;
+  onRemoveAllBookmarks?: () => Promise<boolean>;
 };
 
 /**
- * AGENTS.md § 4.1. Chat's `md` panel — 검색, 다가오는 일정 and the other
+ * AGENTS.md § 4.1. Chat's `md` panel — 검색, 다가오는 일정/책갈피 and the other
  * participant, which the mobile header's icons and 뒤로 open one at a time,
  * standing beside the room once there is space for them.
  *
@@ -47,10 +57,20 @@ export function ChatSidePanel({
   now,
   hasMoreUpcoming,
   isLoadingMoreUpcoming,
+  bookmarks,
+  activeTab,
   onLoadMoreUpcoming,
   onSelectEvent,
+  onTabChange,
+  onSelectBookmark,
+  onRemoveBookmark,
+  onRenameBookmark,
+  onRemoveAllBookmarks,
 }: ChatSidePanelProps) {
   const { openProfile } = useProfileViewer();
+  const [isEditingBookmarks, setIsEditingBookmarks] = useState(false);
+  const [isConfirmingRemoveAll, setIsConfirmingRemoveAll] = useState(false);
+
   const partner = participants.find((participant) => participant.id !== currentUserId);
   const hasSearchResults = search.submitted.trim().length > 0;
 
@@ -122,20 +142,111 @@ export function ChatSidePanel({
       </div>
 
       <section className="flex min-h-0 grow basis-0 flex-col gap-xs">
-        <h2 className="px-xs text-title-sm text-meta">다가오는 일정</h2>
-        <UpcomingEventsList
-          className="min-h-0 flex-1 overflow-y-auto"
-          pinsHeight={false}
-          loadsOnScroll
-          occurrences={occurrences}
-          todayKey={todayKey}
-          now={now}
-          hasMore={hasMoreUpcoming}
-          isLoadingMore={isLoadingMoreUpcoming}
-          onLoadMore={onLoadMoreUpcoming}
-          onSelect={onSelectEvent}
-        />
+        <div className="flex items-center justify-between px-xs">
+          <div className="flex items-stretch rounded-full border border-hairline glass p-2xs">
+            <button
+              className={cn(
+                "cursor-pointer rounded-full px-sm py-0.5 text-button-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                activeTab === "upcoming"
+                  ? "bg-primary-tint font-medium text-primary"
+                  : "text-meta hover:text-ink",
+              )}
+              type="button"
+              onClick={() => onTabChange("upcoming")}
+            >
+              다가오는 일정
+            </button>
+            <button
+              className={cn(
+                "flex cursor-pointer items-center gap-1 rounded-full px-sm py-0.5 text-button-sm transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
+                activeTab === "bookmarks"
+                  ? "bg-primary-tint font-medium text-primary"
+                  : "text-meta hover:text-ink",
+              )}
+              type="button"
+              onClick={() => onTabChange("bookmarks")}
+            >
+              <span>책갈피</span>
+              {bookmarks.length > 0 && (
+                <span className="text-caption tabular-nums opacity-80">{bookmarks.length}</span>
+              )}
+            </button>
+          </div>
+          {activeTab === "bookmarks" && bookmarks.length > 0 && (
+            <HeaderTextButton
+              variant="plain"
+              haptic
+              onClick={() => setIsEditingBookmarks((prev) => !prev)}
+            >
+              {isEditingBookmarks ? "완료" : "편집"}
+            </HeaderTextButton>
+          )}
+        </div>
+
+        {activeTab === "upcoming" ? (
+          <UpcomingEventsList
+            className="min-h-0 flex-1 overflow-y-auto"
+            pinsHeight={false}
+            loadsOnScroll
+            occurrences={occurrences}
+            todayKey={todayKey}
+            now={now}
+            hasMore={hasMoreUpcoming}
+            isLoadingMore={isLoadingMoreUpcoming}
+            onLoadMore={onLoadMoreUpcoming}
+            onSelect={onSelectEvent}
+          />
+        ) : (
+          <div className="flex min-h-0 flex-1 flex-col">
+            <MessageBookmarkList
+              className="flex-1"
+              bookmarks={bookmarks}
+              participants={participants}
+              isEditing={isEditingBookmarks}
+              onSelect={onSelectBookmark}
+              onRemove={onRemoveBookmark}
+              onRename={onRenameBookmark}
+              onStopEditing={() => setIsEditingBookmarks(false)}
+            />
+            {isEditingBookmarks && bookmarks.length > 0 && onRemoveAllBookmarks && (
+              <div className="shrink-0 pt-sm">
+                <Button variant="destructive" haptic onClick={() => setIsConfirmingRemoveAll(true)}>
+                  전체 해제
+                </Button>
+              </div>
+            )}
+          </div>
+        )}
       </section>
+
+      {onRemoveAllBookmarks && (
+        <Modal
+          isOpen={isConfirmingRemoveAll}
+          header={{ title: "책갈피를 모두 해제할까요?" }}
+          onClose={() => setIsConfirmingRemoveAll(false)}
+        >
+          <div className="flex gap-xs">
+            <Button
+              className="flex-1"
+              variant="secondary"
+              onClick={() => setIsConfirmingRemoveAll(false)}
+            >
+              취소
+            </Button>
+            <Button
+              className="flex-1"
+              variant="destructive"
+              onClick={async () => {
+                setIsConfirmingRemoveAll(false);
+                await onRemoveAllBookmarks();
+                setIsEditingBookmarks(false);
+              }}
+            >
+              전체 해제
+            </Button>
+          </div>
+        </Modal>
+      )}
     </div>
   );
 }

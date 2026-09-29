@@ -108,7 +108,7 @@ export function ExpandableSheet({
           style={{ height: `calc(${restHeight}px + var(--spacing-lg))` }}
         >
           <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-          {footer && <div className="shrink-0 pt-sm">{footer}</div>}
+          {footer && <div className="shrink-0 pt-sm pb-lg">{footer}</div>}
         </div>
       </Modal>
     );
@@ -187,7 +187,11 @@ export function ExpandableSheet({
           {/* 스크롤 가능한 콘텐츠 영역 */}
           <div className="-mx-md -mb-md flex min-h-0 flex-1 flex-col px-md">
             <div className="flex min-h-0 flex-1 flex-col">{children}</div>
-            {footer && <div className="shrink-0 pt-sm">{footer}</div>}
+            {footer && (
+              <div className="shrink-0 pt-sm pb-[max(var(--spacing-md),env(safe-area-inset-bottom))]">
+                {footer}
+              </div>
+            )}
           </div>
         </DialogPrimitive.Content>
       </DialogPrimitive.Portal>

@@ -2,7 +2,7 @@
 
 import { cn, type Nullable } from "@/shared/lib";
 import { IconButton, toast } from "@/shared/ui";
-import { Bookmark, ChevronDown, ChevronUp, List } from "lucide-react";
+import { Bookmark, ChevronDown, ChevronUp, List, X } from "lucide-react";
 
 export type MessageSearchNavProps = {
   className?: string;
@@ -19,6 +19,7 @@ export type MessageSearchNavProps = {
   onOlder: () => void;
   onNewer: () => void;
   onOpenBookmarks?: () => void;
+  onClose?: () => void;
 };
 
 /**
@@ -39,6 +40,7 @@ export function MessageSearchNav({
   onOlder,
   onNewer,
   onOpenBookmarks,
+  onClose,
 }: MessageSearchNavProps) {
   return (
     // WARN: DESIGN.md § 3.5. Transparent to the pointer at the root so the messages underneath stay tappable; only the bar itself takes taps.
@@ -86,6 +88,7 @@ export function MessageSearchNav({
           aria-label="다음 검색 결과"
           onClick={onNewer}
         />
+        {onClose && <IconButton Icon={X} haptic aria-label="검색 닫기" onClick={onClose} />}
       </div>
     </div>
   );
