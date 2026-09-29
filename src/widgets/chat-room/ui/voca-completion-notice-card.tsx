@@ -54,7 +54,7 @@ export function VocaCompletionNoticeCard({
     senderName.endsWith("님") && senderName.length > 1 ? senderName.slice(0, -1) : senderName;
   const isSelf = baseName === "나";
   const honorific = isSelf ? "나" : `${baseName}님`;
-  const senderTitle = isSelf ? "내가 완료한 단어 학습" : `${honorific}의 단어 학습`;
+  const senderTitle = "단어장 알리미";
   const subjectParticle = isSelf ? "가" : josa.pick(honorific, "이/가");
 
   const longPressHandlers = useLongPress(
