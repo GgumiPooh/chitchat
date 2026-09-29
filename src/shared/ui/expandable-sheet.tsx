@@ -3,6 +3,7 @@
 import { cn, useIsDesktop, useSheetDrag, type Nullable } from "@/shared/lib";
 import { Dialog as DialogPrimitive } from "radix-ui";
 import {
+  useEffect,
   useImperativeHandle,
   useRef,
   type PropsWithChildren,
@@ -85,6 +86,13 @@ export function ExpandableSheet({
     [isDesktop, expand, collapse],
   );
 
+  // INFO: Dismiss virtual keyboard by blurring any active input when opening the sheet.
+  useEffect(() => {
+    if (isOpen && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }, [isOpen]);
+
   if (isDesktop) {
     return (
       <Modal
@@ -113,7 +121,7 @@ export function ExpandableSheet({
         <DialogPrimitive.Content
           ref={sheetRef}
           className={cn(
-            "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--overlay-left) z-50 mx-auto mb-sm flex w-[calc(100%_-_var(--overlay-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus:outline-none data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:slide-in-from-bottom-[calc(100%_+_var(--spacing-sm)_+_var(--viewport-bottom,0px))]",
+            "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--overlay-left) z-50 mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))] w-[calc(100%_-_var(--overlay-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas p-md pb-[max(var(--spacing-md),env(safe-area-inset-bottom))] shadow-floating focus:outline-none data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:slide-in-from-bottom-[calc(100%_+_var(--spacing-sm)_+_var(--viewport-bottom,0px))]",
             // WARN: 100% is the sheet's own height — the plain slide utilities left the `mb-sm` + `--viewport-bottom` gap still filled, the same sliver `BottomSheet` clears via `--initial-transform`.
             // WARN: 드래그 제스처로 닫힐 때(isClosedByDrag)는 이미 CSS transition(translateY)으로 화면 아래로 이동했습니다.
             // 이때 Radix의 slide-out-to-bottom 애니메이션이 함께 동작하면 시트가 원래 위치(translateY=0)로 점프한 뒤 다시 아래로 떨어지며 위로 튀어오릅니다.
@@ -126,6 +134,8 @@ export function ExpandableSheet({
             className,
           )}
           style={{
+            maxHeight:
+              "calc(var(--viewport-height,100dvh) - var(--header-height,56px) - var(--spacing-sm))",
             height:
               pinnedHeight !== null
                 ? `${pinnedHeight}px`

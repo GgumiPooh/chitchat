@@ -139,7 +139,12 @@ export function useMessageBookmarks(hideOthers: boolean) {
     bookmarks,
     ids,
     isListOpen,
-    openList: useCallback(() => setIsListOpen(true), []),
+    openList: useCallback(() => {
+      if (document.activeElement instanceof HTMLElement) {
+        document.activeElement.blur();
+      }
+      setIsListOpen(true);
+    }, []),
     closeList: useCallback(() => setIsListOpen(false), []),
     add,
     remove,

@@ -59,6 +59,13 @@ export function ExpandedBodySheet({
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
   const { maskStyle, scrollRef: fadeScrollRef } = useScrollFade("to bottom");
 
+  // INFO: Dismiss virtual keyboard by blurring any active input when opening the sheet.
+  useEffect(() => {
+    if (isOpen && document.activeElement instanceof HTMLElement) {
+      document.activeElement.blur();
+    }
+  }, [isOpen]);
+
   const setScrollContainer = (node: HTMLDivElement | null) => {
     scrollContainerRef.current = node;
     fadeScrollRef.current = node;
@@ -131,7 +138,7 @@ export function ExpandedBodySheet({
         <DialogPrimitive.Content
           ref={sheetRef}
           className={cn(
-            "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--overlay-left) z-50 mx-auto mb-sm flex w-[calc(100%_-_var(--overlay-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas px-md pt-md shadow-floating focus:outline-none data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:slide-in-from-bottom-[calc(100%_+_var(--spacing-sm)_+_var(--viewport-bottom,0px))]",
+            "fixed right-0 bottom-[var(--viewport-bottom,0px)] left-(--overlay-left) z-50 mx-auto mb-sm flex max-h-[calc(var(--viewport-height,100dvh)_-_var(--header-height,56px)_-_var(--spacing-sm))] w-[calc(100%_-_var(--overlay-left)_-_var(--spacing-sm)*2)] max-w-[calc(var(--content-max-width)_-_var(--spacing-sm)*2)] flex-col overflow-hidden rounded-xl border border-hairline bg-canvas px-md pt-md shadow-floating focus:outline-none data-[state=open]:animate-in data-[state=open]:duration-200 data-[state=open]:slide-in-from-bottom-[calc(100%_+_var(--spacing-sm)_+_var(--viewport-bottom,0px))]",
             // WARN: 100% is the sheet's own height — the plain slide utilities left the `mb-sm` + `--viewport-bottom` gap still filled, the same sliver `BottomSheet` clears via `--initial-transform`.
             isClosedByDrag
               ? "data-[state=closed]:animate-none"
@@ -142,6 +149,8 @@ export function ExpandedBodySheet({
             className,
           )}
           style={{
+            maxHeight:
+              "calc(var(--viewport-height,100dvh) - var(--header-height,56px) - var(--spacing-sm))",
             height:
               pinnedHeight !== null
                 ? `${pinnedHeight}px`
