@@ -32,16 +32,19 @@ export function ScrollToBottomPill({
           : "pointer-events-none translate-y-1 opacity-0",
         className,
       )}
+      inert={!isVisible}
       isTicking={isVisible}
     >
       <button
         className={cn(
-          "inline-flex min-h-10 min-w-10 press-bloom cursor-pointer items-center justify-center rounded-full p-2 shadow-raised transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary",
+          "inline-flex min-h-10 min-w-10 press-bloom cursor-pointer items-center justify-center rounded-full p-2 shadow-raised transition-colors outline-none focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:cursor-not-allowed",
+          !isVisible && "pointer-events-none",
           hasNewMessages
             ? "bg-primary text-on-primary hover:bg-primary-hover"
             : "border border-hairline bg-canvas text-meta hover:bg-surface-soft",
         )}
         type="button"
+        disabled={!isVisible}
         tabIndex={isVisible ? undefined : -1}
         aria-hidden={!isVisible}
         aria-label={hasNewMessages ? `새 메시지 ${newMessageCount}` : "맨 아래로"}

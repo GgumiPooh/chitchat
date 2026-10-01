@@ -19,6 +19,7 @@ export type HapticTargetProps = PropsWithChildren<{
   isTicking?: boolean;
   keepsFocus?: boolean;
   keepsScroll?: boolean;
+  inert?: boolean;
 }>;
 
 /**
@@ -46,10 +47,11 @@ export function HapticTarget({
   isTicking = true,
   keepsFocus = false,
   keepsScroll = false,
+  inert,
   children,
 }: HapticTargetProps) {
   return (
-    <span ref={ref} className={cn("group relative", className)}>
+    <span ref={ref} className={cn("group relative", className)} inert={inert}>
       {children}
       {isTicking && (
         <HapticTap
