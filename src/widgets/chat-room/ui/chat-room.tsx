@@ -1034,6 +1034,10 @@ export function ChatRoom({
     (message: ChatMessage) => toUnreadReaderCount(message, currentUserId, readerCursors),
     [currentUserId, readerCursors],
   );
+  const countSystemUnreadReaders = useCallback(
+    (message: ChatMessage) => toSystemUnreadReaderCount(message, readerCursors),
+    [readerCursors],
+  );
   const queryClient = useQueryClient();
   const { data: packs = [] } = useQuery(toEmoticonPacksQuery());
   const packTypes = useMemo(() => new Map(packs.map((p) => [p.id, p.type])), [packs]);
@@ -3579,7 +3583,9 @@ export function ChatRoom({
             isSelecting={aiSelection.isSelecting}
             message={row.message}
             reactions={row.message.reactions ?? []}
+            readerTotal={readerCursors.length}
             sender={participantById.get(row.message.senderId)}
+            unreadCount={countSystemUnreadReaders(row.message)}
             onLongPress={(anchor, point) => openMessageMenu(row.message, anchor, point)}
             onOpenEvent={onOpenEvent}
             onOpenTimeLetter={onOpenTimeLetter}
@@ -5014,6 +5020,23 @@ function toUnreadReaderCount(
   }
 
   // INFO: § 8.8. A null cursor is "has read nothing", which counts — the column means everything is unread rather than that the reader is absent.
+  return readerCursors.filter((cursor) => cursor === null || compareId(cursor, message.id) < 0)
+    .length;
+}
+
+/**
+ * REQUIREMENTS.md § 8.8. How many participants have still not read this system message.
+ * Unlike user bubbles where the marker is `mine` only, a system message is published to the
+ * whole room — so every reader cursor other than the viewer is folded into the count.
+ */
+function toSystemUnreadReaderCount(
+  message: ChatMessage,
+  readerCursors: Nullable<MessageId>[],
+): number {
+  if (message.isDeleted || message.onlyMe) {
+    return 0;
+  }
+
   return readerCursors.filter((cursor) => cursor === null || compareId(cursor, message.id) < 0)
     .length;
 }

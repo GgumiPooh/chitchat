@@ -22,6 +22,8 @@ export type SystemNoticeProps = {
   currentUserId?: UserId;
   isSelecting?: boolean;
   isBookmarked?: boolean;
+  unreadCount?: number;
+  readerTotal?: number;
   reactions?: MessageReaction[];
   onToggleReaction?: (reaction: ReactionPayload) => void;
   /** REQUIREMENTS.md § 11.5. Opens the event in place; only a notice still carrying an `eventId` can, the rest link to the day. */
@@ -38,6 +40,8 @@ export function SystemNotice({
   currentUserId,
   isSelecting = false,
   isBookmarked = false,
+  unreadCount = 0,
+  readerTotal = 0,
   reactions,
   onToggleReaction,
   onOpenEvent,
@@ -58,7 +62,9 @@ export function SystemNotice({
         isSelecting={isSelecting}
         message={message}
         reactions={reactions}
+        readerTotal={readerTotal}
         senderName={actor}
+        unreadCount={unreadCount}
         onLongPress={onLongPress}
         onToggleReaction={onToggleReaction}
       />
@@ -85,7 +91,9 @@ export function SystemNotice({
         isSelecting={isSelecting}
         message={message}
         reactions={reactions}
+        readerTotal={readerTotal}
         senderName={actor}
+        unreadCount={unreadCount}
         onOpen={letterId && onOpenTimeLetter ? () => onOpenTimeLetter(letterId) : undefined}
         onLongPress={onLongPress}
         onToggleReaction={onToggleReaction}
@@ -103,8 +111,10 @@ export function SystemNotice({
         isSelecting={isSelecting}
         message={message}
         reactions={reactions}
+        readerTotal={readerTotal}
         sender={sender}
         senderName={actor}
+        unreadCount={unreadCount}
         onOpenEvent={onOpenEvent}
         onLongPress={onLongPress}
         onToggleReaction={onToggleReaction}

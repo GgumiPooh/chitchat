@@ -17,7 +17,7 @@ import {
 } from "@/shared/lib";
 import { HapticTarget, Link, toast } from "@/shared/ui";
 import { josa } from "es-hangul";
-import { Bookmark, ChevronRight, Lock, Mail, Sparkles } from "lucide-react";
+import { Bookmark, ChevronRight, Heart, Lock, Mail, Sparkles } from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { MouseEvent } from "react";
 
@@ -30,6 +30,8 @@ export type TimeLetterArrivalNoticeCardProps = {
   isMine?: boolean;
   isSelecting?: boolean;
   isBookmarked?: boolean;
+  unreadCount?: number;
+  readerTotal?: number;
   reactions?: MessageReaction[];
   onToggleReaction?: (reaction: ReactionPayload) => void;
   onOpen?: () => void;
@@ -76,6 +78,8 @@ export function TimeLetterArrivalNoticeCard({
   isMine = false,
   isSelecting = false,
   isBookmarked = false,
+  unreadCount = 0,
+  readerTotal = 0,
   reactions = [],
   onToggleReaction,
   onOpen,
@@ -262,9 +266,30 @@ export function TimeLetterArrivalNoticeCard({
 
           {/* Time beside bubble */}
           <div className="flex shrink-0 flex-col items-start pb-0.5 text-chat-time whitespace-nowrap text-chat-meta select-none [[data-wallpaper]_&]:on-wallpaper">
-            {isBookmarked && (
-              <span className="flex h-[1lh] items-center" role="img" aria-label="책갈피">
-                <Bookmark className="size-3 fill-current" />
+            {(unreadCount > 0 || isBookmarked) && (
+              <span className="flex h-[1lh] items-center gap-1">
+                {unreadCount > 0 &&
+                  (readerTotal === 1 ? (
+                    <span
+                      className="flex items-center text-unread"
+                      role="img"
+                      aria-label="읽지 않음"
+                    >
+                      <Heart className="size-2.5 fill-current" strokeWidth={0} />
+                    </span>
+                  ) : (
+                    <span
+                      className="text-unread tabular-nums"
+                      aria-label={`읽지 않음 ${unreadCount}`}
+                    >
+                      {unreadCount}
+                    </span>
+                  ))}
+                {isBookmarked && (
+                  <span className="flex items-center" role="img" aria-label="책갈피">
+                    <Bookmark className="size-3 fill-current" />
+                  </span>
+                )}
               </span>
             )}
             <time dateTime={message.createdAt}>{timeString}</time>
