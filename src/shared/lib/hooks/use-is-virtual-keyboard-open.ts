@@ -81,23 +81,37 @@ export function useIsVirtualKeyboardOpen(): boolean {
     let restingHeight = viewport.height;
     let restingWidth = viewport.width;
     let resumeTimers: ReturnType<typeof setTimeout>[] = [];
+    let blurTimers: ReturnType<typeof setTimeout>[] = [];
 
     sync();
     viewport.addEventListener("resize", sync);
-    // INFO: Focus moving between two fields keeps the keyboard up and fires no resize, so the opening signal needs this; there is no `focusout` counterpart because blurring no longer closes the flag.
+    // INFO: Focus moving between two fields keeps the keyboard up and fires no resize, so the opening signal needs this.
     document.addEventListener("focusin", sync);
+    // WARN: WebKit frequently omits resize on keyboard dismissal upon blur. Staggered checks re-evaluate isOpen once keys slide down.
+    document.addEventListener("focusout", onFocusOut);
     document.addEventListener("visibilitychange", resume);
     window.addEventListener("pageshow", resume);
     window.addEventListener("focus", resume);
 
     return () => {
       resumeTimers.forEach(clearTimeout);
+      blurTimers.forEach(clearTimeout);
       viewport.removeEventListener("resize", sync);
       document.removeEventListener("focusin", sync);
+      document.removeEventListener("focusout", onFocusOut);
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("pageshow", resume);
       window.removeEventListener("focus", resume);
     };
+
+    function onFocusOut() {
+      blurTimers.forEach(clearTimeout);
+      blurTimers = [];
+      sync();
+      RESUME_STAGGER_DELAYS.forEach((delay) => {
+        blurTimers.push(setTimeout(sync, delay));
+      });
+    }
 
     // WARN: DESIGN.md § 3.4. iOS closes the keyboard while the PWA is in the background and fires no `resize` on the way back, so the flag survives with no keys under it and the bars stay dropped; the late passes are WebKit reporting the restored height across the app switcher's spring transition, without an event of its own.
     function resume() {

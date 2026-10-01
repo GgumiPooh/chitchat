@@ -112,17 +112,23 @@ export function useSheetDrag({
       return;
     }
 
-    const observer = new ResizeObserver(() => {
+    const remeasure = () => {
       const next = measureExpandedHeight();
 
       if (next > 0) {
         setExpandedHeight(next);
       }
-    });
+    };
+
+    const observer = new ResizeObserver(remeasure);
 
     observer.observe(document.documentElement);
+    window.visualViewport?.addEventListener("resize", remeasure);
 
-    return () => observer.disconnect();
+    return () => {
+      observer.disconnect();
+      window.visualViewport?.removeEventListener("resize", remeasure);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [size]);
 

@@ -57,9 +57,12 @@ export function VisualViewportSync() {
       root.style.setProperty(KEYBOARD_HEIGHT_PROPERTY, `${storedKeyboardHeight}px`);
     }
 
+    let blurTimers: ReturnType<typeof setTimeout>[] = [];
+
     sync();
     viewport.addEventListener("resize", sync);
     viewport.addEventListener("scroll", syncPan);
+    document.addEventListener("focusout", onFocusOut);
     document.addEventListener("visibilitychange", resume);
     window.addEventListener("pageshow", resume);
     window.addEventListener("focus", resume);
@@ -68,9 +71,11 @@ export function VisualViewportSync() {
       cancelAnimationFrame(frame);
       clearTimeout(settleTimer);
       resumeTimers.forEach(clearTimeout);
+      blurTimers.forEach(clearTimeout);
       window.removeEventListener("pointerdown", onPointerDownResume, true);
       viewport.removeEventListener("resize", sync);
       viewport.removeEventListener("scroll", syncPan);
+      document.removeEventListener("focusout", onFocusOut);
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("pageshow", resume);
       window.removeEventListener("focus", resume);
@@ -80,6 +85,16 @@ export function VisualViewportSync() {
       root.style.removeProperty(BOTTOM_PROPERTY);
       root.removeAttribute(SYNCED_ATTRIBUTE);
     };
+
+    // WARN: iOS Safari WebKit frequently omits the visualViewport resize event when the keyboard dismisses on blur. Staggered syncs ensure the shell recovers its full height.
+    function onFocusOut() {
+      blurTimers.forEach(clearTimeout);
+      blurTimers = [];
+      sync();
+      RESUME_STAGGER_DELAYS.forEach((delay) => {
+        blurTimers.push(setTimeout(sync, delay));
+      });
+    }
 
     // INFO: The keyboard animates open over several frames, and each one fires the event — coalescing keeps the shell to one resize per frame.
     function sync() {
@@ -115,6 +130,9 @@ export function VisualViewportSync() {
         !isEditableElement(document.activeElement) &&
         !root.hasAttribute(KEYBOARD_OVERLAID_ATTRIBUTE)
       ) {
+        restingHeight = height;
+        root.style.setProperty(RESTING_HEIGHT_PROPERTY, `${height}px`);
+      } else if (height > restingHeight) {
         restingHeight = height;
         root.style.setProperty(RESTING_HEIGHT_PROPERTY, `${height}px`);
       }
