@@ -74,7 +74,7 @@ export function PlaygroundPage({ className }: PlaygroundPageProps) {
               <div className="flex min-w-0 flex-col gap-0.5">
                 <span className="truncate text-title-sm font-semibold text-ink">타임머신 편지</span>
                 <p className="line-clamp-2 text-body-sm text-meta">
-                  약속된 시간에 사진과 글을 대화방으로 배달하는 감성 타임캡슐
+                  지정한 날짜에 채팅방으로 도착하는 타임캡슐 편지
                 </p>
               </div>
             </div>
