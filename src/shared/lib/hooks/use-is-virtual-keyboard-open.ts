@@ -15,6 +15,9 @@ export const KEYBOARD_OVERLAID_ATTRIBUTE = "data-keyboard-overlaid";
 // WARN: Not shorter. WebKit reports the slide in a handful of coarse steps, and a window narrower than the gap between two of them settles in the middle of the keyboard's move — which is the early end this exists to remove.
 export const VIEWPORT_QUIET_WINDOW = A_SECOND / 5;
 
+// INFO: DESIGN.md § 3.4. Staggered delays across the iOS app switcher and spring transition (~350ms to 500ms) where WebKit restores visualViewport.height without firing a resize event.
+export const RESUME_STAGGER_DELAYS = [100, 250, 500, 800] as const;
+
 /**
  * Whether the visual viewport is still moving — a keyboard mid-slide, up or down.
  * The keyboard flag alone flips at `MIN_KEYBOARD_HEIGHT`, which is several frames
@@ -77,7 +80,7 @@ export function useIsVirtualKeyboardOpen(): boolean {
     // WARN: `resizes-content` shrinks the layout viewport too, so `innerHeight - visualViewport.height` stays ~0 — the drop from the tallest height seen at this width is the only signal left.
     let restingHeight = viewport.height;
     let restingWidth = viewport.width;
-    let resumeTimer: ReturnType<typeof setTimeout>;
+    let resumeTimers: ReturnType<typeof setTimeout>[] = [];
 
     sync();
     viewport.addEventListener("resize", sync);
@@ -85,24 +88,29 @@ export function useIsVirtualKeyboardOpen(): boolean {
     document.addEventListener("focusin", sync);
     document.addEventListener("visibilitychange", resume);
     window.addEventListener("pageshow", resume);
+    window.addEventListener("focus", resume);
 
     return () => {
-      clearTimeout(resumeTimer);
+      resumeTimers.forEach(clearTimeout);
       viewport.removeEventListener("resize", sync);
       document.removeEventListener("focusin", sync);
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("pageshow", resume);
+      window.removeEventListener("focus", resume);
     };
 
-    // WARN: DESIGN.md § 3.4. iOS closes the keyboard while the PWA is in the background and fires no `resize` on the way back, so the flag survives with no keys under it and the bars stay dropped; the late pass is WebKit reporting the restored height a beat after the app is shown, without an event of its own.
+    // WARN: DESIGN.md § 3.4. iOS closes the keyboard while the PWA is in the background and fires no `resize` on the way back, so the flag survives with no keys under it and the bars stay dropped; the late passes are WebKit reporting the restored height across the app switcher's spring transition, without an event of its own.
     function resume() {
       if (document.visibilityState !== "visible") {
         return;
       }
 
-      clearTimeout(resumeTimer);
+      resumeTimers.forEach(clearTimeout);
+      resumeTimers = [];
       sync();
-      resumeTimer = setTimeout(sync, VIEWPORT_QUIET_WINDOW);
+      RESUME_STAGGER_DELAYS.forEach((delay) => {
+        resumeTimers.push(setTimeout(sync, delay));
+      });
     }
 
     function sync() {

@@ -162,6 +162,7 @@ export { isStandalone, useIsStandalone } from "./hooks/use-is-standalone";
 export {
   KEYBOARD_OVERLAID_ATTRIBUTE,
   MIN_KEYBOARD_HEIGHT,
+  RESUME_STAGGER_DELAYS,
   VIEWPORT_QUIET_WINDOW,
   useIsViewportSettling,
   useIsVirtualKeyboardOpen,

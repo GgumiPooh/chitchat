@@ -3,6 +3,7 @@
 import {
   KEYBOARD_OVERLAID_ATTRIBUTE,
   MIN_KEYBOARD_HEIGHT,
+  RESUME_STAGGER_DELAYS,
   VIEWPORT_QUIET_WINDOW,
   isEditableElement,
   safelyGet,
@@ -45,7 +46,7 @@ export function VisualViewportSync() {
 
     let frame = 0;
     let settleTimer: ReturnType<typeof setTimeout>;
-    let resumeTimer: ReturnType<typeof setTimeout>;
+    let resumeTimers: ReturnType<typeof setTimeout>[] = [];
     let restingHeight = viewport.height;
     let keyboardHeight = 0;
     // WARN: As `useIsVirtualKeyboardOpen` is gated — a desktop window resized while a field is focused is a drop past the threshold too, and it would be remembered as a keyboard.
@@ -61,15 +62,18 @@ export function VisualViewportSync() {
     viewport.addEventListener("scroll", syncPan);
     document.addEventListener("visibilitychange", resume);
     window.addEventListener("pageshow", resume);
+    window.addEventListener("focus", resume);
 
     return () => {
       cancelAnimationFrame(frame);
       clearTimeout(settleTimer);
-      clearTimeout(resumeTimer);
+      resumeTimers.forEach(clearTimeout);
+      window.removeEventListener("pointerdown", onPointerDownResume, true);
       viewport.removeEventListener("resize", sync);
       viewport.removeEventListener("scroll", syncPan);
       document.removeEventListener("visibilitychange", resume);
       window.removeEventListener("pageshow", resume);
+      window.removeEventListener("focus", resume);
       root.style.removeProperty(HEIGHT_PROPERTY);
       root.style.removeProperty(RESTING_HEIGHT_PROPERTY);
       root.style.removeProperty(TOP_PROPERTY);
@@ -137,23 +141,44 @@ export function VisualViewportSync() {
       root.setAttribute(SYNCED_ATTRIBUTE, "");
     }
 
+    function onPointerDownResume() {
+      window.removeEventListener("pointerdown", onPointerDownResume, true);
+      correct();
+    }
+
     /**
      * WARN: DESIGN.md § 3.4. iOS dismisses the keyboard while the PWA is in the
      * background and fires no `resize` on the way back, so the shell resumes sized to
      * a keyboard that is no longer there — the composer sitting a keyboard's height
      * above the bottom edge. Nothing but re-reading the viewport recovers it.
      *
-     * WARN: The second pass is not a retry. WebKit reports the restored height a beat
-     * after the app is shown, and reports it without an event of its own.
+     * WARN: WebKit restores visualViewport.height across the app switcher's spring
+     * animation (~350ms to 500ms) without an event of its own, so staggered re-reads
+     * catch the restored geometry when it settles.
      */
     function resume() {
       if (document.visibilityState !== "visible") {
+        if (hasVirtualKeyboard && isEditableElement(document.activeElement)) {
+          (document.activeElement as HTMLElement).blur();
+        }
         return;
       }
 
-      clearTimeout(resumeTimer);
+      // WARN: On coarse pointer devices, iOS dismisses the software keyboard when the app is backgrounded.
+      // If WebKit preserved zombie focus on an input, blurring it ensures DOM focus matches physical reality.
+      if (hasVirtualKeyboard && isEditableElement(document.activeElement)) {
+        (document.activeElement as HTMLElement).blur();
+      }
+
+      resumeTimers.forEach(clearTimeout);
+      resumeTimers = [];
+
       correct();
-      resumeTimer = setTimeout(correct, VIEWPORT_QUIET_WINDOW);
+      RESUME_STAGGER_DELAYS.forEach((delay) => {
+        resumeTimers.push(setTimeout(correct, delay));
+      });
+
+      window.addEventListener("pointerdown", onPointerDownResume, { capture: true, once: true });
     }
 
     // INFO: DESIGN.md § 3.4. Unarmed for the write, as the cold launch is: what is being undone is a stale offset the reader is already looking at, so easing it draws it out rather than hiding it.

@@ -2,6 +2,7 @@
 
 import { useEffect } from "react";
 import { isEditableElement } from "../dom/environment";
+import { RESUME_STAGGER_DELAYS } from "./use-is-virtual-keyboard-open";
 
 /**
  * DESIGN.md § 3.4. Refuses the document any offset of its own while `active`, and puts
@@ -30,6 +31,7 @@ export function usePinnedDocument(active: boolean): void {
 
     // INFO: Decided once per gesture in `touchstart` rather than per move — the walk below reads `getComputedStyle`, and a `touchmove` fires for every frame of a drag.
     let isGestureAllowed = false;
+    let resumeTimers: ReturnType<typeof setTimeout>[] = [];
 
     /**
      * WARN: A gesture that began inside something with scrolling left to do is let
@@ -60,15 +62,36 @@ export function usePinnedDocument(active: boolean): void {
       }
     };
 
+    // WARN: WebKit can leave a scroll pan uncorrected when resuming from background with keyboard dismissed.
+    const resume = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
+
+      resumeTimers.forEach(clearTimeout);
+      resumeTimers = [];
+      pin();
+      RESUME_STAGGER_DELAYS.forEach((delay) => {
+        resumeTimers.push(setTimeout(pin, delay));
+      });
+    };
+
     pin();
     document.addEventListener("touchstart", start, { passive: true });
     document.addEventListener("touchmove", guard, { passive: false });
     window.addEventListener("scroll", pin, { passive: true });
+    document.addEventListener("visibilitychange", resume);
+    window.addEventListener("pageshow", resume);
+    window.addEventListener("focus", resume);
 
     return () => {
+      resumeTimers.forEach(clearTimeout);
       document.removeEventListener("touchstart", start);
       document.removeEventListener("touchmove", guard);
       window.removeEventListener("scroll", pin);
+      document.removeEventListener("visibilitychange", resume);
+      window.removeEventListener("pageshow", resume);
+      window.removeEventListener("focus", resume);
     };
   }, [active]);
 }
