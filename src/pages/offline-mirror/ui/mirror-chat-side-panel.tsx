@@ -57,12 +57,7 @@ export function MirrorChatSidePanel({
         </button>
       )}
 
-      <section
-        className={cn(
-          "flex min-h-0 flex-col gap-xs transition-[flex-grow] duration-(--duration-state) ease-out motion-reduce:transition-none",
-          hasSearchResults ? "grow-2" : "grow-0",
-        )}
-      >
+      <section className="flex flex-none flex-col gap-xs">
         <h2 className="px-xs text-title-sm text-meta">검색</h2>
         <MessageSearchField
           className="flex-none"
@@ -73,9 +68,15 @@ export function MirrorChatSidePanel({
           onQueryChange={search.setQuery}
           onSubmit={search.submit}
         />
+      </section>
+      <div
+        className={cn(
+          "min-h-0 shrink-0 transition-[max-height,margin] duration-(--duration-state) ease-out motion-reduce:transition-none",
+          hasSearchResults ? "mb-xs max-h-[45%] overflow-y-auto" : "max-h-0 overflow-hidden",
+        )}
+      >
         {hasSearchResults && (
           <MessageSearchResultList
-            className="h-0 min-h-0 flex-1 overflow-y-auto"
             query={search.submitted}
             results={search.results}
             participants={participants}
@@ -87,8 +88,8 @@ export function MirrorChatSidePanel({
             onSelect={search.select}
           />
         )}
-      </section>
-      <section className="flex min-h-0 grow-4 basis-0 flex-col gap-xs">
+      </div>
+      <section className="flex min-h-0 grow basis-0 flex-col gap-xs">
         <h2 className="px-xs text-title-sm text-meta">다가오는 일정</h2>
         <UpcomingEventsList
           className="min-h-0 flex-1 overflow-y-auto"

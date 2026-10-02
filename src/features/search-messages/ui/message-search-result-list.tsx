@@ -123,9 +123,11 @@ export function MessageSearchResultList({
           </HapticTarget>
         ))}
         {/* INFO: DESIGN.md § 7.8. A spinner here rather than more skeletons — the wait is unbounded and there is already a list of the real shape above it. */}
-        <div ref={sentinelRef} className="flex h-10 items-center justify-center">
-          {isLoadingMore && <LoaderCircle className="size-4 animate-spin text-meta-soft" />}
-        </div>
+        {(hasMore || isLoadingMore) && (
+          <div ref={sentinelRef} className="flex h-10 items-center justify-center">
+            {isLoadingMore && <LoaderCircle className="size-4 animate-spin text-meta-soft" />}
+          </div>
+        )}
       </>
     );
   }

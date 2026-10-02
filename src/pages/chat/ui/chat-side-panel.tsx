@@ -127,19 +127,17 @@ export function ChatSidePanel({
         />
       </section>
 
-      {/* INFO: `flex-grow` interpolates as a number, so the hits and 다가오는 일정 trade height over `--duration-state` instead of jumping when a search lands. */}
-      {/* WARN: The hits are a flex item of their own, and the field above is `flex-none` outside it — a section holding both sizes its basis from the list's content, which is then added to whatever share `grow` hands out, so an even split does not land on screen as one. */}
+      {/* INFO: Sizes to fit result rows up to `max-h-[45%]` so a single hit leaves no dead space above 다가오는 일정/책갈피. */}
       {/* WARN: Mounted whether or not there are hits, so the field being emptied animates back down rather than snapping. */}
-      {/* INFO: The panel's own gap is `xs`, and the `md` every block but the field wants is made up by a margin that travels with the grow — a zero-height item still takes its gap, so a flat `gap-md` left `md` twice over between the field and 다가오는 일정 while no hits were showing. */}
+      {/* INFO: The panel's own gap is `xs`, and the `md` every block but the field wants is made up by a margin that travels with the search results. */}
       <div
         className={cn(
-          "min-h-0 basis-0 overflow-hidden transition-[flex-grow,margin] duration-(--duration-state) ease-out motion-reduce:transition-none",
-          hasSearchResults ? "mb-xs grow" : "grow-0",
+          "min-h-0 shrink-0 transition-[max-height,margin] duration-(--duration-state) ease-out motion-reduce:transition-none",
+          hasSearchResults ? "mb-xs max-h-[45%] overflow-y-auto" : "max-h-0 overflow-hidden",
         )}
       >
         {hasSearchResults && (
           <MessageSearchResultList
-            className="h-full overflow-y-auto"
             query={search.submitted}
             results={search.results}
             participants={participants}
