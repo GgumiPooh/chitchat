@@ -2119,7 +2119,7 @@ function SearchPane({
                 <EmoticonCell
                   key={item.id}
                   className="flex"
-                  buttonClassName="square-cell w-full"
+                  buttonClassName="emoticon-cell w-full"
                   item={item}
                   index={index}
                   isFocusable={index === focusableIndex}
@@ -2133,7 +2133,7 @@ function SearchPane({
               {isLoadingMore &&
                 Array.from({ length: EMOTICON_GRID_COLUMNS }).map((_, index) => (
                   <div key={`search-loading-${index}`} className="flex" aria-hidden>
-                    <div className="square-cell w-full p-2xs">
+                    <div className="emoticon-cell w-full p-2xs">
                       <Skeleton className="size-full rounded-sm" />
                     </div>
                   </div>

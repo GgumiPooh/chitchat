@@ -273,6 +273,20 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
   );
 }
 
+/* INFO: REQUIREMENTS.md § 13.6. KakaoTalk-density 3:4 emoticon cell for 4-column picker grid, fitting 3 full rows plus peek at resting keyboard height. */
+@utility emoticon-cell {
+  height: calc(
+    (
+        (
+            100cqw - (var(--square-grid-columns, 4) - 1) *
+              var(--square-grid-gap, var(--spacing-2xs))
+          ) /
+          var(--square-grid-columns, 4)
+      ) *
+      0.75
+  );
+}
+
 @utility scrollbar-hidden {
   -ms-overflow-style: none;
   scrollbar-width: none;
@@ -431,4 +445,3 @@ html[data-media-morph="dismiss"]::view-transition-old(media-morph) {
     opacity: 0;
   }
 }
-

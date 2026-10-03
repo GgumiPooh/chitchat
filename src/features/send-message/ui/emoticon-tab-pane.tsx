@@ -160,7 +160,12 @@ export function EmoticonTabPane({
         <div className={menuKind === "mini" ? "square-grid-6" : "square-grid-4"} aria-hidden>
           {Array.from({ length: menuKind === "mini" ? 18 : 12 }).map((_, index) => (
             <div key={index} className="flex">
-              <div className="square-cell w-full p-2xs">
+              <div
+                className={cn(
+                  menuKind === "mini" ? "square-cell" : "emoticon-cell",
+                  "w-full p-2xs",
+                )}
+              >
                 <Skeleton className="size-full rounded-sm" />
               </div>
             </div>
@@ -205,7 +210,7 @@ export function EmoticonTabPane({
                     <EmoticonCell
                       key={item.id}
                       className="flex"
-                      buttonClassName="square-cell w-full"
+                      buttonClassName="emoticon-cell w-full"
                       item={item}
                       index={index}
                       isFocusable={index === focusableIndex}
@@ -220,7 +225,7 @@ export function EmoticonTabPane({
                   {hasMoreRecents && (
                     <button
                       className={cn(
-                        "flex square-cell w-full cursor-pointer flex-col items-center justify-center rounded-sm text-body-sm text-meta transition-colors select-none [-webkit-touch-callout:none] hover:bg-surface-soft hover:text-body focus-visible:bg-primary-tint focus-visible:text-body focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset active:bg-surface-soft active:text-body",
+                        "flex emoticon-cell w-full cursor-pointer flex-col items-center justify-center rounded-sm text-body-sm text-meta transition-colors select-none [-webkit-touch-callout:none] hover:bg-surface-soft hover:text-body focus-visible:bg-primary-tint focus-visible:text-body focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset active:bg-surface-soft active:text-body",
                         isKeyboardDriven && CELL_KEYBOARD_RING,
                       )}
                       type="button"

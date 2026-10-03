@@ -40,6 +40,8 @@ export function EmoticonGrid({
   onSelect,
   onFocusCell,
 }: EmoticonGridProps) {
+  const cellClassName = isMini ? "square-cell" : "emoticon-cell";
+
   return (
     <div
       className={cn(isMini ? "square-grid-6" : "square-grid-4", className)}
@@ -53,7 +55,7 @@ export function EmoticonGrid({
           <EmoticonCell
             key={item.id}
             className="flex"
-            buttonClassName="square-cell w-full"
+            buttonClassName={cn(cellClassName, "w-full")}
             item={item}
             index={cellIndex}
             isFocusable={cellIndex === focusableIndex}
