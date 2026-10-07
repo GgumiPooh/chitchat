@@ -54,6 +54,7 @@ export { cn } from "./class-name";
 export {
   MILESTONE_DAY_STEP,
   MILESTONE_HORIZON_DAYS,
+  composeEventCardAnnouncement,
   composeEventNotice,
   composeEventNoticeBody,
   findNextMilestone,

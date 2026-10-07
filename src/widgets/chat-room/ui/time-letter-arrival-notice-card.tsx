@@ -210,7 +210,7 @@ export function TimeLetterArrivalNoticeCard({
 
             {/* Sender announcement & Title */}
             <div className="mt-sm flex flex-col gap-1">
-              <p className="text-caption text-meta">
+              <p className="text-caption break-keep text-meta">
                 {isMine ? (
                   <span>내가 {elapsedText}과거에서 보낸 편지예요</span>
                 ) : isBlind ? (

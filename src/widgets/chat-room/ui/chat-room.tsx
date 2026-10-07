@@ -95,6 +95,7 @@ import {
   buildFadeMask,
   cn,
   compareId,
+  composeEventCardAnnouncement,
   composeEventNotice,
   countVisibleWakes,
   findFirstUrl,
@@ -204,6 +205,7 @@ import {
   estimateRowHeight,
   type PreviewReader,
 } from "../model/estimate-row-height";
+import { formatTimeLetterAnnouncement } from "../model/format-time-letter-announcement";
 import { toLinkPreviewQuery } from "../model/link-preview-query";
 import { playEmoticonSound, type EmoticonSound } from "../model/play-emoticon-sound";
 import { toBubbleTapHandler } from "../model/to-bubble-tap-handler";
@@ -1104,18 +1106,15 @@ export function ChatRoom({
         }
 
         if (message.systemAction === "time_letter_delivered") {
-          const actor = participantById.get(message.senderId)?.name ?? "파트너";
-          let title = "";
-          try {
-            if (message.text) {
-              const parsed = JSON.parse(message.text) as { title?: string };
-              title = parsed.title ?? "";
-            }
-          } catch {
-            // fallback
-          }
-          const titleSnippet = title ? ` · ${title}` : "";
-          return `💌 ${actor}님이 보낸 타임머신 편지가 도착했어요!${titleSnippet}`;
+          const isMine = Boolean(currentUserId && message.senderId === currentUserId);
+          const actor = participantById.get(message.senderId)?.name ?? (isMine ? "나" : "파트너");
+          return formatTimeLetterAnnouncement(message, actor, isMine);
+        }
+
+        if (message.systemAction && message.systemAction.startsWith("event_")) {
+          const isMine = Boolean(currentUserId && message.senderId === currentUserId);
+          const actor = participantById.get(message.senderId)?.name;
+          return composeEventCardAnnouncement(message.systemAction, actor, isMine);
         }
 
         return composeEventNotice(

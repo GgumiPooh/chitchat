@@ -230,7 +230,7 @@ export function EventNoticeCard({
 
             {/* Subtext Announcement & Title */}
             <div className="mt-sm flex flex-col gap-1">
-              <p className="truncate text-caption text-meta">{renderAnnouncement()}</p>
+              <p className="text-caption break-keep text-meta">{renderAnnouncement()}</p>
               <h4 className="line-clamp-2 text-body-md leading-snug font-bold tracking-tight text-ink">
                 {message.eventTitle ? `“${message.eventTitle}”` : "일정"}
               </h4>

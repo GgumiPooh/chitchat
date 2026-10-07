@@ -246,7 +246,7 @@ function toRowHeight(row: ChatRow, context: RowEstimateContext): number {
       if (row.message.systemAction === "time_letter_delivered") {
         baseHeight = toTimeLetterNoticeHeight(row.message, translatedContext);
       } else if (row.message.systemAction === "voca_completed") {
-        baseHeight = toVocaNoticeHeight();
+        baseHeight = toVocaNoticeHeight(row.message, translatedContext);
       } else if (row.message.systemAction && row.message.systemAction.startsWith("event_")) {
         baseHeight = toEventNoticeHeight(row.message, translatedContext);
       } else {
@@ -719,7 +719,7 @@ function toNoticeHeight(
 // INFO: Time letter arrival notice row rendered with postman avatar in chat timeline for `time_letter_delivered`.
 function toTimeLetterNoticeHeight(
   message: ChatMessage,
-  { contentWidth = DEFAULT_CONTENT_WIDTH, fontFamily }: RowEstimateContext,
+  { contentWidth = DEFAULT_CONTENT_WIDTH, fontFamily, readNotice }: RowEstimateContext,
 ): number {
   let title = "";
   try {
@@ -745,19 +745,51 @@ function toTimeLetterNoticeHeight(
       )
     : 1;
 
+  const announcement = readNotice ? readNotice(message) : "";
+  const announcementLines = announcement
+    ? Math.max(
+        1,
+        countTextLines(
+          announcement,
+          { size: 12, weight: 500, family: fontFamily },
+          titleAvailableWidth,
+        ),
+      )
+    : 1;
+
   // Base row height (top padding 8px + sender name 20px + 1-line card 166px) = 194px; 2-line title = 214px.
-  return 194 + (titleLines - 1) * 20;
+  // Wrapping announcement lines add LINE.caption() each.
+  return 194 + (titleLines - 1) * 20 + (announcementLines - 1) * LINE.caption();
 }
 
 // INFO: Voca completion notice row rendered with book/graduation avatar in chat timeline for `voca_completed`.
-function toVocaNoticeHeight(): number {
-  return 194;
+function toVocaNoticeHeight(
+  message: ChatMessage,
+  { contentWidth = DEFAULT_CONTENT_WIDTH, fontFamily, readNotice }: RowEstimateContext,
+): number {
+  const availableForCard = Math.max(contentWidth - SPACING_MD * 2 - AVATAR_GUTTER - TIME_SLOT, 100);
+  const cardWidth = Math.min(340, availableForCard);
+  const titleAvailableWidth = Math.max(cardWidth - SPACING_MD * 2, 80);
+
+  const announcement = readNotice ? readNotice(message) : "";
+  const announcementLines = announcement
+    ? Math.max(
+        1,
+        countTextLines(
+          announcement,
+          { size: 12, weight: 500, family: fontFamily },
+          titleAvailableWidth,
+        ),
+      )
+    : 1;
+
+  return 194 + (announcementLines - 1) * LINE.caption();
 }
 
 // INFO: Calendar event notice row rendered with persona/calendar avatar in chat timeline for `event_*`.
 function toEventNoticeHeight(
   message: ChatMessage,
-  { contentWidth = DEFAULT_CONTENT_WIDTH, fontFamily }: RowEstimateContext,
+  { contentWidth = DEFAULT_CONTENT_WIDTH, fontFamily, readNotice }: RowEstimateContext,
 ): number {
   const title = message.eventTitle ?? "";
   const availableForCard = Math.max(contentWidth - SPACING_MD * 2 - AVATAR_GUTTER - TIME_SLOT, 100);
@@ -773,8 +805,21 @@ function toEventNoticeHeight(
       )
     : 1;
 
+  const announcement = readNotice ? readNotice(message) : "";
+  const announcementLines = announcement
+    ? Math.max(
+        1,
+        countTextLines(
+          announcement,
+          { size: 12, weight: 500, family: fontFamily },
+          titleAvailableWidth,
+        ),
+      )
+    : 1;
+
   // Base row height (top padding 12px + sender name 20px + 1-line card 190px) = 222px; 2-line title = 242px.
-  return 222 + (titleLines - 1) * 20;
+  // Wrapping announcement lines add LINE.caption() each.
+  return 222 + (titleLines - 1) * 20 + (announcementLines - 1) * LINE.caption();
 }
 
 function toQuoteHeight(replyTo: ReplyPreview, variant: "rule" | "card", isMine: boolean): number {

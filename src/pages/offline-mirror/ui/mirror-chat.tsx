@@ -338,7 +338,7 @@ export function MirrorChat({ className, shell }: MirrorChatProps) {
       return (
         // INFO: DESIGN.md § 6.5. The divider's own treatment, without the calendar link the live notice carries — the day it would open is not the day this snapshot holds.
         <div key={row.key} className="flex justify-center px-md py-sm">
-          <span className="min-w-0 rounded-full bg-chat-pill px-sm py-2xs text-center text-caption text-chat-pill-ink">
+          <span className="min-w-0 rounded-full bg-chat-pill px-sm py-2xs text-center text-caption whitespace-pre-wrap text-chat-pill-ink">
             {composeEventNotice(
               row.message.systemAction,
               row.message.eventTitle,

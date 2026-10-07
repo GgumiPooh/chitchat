@@ -123,7 +123,7 @@ export function VocaCompletionNoticeCard({
 
             {/* Subtext Announcement & Title */}
             <div className="mt-sm flex flex-col gap-1">
-              <p className="truncate text-caption text-meta">
+              <p className="text-caption break-keep text-meta">
                 <span className="font-semibold text-ink">{isSelf ? "내가" : baseName}</span>
                 {isSelf
                   ? " 오늘 목표 단어 학습을 달성했어요! 👏"

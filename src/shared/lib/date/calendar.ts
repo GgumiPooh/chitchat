@@ -121,6 +121,33 @@ export function composeEventNotice(
   return `${name}님이 ${body}`;
 }
 
+/** Composes the announcement sentence shown inside the calendar event notice card. */
+export function composeEventCardAnnouncement(
+  action: Maybe<SystemAction>,
+  name: Maybe<string>,
+  isMine = false,
+): string {
+  if (action === "event_reminder") {
+    return "곧 예정된 일정이 다가오고 있어요!";
+  }
+
+  const actorName = isMine ? "나" : (name ?? "파트너");
+  const baseName =
+    actorName.endsWith("님") && actorName.length > 1 ? actorName.slice(0, -1) : actorName;
+  const subject = baseName === "나" ? "내가" : `${baseName}님이`;
+
+  if (action === "event_created") {
+    return `${subject} 새 일정을 캘린더에 추가했어요`;
+  }
+  if (action === "event_rescheduled") {
+    return `${subject} 일정을 변경했어요`;
+  }
+  if (action === "event_deleted") {
+    return `${subject} 일정을 삭제했어요`;
+  }
+  return "캘린더 일정 알림";
+}
+
 const DAY_KEY_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
 
 /**
