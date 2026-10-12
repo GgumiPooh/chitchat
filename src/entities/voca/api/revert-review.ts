@@ -13,12 +13,12 @@ export async function revertVocaReview(
 ): Promise<Nullable<VocaCard>> {
   const db = getDb();
 
-  const [lastReview] = await db
+  const [lastReview, previousReview] = await db
     .select()
     .from(vocaReviews)
     .where(and(eq(vocaReviews.cardId, cardId), eq(vocaReviews.userId, userId)))
     .orderBy(desc(vocaReviews.reviewedAt), desc(vocaReviews.id))
-    .limit(1);
+    .limit(2);
 
   if (!lastReview) {
     return null;
@@ -27,7 +27,9 @@ export async function revertVocaReview(
   const now = new Date();
   const sessionDayKey = toVocaSessionDayKey(now);
 
-  const lapseDelta = lastReview.rating === Rating.Again ? 1 : 0;
+  // INFO: ts-fsrs counts a lapse only for 다시 on a card already in review; a (re)learning 다시 leaves `lapses` alone.
+  const lapseDelta =
+    lastReview.rating === Rating.Again && lastReview.stateBefore === "review" ? 1 : 0;
 
   const [updatedCardRow] = await db
     .update(vocaCards)
@@ -35,6 +37,8 @@ export async function revertVocaReview(
       state: lastReview.stateBefore as VocaCardState,
       stability: lastReview.stabilityBefore,
       difficulty: lastReview.difficultyBefore,
+      learningSteps: lastReview.learningStepsBefore,
+      lastReviewedAt: previousReview?.reviewedAt ?? null,
       reps: sql`GREATEST(0, ${vocaCards.reps} - 1)`,
       lapses: sql`GREATEST(0, ${vocaCards.lapses} - ${lapseDelta})`,
       dueAt: now,

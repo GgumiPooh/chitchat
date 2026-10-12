@@ -14,6 +14,8 @@ export type VocaCard = {
   difficulty: number;
   reps: number;
   lapses: number;
+  learningSteps: number;
+  lastReviewedAt: Nullable<Date>;
   suspended: boolean;
   sentence: string;
   targetWord: string;
@@ -52,6 +54,7 @@ export type VocaReviewLog = {
   stateBefore: string;
   stabilityBefore: number;
   difficultyBefore: number;
+  learningStepsBefore: number;
   stateAfter: string;
   stabilityAfter: number;
   difficultyAfter: number;
@@ -99,6 +102,8 @@ export function toVocaCard(row: VocaCardRow): VocaCard {
     difficulty: row.difficulty,
     reps: row.reps,
     lapses: row.lapses,
+    learningSteps: row.learningSteps,
+    lastReviewedAt: row.lastReviewedAt,
     suspended: row.suspended,
     sentence: row.sentence,
     targetWord: row.targetWord,

@@ -2351,7 +2351,14 @@ _(None)_
 - **Deck Structure & Tag Semantics**: 1 User = 1 Personal Deck directly bound to `users.id` on `voca_cards` and `voca_user_settings`. Categorization and difficulty/frequency grading are handled via tags (e.g. `토익,core`, `IT/개발,essential`, `#business`) rather than redundant `voca,{word}` prefixes.
 - **Hierarchical Desktop Back Navigation**: When the side panel is collapsed on desktop (`lg`), the header back button (`<`) expands the side panel (card list) first instead of leaving the page; clicking back while open navigates to `/playground/voca`.
 - **FSRS Algorithm**: Anki's official Free Spaced Repetition Scheduler (`ts-fsrs`), supporting 4 rating options (`Again`, `Hard`, `Good`, `Easy`) with dynamic interval estimation (`< 10분`, `1일`, `3일`, `7일`).
-- **Session Boundary**: Daily boundary rolls over at 04:00 AM KST (`toVocaSessionDayKey`), partitioning reviews and daily quotas cleanly.
+- **Anki Parity**: Scheduling reproduces an Anki deck on its **default** options, within fuzz:
+  - **Parameters are Anki's defaults and are not user-configurable**: FSRS-6 default weights (`ts-fsrs`'s `default_w` is identical to Anki's), learning steps `1m 10m`, relearning step `10m`, maximum interval 36500 days, fuzz **on**. Only `desiredRetention` is a setting.
+  - **The full memory state is persisted.** `voca_cards.last_reviewed_at` and `voca_cards.learning_steps` are stored beside stability/difficulty and restored on every computation. Without `last_reviewed_at`, ts-fsrs treats every answer as a same-day re-review (elapsed `0`) and stability never grows; without `learning_steps`, a learning card repeats its first step forever and never graduates. `voca_reviews.learning_steps_before` lets undo restore the step; the previous `last_reviewed_at` is the prior log row's `reviewed_at`.
+  - **Elapsed days count across the 04:00 KST rollover**, as Anki counts them. ts-fsrs counts UTC midnights (09:00 KST), so every instant is shifted by `TIME_ZONE_OFFSET_MS − FSRS_ROLLOVER_HOUR` on the way in and back on the way out. A day interval is due at that day's 04:00 KST rollover, not at the minute it was answered.
+  - **Fuzz is seeded by card id + reps**, so the rating bar's preview and the server's stored interval agree. Anki's own RNG differs, so a fuzzed interval matches Anki's range, not its exact day.
+  - **Learning steps are shown again within the session**: the server's post-review card returns to the end of the queue while it is (re)learning, and `GET /api/voca/due` includes (re)learning cards due within Anki's 20-minute learn-ahead limit, after every other card.
+  - **Not reproduced**: Anki's Load Balancer and Easy Days, and per-user parameter optimization.
+- **Session Boundary**: Daily boundary rolls over at 04:00 AM KST (`toVocaSessionDayKey`, `FSRS_ROLLOVER_HOUR`), partitioning reviews and daily quotas cleanly.
 - **Card Note Specification (12 Fields)**: Conforms strictly to `/anki-voca` specification:
   1. `sentence`: 1T principle blank sentence (`<b>__________</b>`).
   2. `target_word`: Headword.

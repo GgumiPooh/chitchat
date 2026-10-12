@@ -1,9 +1,41 @@
-import type { Nullable } from "@/shared/lib";
-import { createEmptyCard, fsrs, generatorParameters, Rating, State, type Card } from "ts-fsrs";
+import {
+  createEmptyCard,
+  fsrs,
+  generatorParameters,
+  GenSeedStrategyWithCardId,
+  Rating,
+  State,
+  StrategyMode,
+  type Card,
+  type FSRS,
+  type Grade,
+  type RecordLog,
+} from "ts-fsrs";
+import type { Nullable } from "../nullish";
+import { A_DAY, A_MINUTE, AN_HOUR, TIME_ZONE_OFFSET_MS } from "./time";
 
 export { Rating, State } from "ts-fsrs";
 
 export type VocaCardState = "new" | "learning" | "review" | "relearning";
+
+export const FSRS_ROLLOVER_HOUR = 4;
+
+// INFO: REQUIREMENTS.md § 17.1. ts-fsrs counts elapsed days between UTC midnights — 09:00 KST — where Anki counts them between rollovers. Every instant is moved by this much on the way in and back on the way out, so a UTC date in scheduler time reads as a session day.
+const SESSION_DAY_SHIFT_MS = TIME_ZONE_OFFSET_MS - FSRS_ROLLOVER_HOUR * AN_HOUR;
+
+const CARD_ID_FIELD = "card_id";
+
+export type SchedulableCard = {
+  dueAt: Nullable<Date | string>;
+  lastReviewedAt?: Nullable<Date | string>;
+  learningSteps?: number;
+  difficulty: number;
+  lapses: number;
+  reps: number;
+  stability: number;
+  state: string;
+  id: string;
+};
 
 export function toFsrsState(state: string): State {
   switch (state) {
@@ -31,26 +63,63 @@ export function fromFsrsState(state: State): VocaCardState {
   }
 }
 
-export function toFsrsCard(card: {
-  dueAt: Nullable<Date | string>;
-  difficulty: number;
-  lapses: number;
-  reps: number;
-  stability: number;
-  state: string;
-}): Card {
+const schedulers = new Map<number, FSRS>();
+
+function schedulerFor(desiredRetention: number): FSRS {
+  const cached = schedulers.get(desiredRetention);
+  if (cached) {
+    return cached;
+  }
+
+  // WARN: REQUIREMENTS.md § 17.1. Fuzz is seeded by card id, not review time — a time seed makes the rating bar preview a different interval from the one the server then stores.
+  const scheduler = fsrs(
+    generatorParameters({ request_retention: desiredRetention, enable_fuzz: true }),
+  ).useStrategy(StrategyMode.SEED, GenSeedStrategyWithCardId(CARD_ID_FIELD));
+  schedulers.set(desiredRetention, scheduler);
+
+  return scheduler;
+}
+
+function toSchedulerTime(date: Date | string): Date {
+  return new Date(new Date(date).getTime() + SESSION_DAY_SHIFT_MS);
+}
+
+function fromSchedulerTime(date: Date): Date {
+  return new Date(date.getTime() - SESSION_DAY_SHIFT_MS);
+}
+
+function toFsrsCard(card: SchedulableCard, now: Date): Card & { [CARD_ID_FIELD]: string } {
   const empty = createEmptyCard();
-  const due = card.dueAt ? new Date(card.dueAt) : new Date();
+  // WARN: ts-fsrs throws on a negative elapsed time, which an offline review synced after a later online one, or a client clock behind the server's, would otherwise hand it.
+  const lastReviewedAt = card.lastReviewedAt
+    ? new Date(Math.min(new Date(card.lastReviewedAt).getTime(), now.getTime()))
+    : undefined;
 
   return {
     ...empty,
-    due,
+    [CARD_ID_FIELD]: card.id,
+    due: toSchedulerTime(card.dueAt ?? now),
+    last_review: lastReviewedAt ? toSchedulerTime(lastReviewedAt) : undefined,
+    learning_steps: card.learningSteps ?? 0,
     stability: card.stability > 0 ? card.stability : empty.stability,
     difficulty: card.difficulty > 0 ? card.difficulty : empty.difficulty,
     reps: card.reps,
     lapses: card.lapses,
     state: toFsrsState(card.state),
   };
+}
+
+// INFO: Anki stores a day interval as a day number and surfaces the card at that day's rollover, not at the minute it was last answered.
+function toDueAt(next: Card): Date {
+  if (next.scheduled_days < 1) {
+    return fromSchedulerTime(next.due);
+  }
+
+  return fromSchedulerTime(new Date(Math.floor(next.due.getTime() / A_DAY) * A_DAY));
+}
+
+function preview(card: SchedulableCard, desiredRetention: number, now: Date): RecordLog {
+  return schedulerFor(desiredRetention).repeat(toFsrsCard(card, now), toSchedulerTime(now));
 }
 
 export function formatIntervalString(due: Date, now: Date = new Date(), scheduledDays = 0): string {
@@ -69,7 +138,7 @@ export function formatIntervalString(due: Date, now: Date = new Date(), schedule
   }
 
   const diffMs = due.getTime() - now.getTime();
-  const diffMinutes = Math.max(1, Math.round(diffMs / (60 * 1000)));
+  const diffMinutes = Math.max(1, Math.round(diffMs / A_MINUTE));
 
   if (diffMinutes <= 10) {
     return "< 10분";
@@ -94,40 +163,30 @@ export type ReviewComputationResult = {
   state: VocaCardState;
   reps: number;
   lapses: number;
+  learningSteps: number;
   scheduledDays: number;
   intervalString: string;
 };
 
 export function computeNextReview(
-  card: {
-    dueAt: Nullable<Date | string>;
-    difficulty: number;
-    lapses: number;
-    reps: number;
-    stability: number;
-    state: string;
-  },
+  card: SchedulableCard,
   rating: Rating,
   desiredRetention = 0.9,
   now: Date = new Date(),
 ): ReviewComputationResult {
-  const f = fsrs(generatorParameters({ request_retention: desiredRetention }));
-  const fsrsCard = toFsrsCard(card);
-  const result = f.repeat(fsrsCard, now);
-  const item = result[rating as 1 | 2 | 3 | 4];
-  const nextCard = item.card;
-  const state = fromFsrsState(nextCard.state);
-  const intervalString = formatIntervalString(nextCard.due, now, nextCard.scheduled_days);
+  const next = preview(card, desiredRetention, now)[rating as Grade].card;
+  const dueAt = toDueAt(next);
 
   return {
-    dueAt: nextCard.due,
-    stability: nextCard.stability,
-    difficulty: nextCard.difficulty,
-    state,
-    reps: nextCard.reps,
-    lapses: nextCard.lapses,
-    scheduledDays: nextCard.scheduled_days,
-    intervalString,
+    dueAt,
+    stability: next.stability,
+    difficulty: next.difficulty,
+    state: fromFsrsState(next.state),
+    reps: next.reps,
+    lapses: next.lapses,
+    learningSteps: next.learning_steps,
+    scheduledDays: next.scheduled_days,
+    intervalString: formatIntervalString(dueAt, now, next.scheduled_days),
   };
 }
 
@@ -140,22 +199,13 @@ export type RatingIntervalInfo = {
 };
 
 export function computeAllNextIntervals(
-  card: {
-    dueAt: Nullable<Date | string>;
-    difficulty: number;
-    lapses: number;
-    reps: number;
-    stability: number;
-    state: string;
-  },
+  card: SchedulableCard,
   desiredRetention = 0.9,
   now: Date = new Date(),
 ): Record<Rating, RatingIntervalInfo> {
-  const f = fsrs(generatorParameters({ request_retention: desiredRetention }));
-  const fsrsCard = toFsrsCard(card);
-  const result = f.repeat(fsrsCard, now);
+  const result = preview(card, desiredRetention, now);
 
-  const ratings: { label: string; rating: Rating }[] = [
+  const ratings: { label: string; rating: Grade }[] = [
     { rating: Rating.Again, label: "다시" },
     { rating: Rating.Hard, label: "어려움" },
     { rating: Rating.Good, label: "보통" },
@@ -165,17 +215,14 @@ export function computeAllNextIntervals(
   const map = {} as Record<Rating, RatingIntervalInfo>;
 
   for (const { label, rating } of ratings) {
-    const item = result[rating as 1 | 2 | 3 | 4];
-    const nextCard = item.card;
-    const nextState = fromFsrsState(nextCard.state);
-    const intervalString = formatIntervalString(nextCard.due, now, nextCard.scheduled_days);
+    const next = result[rating].card;
 
     map[rating] = {
       rating,
       label,
-      intervalString,
-      scheduledDays: nextCard.scheduled_days,
-      nextState,
+      intervalString: formatIntervalString(toDueAt(next), now, next.scheduled_days),
+      scheduledDays: next.scheduled_days,
+      nextState: fromFsrsState(next.state),
     };
   }
 

@@ -526,6 +526,13 @@
       "when": 1790526030297,
       "tag": "0074_time_letters",
       "breakpoints": true
+    },
+    {
+      "idx": 75,
+      "version": "7",
+      "when": 1790600000000,
+      "tag": "0075_voca_fsrs_memory",
+      "breakpoints": true
     }
   ]
 }

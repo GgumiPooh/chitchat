@@ -32,6 +32,9 @@ export type VocaSnapshotCard = {
   difficulty: number;
   reps: number;
   lapses: number;
+  // INFO: Optional because a snapshot cached before REQUIREMENTS.md § 17.1.'s memory columns has neither.
+  learningSteps?: number;
+  lastReviewedAt?: Nullable<string>;
   suspended: boolean;
   sentence: string;
   targetWord: string;

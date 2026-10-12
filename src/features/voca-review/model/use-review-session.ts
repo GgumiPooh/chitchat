@@ -74,14 +74,15 @@ export function useReviewSession({ initialCards }: UseReviewSessionOptions) {
         { card: currentCard, queueSnapshot: [...queue], index: currentIndex },
       ]);
 
-      try {
-        // If Again, push card to end of queue so learner sees it again this session
-        if (rating === Rating.Again) {
-          const nextState: VocaCardState = currentCard.state === "new" ? "learning" : "relearning";
-          setQueue((prev) => [...prev, { ...currentCard, state: nextState }]);
+      const requeueOnAgain = (answered: Rating) => {
+        if (answered !== Rating.Again) {
+          return;
         }
+        const nextState: VocaCardState = currentCard.state === "new" ? "learning" : "relearning";
+        setQueue((prev) => [...prev, { ...currentCard, state: nextState }]);
+      };
 
-        // Call server review API
+      try {
         const response = await fetch("/api/voca/review", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -94,9 +95,17 @@ export function useReviewSession({ initialCards }: UseReviewSessionOptions) {
 
         if (!response.ok) {
           console.warn("[reviewSession] Server sync failed, response status:", response.status);
+          requeueOnAgain(rating);
+        } else {
+          const { card: reviewed } = (await response.json()) as { card: VocaCard };
+          // INFO: REQUIREMENTS.md § 17.1. Anki shows a card again in the same session once its learning step comes due, so every (re)learning step returns to the queue, carrying the memory state the server just stored.
+          if (reviewed.state === "learning" || reviewed.state === "relearning") {
+            setQueue((prev) => [...prev, reviewed]);
+          }
         }
       } catch (error) {
         console.warn("[reviewSession] Network error during review:", error);
+        requeueOnAgain(rating);
       } finally {
         setCurrentIndex((prev) => prev + 1);
         setIsFlipped(false);

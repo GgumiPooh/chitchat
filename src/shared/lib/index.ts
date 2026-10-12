@@ -78,16 +78,17 @@ export {
   type TimedOccurrence,
 } from "./date/event-time";
 export {
+  FSRS_ROLLOVER_HOUR,
   Rating as FsrsRating,
   State as FsrsState,
   computeAllNextIntervals,
   computeNextReview,
   formatIntervalString,
   fromFsrsState,
-  toFsrsCard,
   toFsrsState,
   type RatingIntervalInfo,
   type ReviewComputationResult,
+  type SchedulableCard,
   type VocaCardState,
 } from "./date/fsrs";
 export {

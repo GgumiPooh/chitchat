@@ -1,6 +1,6 @@
-import { AN_HOUR, toDayKey } from "@/shared/lib";
+import { AN_HOUR, FSRS_ROLLOVER_HOUR, toDayKey } from "@/shared/lib";
 
-export const VOCA_ROLLOVER_HOUR = 4;
+export const VOCA_ROLLOVER_HOUR = FSRS_ROLLOVER_HOUR;
 
 /**
  * Calculates the session day key in KST with a 4:00 AM rollover.

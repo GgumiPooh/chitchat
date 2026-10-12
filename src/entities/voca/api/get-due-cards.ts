@@ -1,11 +1,14 @@
 import "server-only";
 
 import { getDb, vocaCards, vocaReviews } from "@/shared/db";
-import type { UserId } from "@/shared/lib";
+import { A_MINUTE, type UserId } from "@/shared/lib";
 import { and, asc, count, eq, gte, inArray, isNull, lte, or } from "drizzle-orm";
 import { toVocaSessionDayKey, toVocaSessionStart } from "../model/time-boundary";
 import { toVocaCard, type VocaCard, type VocaDueSummary } from "../model/types";
 import { getVocaUserSettings } from "./get-user-settings";
+
+// INFO: Anki's default learn-ahead limit — a learning step due within it is shown now rather than leaving the session to end while it waits.
+const LEARN_AHEAD_MS = 20 * A_MINUTE;
 
 export type DueCardsResult = {
   dueCards: VocaCard[];
@@ -18,6 +21,7 @@ export async function getDueCards(userId: UserId, now: Date = new Date()): Promi
   const db = getDb();
   const sessionDayKey = toVocaSessionDayKey(now);
   const sessionStart = toVocaSessionStart(sessionDayKey);
+  const learnAheadUntil = new Date(now.getTime() + LEARN_AHEAD_MS);
   const settings = await getVocaUserSettings(userId);
 
   // 1. Calculate how many new cards were studied during this session
@@ -62,7 +66,7 @@ export async function getDueCards(userId: UserId, now: Date = new Date()): Promi
         isNull(vocaCards.deletedAt),
         eq(vocaCards.suspended, false),
         inArray(vocaCards.state, ["learning", "relearning"]),
-        or(isNull(vocaCards.dueAt), lte(vocaCards.dueAt, now)),
+        or(isNull(vocaCards.dueAt), lte(vocaCards.dueAt, learnAheadUntil)),
       ),
     )
     .orderBy(asc(vocaCards.dueAt));
@@ -108,8 +112,10 @@ export async function getDueCards(userId: UserId, now: Date = new Date()): Promi
   const learningCards = learningRows.map(toVocaCard);
   const reviewCards = reviewRows.map(toVocaCard);
   const newCards = newRows.map(toVocaCard);
+  const learningDue = learningCards.filter((card) => !card.dueAt || card.dueAt <= now);
+  const learningAhead = learningCards.filter((card) => card.dueAt && card.dueAt > now);
 
-  const dueCards = [...learningCards, ...reviewCards, ...newCards];
+  const dueCards = [...learningDue, ...reviewCards, ...newCards, ...learningAhead];
 
   const summary: VocaDueSummary = {
     newCount: newCards.length,

@@ -38,6 +38,8 @@ function MirrorVocaSession({ className, snapshot, savedAt, onBack }: MirrorVocaS
     snapshot.dueCards.map((card: VocaSnapshotCard) => ({
       ...card,
       dueAt: card.dueAt ? new Date(card.dueAt) : null,
+      lastReviewedAt: card.lastReviewedAt ? new Date(card.lastReviewedAt) : null,
+      learningSteps: card.learningSteps ?? 0,
       deletedAt: null,
       createdAt: new Date(),
       updatedAt: new Date(),

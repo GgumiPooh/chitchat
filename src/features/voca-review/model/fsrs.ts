@@ -5,7 +5,6 @@ export {
   computeNextReview,
   formatIntervalString,
   fromFsrsState,
-  toFsrsCard,
   toFsrsState,
   type RatingIntervalInfo,
   type ReviewComputationResult,
