@@ -1349,7 +1349,12 @@ export function EmoticonPicker({
   }
 
   function handleCellKeys(event: KeyboardEvent<HTMLDivElement>) {
-    if (event.defaultPrevented || event.nativeEvent.isComposing) {
+    if (
+      event.defaultPrevented ||
+      event.nativeEvent.isComposing ||
+      event.target instanceof HTMLInputElement ||
+      event.target instanceof HTMLTextAreaElement
+    ) {
       return;
     }
 
@@ -1457,6 +1462,10 @@ export function EmoticonPicker({
 
       if (isSearching) {
         focusWithoutPan(searchFieldRef.current);
+        const scroller = cellScrollerRef.current;
+        if (scroller && searchFieldRef.current) {
+          revealWithin(scroller, searchFieldRef.current);
+        }
       } else {
         focusActiveTab();
       }
@@ -1838,6 +1847,10 @@ export function EmoticonPicker({
 
       if (isSearching) {
         focusWithoutPan(searchFieldRef.current);
+        const scroller = cellScrollerRef.current;
+        if (scroller && searchFieldRef.current) {
+          revealWithin(scroller, searchFieldRef.current);
+        }
       } else {
         focusActiveTab();
       }
@@ -2149,7 +2162,15 @@ function SearchPane({
   }, [revealToken, rowRef]);
 
   return (
-    <div className={cn("flex min-h-0 flex-1 flex-col gap-2xs p-xs", className)}>
+    <div
+      ref={rowRef}
+      className={cn(
+        "scrollbar-hidden flex min-h-0 flex-1 touch-pan-y flex-col gap-2xs overflow-x-hidden overflow-y-auto overscroll-contain p-xs",
+        className,
+      )}
+      onKeyDown={onCellKeys}
+      onFocus={onCellFocus}
+    >
       <div className="relative shrink-0 touch-pan-y">
         {/* WARN: The icon is inset by the field's own padding rather than sat against its edge — the pill's radius is half its height, so a glyph at `2xs` is inside the curve rather than beside the text. */}
         {isPending ? (
@@ -2181,12 +2202,7 @@ function SearchPane({
         />
       </div>
       {isRevealMode ? (
-        <div
-          ref={rowRef}
-          className="scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain"
-          onKeyDown={onCellKeys}
-          onFocus={onCellFocus}
-        >
+        <>
           {showSearchSection ? (
             <div className="flex flex-col gap-md">
               <section>
@@ -2344,7 +2360,7 @@ function SearchPane({
               {SEARCH_FAILED_MESSAGE}
             </p>
           )}
-        </div>
+        </>
       ) : results.length === 0 ? (
         // INFO: § 13.8. The whole pane below the field, and with no row to scroll it is where the tab swipe has the most room to be made.
         <div className="flex flex-1 touch-pan-y items-center justify-center">
@@ -2362,44 +2378,35 @@ function SearchPane({
         </div>
       ) : (
         <>
-          {/* WARN: `overflow-x-hidden` keeps the § 13.6. slide inside the panel, as the other menus' scroller does — a vertical-only scroller still resolves its horizontal axis to `auto`. */}
-          {/* WARN: `touch-pan-y` now, where this was `touch-pan-x` while the results were one sideways row. The scroller runs on the vertical axis like every other grid in the panel, so that is the axis the browser must keep. */}
-          <div
-            ref={rowRef}
-            className="scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain"
-            onKeyDown={onCellKeys}
-            onFocus={onCellFocus}
-          >
-            {/* WARN: § 8.14. Four columns, and `EMOTICON_GRID_COLUMNS` is the same decision — 검색 is drawn at 이모티콘's width rather than 미니's, whatever kind the results happen to hold, because a row of mixed kinds has no one width to be right at. */}
-            <div className="square-grid-4" role="group" aria-label="검색 결과">
-              {results.map((item, index) => (
-                <EmoticonCell
-                  key={item.id}
-                  className="flex"
-                  buttonClassName="emoticon-cell w-full"
-                  item={item}
-                  index={index}
-                  isFocusable={index === focusableIndex}
-                  isKeyboardDriven={isKeyboardDriven}
-                  isRevealed={item.id === revealedId}
-                  isMini={packTypes.get(item.packId) === "mini"}
-                  onSelect={onSelect}
-                  onFocusCell={onFocusCell}
-                />
-              ))}
-              {isLoadingMore &&
-                Array.from({ length: EMOTICON_GRID_COLUMNS }).map((_, index) => (
-                  <div key={`search-loading-${index}`} className="flex" aria-hidden>
-                    <div className="emoticon-cell w-full p-2xs">
-                      <Skeleton className="size-full rounded-sm" />
-                    </div>
+          {/* WARN: § 8.14. Four columns, and `EMOTICON_GRID_COLUMNS` is the same decision — 검색 is drawn at 이모티콘's width rather than 미니's, whatever kind the results happen to hold, because a row of mixed kinds has no one width to be right at. */}
+          <div className="square-grid-4" role="group" aria-label="검색 결과">
+            {results.map((item, index) => (
+              <EmoticonCell
+                key={item.id}
+                className="flex"
+                buttonClassName="emoticon-cell w-full"
+                item={item}
+                index={index}
+                isFocusable={index === focusableIndex}
+                isKeyboardDriven={isKeyboardDriven}
+                isRevealed={item.id === revealedId}
+                isMini={packTypes.get(item.packId) === "mini"}
+                onSelect={onSelect}
+                onFocusCell={onFocusCell}
+              />
+            ))}
+            {isLoadingMore &&
+              Array.from({ length: EMOTICON_GRID_COLUMNS }).map((_, index) => (
+                <div key={`search-loading-${index}`} className="flex" aria-hidden>
+                  <div className="emoticon-cell w-full p-2xs">
+                    <Skeleton className="size-full rounded-sm" />
                   </div>
-                ))}
-            </div>
-            {hasMore && onLoadMore && (
-              <LoadMoreSentinel key={results.length} rootRef={rowRef} onVisible={onLoadMore} />
-            )}
+                </div>
+              ))}
           </div>
+          {hasMore && onLoadMore && (
+            <LoadMoreSentinel key={results.length} rootRef={rowRef} onVisible={onLoadMore} />
+          )}
           {/* WARN: § 13.9.1. A failed search still has a row when § 13.9. put the tapped item in it, and `toEmptyMessage` is only ever reached by an empty one — so without this the reveal was the one path where a failure said nothing at all. It costs the cells a line of height, and only while the sentence is up. */}
           {hasFailed && (
             <p className="shrink-0 touch-pan-y text-center text-body-sm text-meta">

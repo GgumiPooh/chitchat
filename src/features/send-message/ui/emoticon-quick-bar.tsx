@@ -2,7 +2,13 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn, isBareKey, isCommandKey, type Nullable } from "@/shared/lib";
+import {
+  cn,
+  isBareKey,
+  isCommandKey,
+  useIsomorphicLayoutEffect,
+  type Nullable,
+} from "@/shared/lib";
 import { HapticTarget, LoadMoreSentinel, PreloadImage, Skeleton } from "@/shared/ui";
 import { X } from "lucide-react";
 import {
@@ -23,6 +29,7 @@ const CLOSE_BUTTON_INDEX = -2;
 const PEEK_MARGIN = 8;
 
 export type EmoticonQuickBarHandle = {
+  focusCurrent: () => boolean;
   focusFirst: () => boolean;
 };
 
@@ -111,6 +118,7 @@ export function EmoticonQuickBar({
     isOpen && query.trim() !== "",
     false,
   );
+  const containerRef = useRef<Nullable<HTMLDivElement>>(null);
   const scrollerRef = useRef<Nullable<HTMLDivElement>>(null);
   const itemRefs = useRef<Array<Nullable<HTMLButtonElement>>>([]);
   const closeButtonRef = useRef<Nullable<HTMLButtonElement>>(null);
@@ -120,6 +128,18 @@ export function EmoticonQuickBar({
 
   const [focusIndex, setFocusIndex] = useState(0);
   const [isKeyboardDriven, setIsKeyboardDriven] = useState(false);
+  const lastFocusedIndexRef = useRef(0);
+  const hasBarFocusRef = useRef(false);
+
+  const [prevQuery, setPrevQuery] = useState(query);
+  if (query !== prevQuery) {
+    setPrevQuery(query);
+    setFocusIndex(0);
+  }
+
+  useEffect(() => {
+    lastFocusedIndexRef.current = 0;
+  }, [query]);
 
   // INFO: REQUIREMENTS.md § 13.8. Preserves the last answered search results when further typing produces 0 results.
   const [persistedResults, setPersistedResults] = useState<Emoticon[]>([]);
@@ -155,24 +175,52 @@ export function EmoticonQuickBar({
   useEffect(() => {
     if (!isOpen) {
       lastKeyboardSelectedIdRef.current = null;
+      lastFocusedIndexRef.current = 0;
+      hasBarFocusRef.current = false;
     }
   }, [isOpen]);
 
   // INFO: Restores focus to the real emoticon item when loading finishes and skeletons are replaced.
-  useEffect(() => {
-    if (isKeyboardDriven && focusIndex >= 0 && focusIndex < displayResults.length) {
-      const activeEl = document.activeElement;
-      const isFocusedInScroller = scrollerRef.current?.contains(activeEl);
-      if (isFocusedInScroller && itemRefs.current[focusIndex]) {
-        itemRefs.current[focusIndex]?.focus({ preventScroll: true });
+  useIsomorphicLayoutEffect(() => {
+    if (!hasBarFocusRef.current) {
+      return;
+    }
+
+    const targetIndex = Math.min(Math.max(0, focusIndex), displayResults.length - 1);
+
+    if (targetIndex < 0) {
+      return;
+    }
+
+    const activeEl = document.activeElement;
+    const isFocusLostOrInScroller =
+      activeEl === null || activeEl === document.body || scrollerRef.current?.contains(activeEl);
+
+    if (isFocusLostOrInScroller) {
+      if (focusIndex !== targetIndex) {
+        setFocusIndex(targetIndex);
+      }
+      lastFocusedIndexRef.current = targetIndex;
+
+      const targetEl = itemRefs.current[targetIndex];
+      if (targetEl) {
+        targetEl.focus({ preventScroll: true });
+        if (scrollerRef.current) {
+          const peekEl = itemRefs.current[targetIndex + 1] ?? null;
+          revealQuickBarItem(scrollerRef.current, targetEl, peekEl, 1);
+        }
       }
     }
-  }, [displayResults, focusIndex, isKeyboardDriven]);
+  }, [displayResults, isLoadingMore]);
 
   const focusItemAtIndex = useCallback(
     (targetIndex: number, direction: 1 | -1) => {
       setFocusIndex(targetIndex);
       setIsKeyboardDriven(true);
+      hasBarFocusRef.current = true;
+      if (targetIndex >= 0) {
+        lastFocusedIndexRef.current = targetIndex;
+      }
 
       const targetEl = itemRefs.current[targetIndex];
       if (!targetEl) {
@@ -202,12 +250,45 @@ export function EmoticonQuickBar({
   );
 
   useImperativeHandle(ref, () => ({
+    focusCurrent: () => {
+      if (!isExpanded || displayResults.length === 0) {
+        return false;
+      }
+
+      setIsKeyboardDriven(true);
+      hasBarFocusRef.current = true;
+      const targetIndex = Math.min(
+        Math.max(0, lastFocusedIndexRef.current),
+        displayResults.length - 1,
+      );
+      setFocusIndex(targetIndex);
+
+      const targetButton = itemRefs.current[targetIndex];
+      if (targetButton) {
+        targetButton.focus({ preventScroll: true });
+        const scroller = scrollerRef.current;
+        if (scroller) {
+          if (targetIndex === 0) {
+            scroller.scrollTo({ left: 0, behavior: "smooth" });
+          } else {
+            const peekEl = itemRefs.current[targetIndex + 1] ?? null;
+            revealQuickBarItem(scroller, targetButton, peekEl, 1);
+          }
+        }
+
+        return true;
+      }
+
+      return false;
+    },
     focusFirst: () => {
       if (!isExpanded || displayResults.length === 0) {
         return false;
       }
 
       setIsKeyboardDriven(true);
+      hasBarFocusRef.current = true;
+      lastFocusedIndexRef.current = 0;
       setFocusIndex(0);
 
       const firstButton = itemRefs.current[0];
@@ -300,6 +381,7 @@ export function EmoticonQuickBar({
 
       if (event.key === "ArrowDown" || event.key === "Escape") {
         event.preventDefault();
+        hasBarFocusRef.current = false;
         onFocusComposer?.();
 
         return;
@@ -392,6 +474,7 @@ export function EmoticonQuickBar({
 
       if (event.key === "ArrowDown" || event.key === "Escape") {
         event.preventDefault();
+        hasBarFocusRef.current = false;
         onFocusComposer?.();
 
         return;
@@ -422,6 +505,7 @@ export function EmoticonQuickBar({
 
       if (event.key === "ArrowDown" || event.key === "Escape") {
         event.preventDefault();
+        hasBarFocusRef.current = false;
         onFocusComposer?.();
 
         return;
@@ -429,6 +513,7 @@ export function EmoticonQuickBar({
 
       if (event.key === "Enter" || event.key === " ") {
         event.preventDefault();
+        hasBarFocusRef.current = false;
         onClose();
       }
     },
@@ -447,6 +532,7 @@ export function EmoticonQuickBar({
     >
       <div className="overflow-hidden">
         <div
+          ref={containerRef}
           className={cn(
             "mx-md mt-xs mb-0.5 flex items-center gap-xs rounded-2xl border border-hairline bg-surface-soft/90 px-xs py-1.5 shadow-floating backdrop-blur-md",
             "transition-[opacity,transform] ease-route",
@@ -454,6 +540,20 @@ export function EmoticonQuickBar({
               ? "duration-state pointer-events-auto translate-y-0 opacity-100"
               : "duration-columns-step pointer-events-none translate-y-2 opacity-0",
           )}
+          onFocusCapture={() => {
+            hasBarFocusRef.current = true;
+          }}
+          onBlurCapture={(event) => {
+            if (
+              event.relatedTarget !== null &&
+              !containerRef.current?.contains(event.relatedTarget as Node)
+            ) {
+              hasBarFocusRef.current = false;
+            }
+          }}
+          onPointerDownCapture={() => {
+            setIsKeyboardDriven(false);
+          }}
         >
           <div
             ref={scrollerRef}
@@ -480,32 +580,37 @@ export function EmoticonQuickBar({
                       itemRefs.current[index] = el;
                     }}
                     className={cn(
-                      "flex size-full cursor-pointer touch-pan-x items-center justify-center rounded-lg p-0.5 transition-transform outline-none select-none [-webkit-touch-callout:none] group-data-[pressed]:scale-95 hover:bg-canvas/50 focus-visible:ring-2 focus-visible:ring-primary active:scale-95",
+                      "flex size-full cursor-pointer touch-pan-x items-center justify-center rounded-sm p-0.5 transition-transform outline-none select-none [-webkit-touch-callout:none] group-data-[pressed]:scale-95 hover:bg-canvas/50 active:scale-95",
                       isKeyboardDriven && CELL_KEYBOARD_RING,
                     )}
                     tabIndex={isFocusable ? 0 : -1}
                     type="button"
                     aria-label={item.keywords.length > 0 ? item.keywords.join(", ") : "이모티콘"}
                     data-emoticon-quick-index={index}
-                    onPointerDown={(event) => {
-                      setIsKeyboardDriven(false);
-                      // WARN: Prevents touching or clicking an emoticon from blurring the composer field.
+                    onMouseDown={(event) => {
+                      // WARN: Prevents browser native mousedown focus scroll from jumping.
                       event.preventDefault();
                     }}
-                    onClick={() => {
+                    onClick={(event) => {
+                      setIsKeyboardDriven(false);
+                      hasBarFocusRef.current = true;
+                      event.currentTarget.focus({ preventScroll: true });
                       setFocusIndex(index);
+                      lastFocusedIndexRef.current = index;
                       lastKeyboardSelectedIdRef.current = null;
                       handleSelect(item);
                     }}
                     onKeyDown={(event) => {
+                      setIsKeyboardDriven(true);
                       if (isBareKey(event) || isCommandKey(event)) {
                         handleItemKeyDown(event, index, item);
                       }
                     }}
                   >
                     <PreloadImage
-                      className="pointer-events-none size-full"
-                      imgClassName="pointer-events-none size-full rounded-md object-contain select-none"
+                      className="pointer-events-none size-full overflow-hidden rounded-xs"
+                      imgClassName="pointer-events-none size-full object-contain select-none"
+                      placeholderClassName="rounded-xs"
                       alt=""
                       draggable={false}
                       src={url}
@@ -533,8 +638,7 @@ export function EmoticonQuickBar({
                         itemRefs.current[skeletonIndex] = el;
                       }}
                       className={cn(
-                        "flex size-full cursor-default touch-pan-x items-center justify-center rounded-lg p-0.5 outline-none select-none",
-                        "focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+                        "flex size-full cursor-default touch-pan-x items-center justify-center rounded-sm p-0.5 outline-none select-none",
                         isKeyboardDriven && CELL_KEYBOARD_RING,
                       )}
                       tabIndex={isFocusable ? 0 : -1}
@@ -547,12 +651,13 @@ export function EmoticonQuickBar({
                         event.preventDefault();
                       }}
                       onKeyDown={(event) => {
+                        setIsKeyboardDriven(true);
                         if (isBareKey(event)) {
                           handleSkeletonKeyDown(event, skeletonIndex);
                         }
                       }}
                     >
-                      <Skeleton className="size-full rounded-md" />
+                      <Skeleton className="size-full rounded-xs" />
                     </button>
                   </HapticTarget>
                 );
@@ -569,7 +674,7 @@ export function EmoticonQuickBar({
             <button
               ref={closeButtonRef}
               className={cn(
-                "flex size-full cursor-pointer items-center justify-center rounded-full bg-surface-strong/60 text-meta transition-transform outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-primary active:scale-95",
+                "flex size-full cursor-pointer items-center justify-center rounded-full bg-surface-strong/60 text-meta transition-transform outline-none hover:text-ink active:scale-95",
                 isKeyboardDriven &&
                   "focus:bg-surface-strong focus:text-ink focus:ring-2 focus:ring-primary focus:outline-none",
               )}
@@ -578,15 +683,18 @@ export function EmoticonQuickBar({
               aria-label="추천 닫기"
               onPointerDown={(event) => {
                 setIsKeyboardDriven(false);
-                // WARN: Prevents closing the recommendation bar from blurring the composer.
                 event.preventDefault();
               }}
               onKeyDown={(event) => {
+                setIsKeyboardDriven(true);
                 if (isBareKey(event)) {
                   handleCloseButtonKeyDown(event);
                 }
               }}
-              onClick={onClose}
+              onClick={() => {
+                hasBarFocusRef.current = false;
+                onClose();
+              }}
             >
               <X className="size-3.5" strokeWidth={2.5} />
             </button>

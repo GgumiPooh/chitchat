@@ -2727,8 +2727,6 @@ export function ChatRoom({
   function handleQuickSelectEmoticon(emoticon: Emoticon) {
     searchedWordRef.current = suggestedEmoticonSearchQuery;
     stageEmoticon(emoticon);
-    // INFO: Keeps the composer field focused and virtual keyboard raised without panning.
-    focusWithoutPan(composerFieldRef.current);
   }
 
   function handleQuickSendFromQuickBar(emoticon: Emoticon) {
@@ -2746,7 +2744,7 @@ export function ChatRoom({
   }
 
   function handleNavigateUpFromComposer(): boolean {
-    return quickBarRef.current?.focusFirst() ?? false;
+    return quickBarRef.current?.focusCurrent() ?? false;
   }
 
   function deliverStagedEmoticon(
