@@ -2,7 +2,7 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonPacksQuery, useAllPackSections } from "@/features/send-message/@x/react-message";
-import { toEmoticonAssetUrl } from "@/shared/config";
+import { MINI_SETTINGS_ROUTE, toEmoticonAssetUrl } from "@/shared/config";
 import {
   cn,
   MINI_ANIMATION_LOOP_INTERVAL,
@@ -10,11 +10,14 @@ import {
   toReplaySrc,
   useViewportReplay,
   type EmoticonItemId,
+  type EmoticonPackId,
   type MessageId,
 } from "@/shared/lib";
 import { ExpandableSheet, HapticTarget, LoadMoreSentinel, PreloadImage } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import { ChevronRight } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef } from "react";
 import { DEFAULT_REACTION_EMOJIS } from "../config/default-emojis";
 import { useRecentReactions } from "../model/use-recent-reactions";
@@ -37,6 +40,7 @@ type VirtualRow =
   | {
       title: string;
       type: "header";
+      packId?: EmoticonPackId;
       id: string;
     }
   | {
@@ -70,6 +74,7 @@ export function MiniEmoticonSheet({
   onClose,
   onSelectReaction,
 }: MiniEmoticonSheetProps) {
+  const router = useRouter();
   const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   const activeEmojiSet =
@@ -169,6 +174,7 @@ export function MiniEmoticonSheet({
         id: `header-pack-${pack.id}`,
         title: pack.name,
         type: "header",
+        packId: pack.id,
       });
 
       for (let i = 0; i < items.length; i += COLUMNS) {
@@ -241,7 +247,27 @@ export function MiniEmoticonSheet({
             >
               {row.type === "header" && (
                 <div className="pt-5 pb-1 first:pt-0">
-                  <h3 className="px-1 text-body-sm text-meta">{row.title}</h3>
+                  {row.packId ? (
+                    <button
+                      className="group -ml-1 inline-flex max-w-full items-center gap-1 rounded-xs px-1 text-left text-meta transition-colors select-none hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:text-ink"
+                      type="button"
+                      aria-label={`${row.title} 설정으로 이동`}
+                      onClick={() => {
+                        onClose();
+                        router.push(`${MINI_SETTINGS_ROUTE}/${row.packId}`);
+                      }}
+                    >
+                      <span className="truncate text-body-sm text-meta group-hover:text-ink group-active:text-ink">
+                        {row.title}
+                      </span>
+                      <ChevronRight
+                        className="size-3.5 shrink-0 text-meta-soft transition-transform group-hover:translate-x-0.5 group-hover:text-ink group-active:text-ink"
+                        strokeWidth={2}
+                      />
+                    </button>
+                  ) : (
+                    <h3 className="px-1 text-body-sm text-meta">{row.title}</h3>
+                  )}
                 </div>
               )}
 

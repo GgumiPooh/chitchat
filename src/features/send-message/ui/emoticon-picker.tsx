@@ -38,7 +38,16 @@ import {
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { josa } from "es-hangul";
-import { ChevronDown, Clock, Delete, LoaderCircle, Search, Settings, Smile } from "lucide-react";
+import {
+  ChevronDown,
+  ChevronRight,
+  Clock,
+  Delete,
+  LoaderCircle,
+  Search,
+  Settings,
+  Smile,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -2106,10 +2115,14 @@ function SearchPane({
   onCellFocus,
   onFocusCell,
 }: SearchPaneProps) {
+  const router = useRouter();
   const trimmed = query.trim();
   const emptyMessage = toEmptyMessage();
   const isRevealMode = revealed !== null;
   const isMini = revealed ? packTypes.get(revealed.packId) === "mini" : false;
+
+  const toPackSettingsRoute = (pack: EmoticonPackSummary) =>
+    `${pack.type === "mini" ? MINI_SETTINGS_ROUTE : EMOTICON_SETTINGS_ROUTE}/${pack.id}`;
 
   /**
    * REQUIREMENTS.md § 8.14. Whether this `isOpen` session has already put focus
@@ -2278,7 +2291,20 @@ function SearchPane({
               </section>
               <section>
                 <h2 className="pb-xs text-body-sm text-meta" {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}>
-                  {revealedPack?.name ?? ""}
+                  {revealedPack ? (
+                    <button
+                      className="group -ml-1 inline-flex max-w-full items-center gap-1 rounded-xs px-1 text-left text-meta transition-colors select-none hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:text-ink"
+                      type="button"
+                      aria-label={`${revealedPack.name} 설정으로 이동`}
+                      onClick={() => router.push(toPackSettingsRoute(revealedPack))}
+                    >
+                      <span className="truncate">{revealedPack.name}</span>
+                      <ChevronRight
+                        className="size-3.5 shrink-0 text-meta-soft transition-transform group-hover:translate-x-0.5 group-hover:text-ink group-active:text-ink"
+                        strokeWidth={2}
+                      />
+                    </button>
+                  ) : null}
                 </h2>
                 <div
                   className={isMini ? "square-grid-6" : "square-grid-4"}
@@ -2320,7 +2346,20 @@ function SearchPane({
           ) : (
             <section>
               <h2 className="pb-xs text-body-sm text-meta" {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}>
-                {revealedPack?.name ?? ""}
+                {revealedPack ? (
+                  <button
+                    className="group -ml-1 inline-flex max-w-full items-center gap-1 rounded-xs px-1 text-left text-meta transition-colors select-none hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:text-ink"
+                    type="button"
+                    aria-label={`${revealedPack.name} 설정으로 이동`}
+                    onClick={() => router.push(toPackSettingsRoute(revealedPack))}
+                  >
+                    <span className="truncate">{revealedPack.name}</span>
+                    <ChevronRight
+                      className="size-3.5 shrink-0 text-meta-soft transition-transform group-hover:translate-x-0.5 group-hover:text-ink group-active:text-ink"
+                      strokeWidth={2}
+                    />
+                  </button>
+                ) : null}
               </h2>
               <div
                 className={isMini ? "square-grid-6" : "square-grid-4"}
