@@ -14,6 +14,8 @@ import {
   A_SECOND,
   cn,
   focusWithoutPan,
+  isBareKey,
+  isCaretOnFirstLine,
   isCommandKey,
   isDigitKey,
   isLetterKey,
@@ -225,6 +227,11 @@ export type MessageComposerProps = {
   onPreviewTap?: (query: string) => void;
   /** REQUIREMENTS.md § 13.8. The current keyword suggestion, kept by the room so a later manual move to 검색 can seed its field. */
   onSuggestedSearchQueryChange?: (query: string) => void;
+  /**
+   * REQUIREMENTS.md § 8.14. Invoked when ArrowUp is pressed while caret is on the first line.
+   * Returns true if a region above (e.g. EmoticonQuickBar) claimed focus, preventing native up movement.
+   */
+  onNavigateUp?: () => boolean;
   // INFO: REQUIREMENTS.md § 13. The emoticons whole rather than their ids alone — the optimistic bubble has to reserve the box the echoed row will, and only these carry it.
   onSend: (message: ComposedMessage) => void;
 };
@@ -255,6 +262,7 @@ export function MessageComposer({
   onKeywordTap,
   onPreviewTap,
   onSuggestedSearchQueryChange,
+  onNavigateUp,
   onSend,
 }: MessageComposerProps) {
   const fieldRef = useRef<Nullable<HTMLDivElement | HTMLTextAreaElement>>(null);
@@ -1174,6 +1182,18 @@ export function MessageComposer({
     // WARN: § 8.14. First, and it covers every branch below. A Hangul IME fires `keydown` for the keystrokes that settle a syllable — including the Enter that closes a composition, which is the trap `KeywordField` records.
     if (event.nativeEvent.isComposing) {
       return;
+    }
+
+    // INFO: REQUIREMENTS.md § 8.14. Bare `ArrowUp` while caret is on the first line navigates into the quick bar above.
+    if (isBareKey(event) && event.key === "ArrowUp") {
+      const field = fieldRef.current;
+      if (field && isCaretOnFirstLine(field, draft.text)) {
+        if (onNavigateUp?.()) {
+          event.preventDefault();
+
+          return;
+        }
+      }
     }
 
     // WARN: REQUIREMENTS.md § 8.14. Withheld while correcting, exactly as the underline is — the panel this opens stages a payload § 8.13.'s edit has no row for.

@@ -41,6 +41,7 @@ import {
   type ComposerEmoticon,
   type EmoticonFocusRequest,
   type EmoticonMenu,
+  type EmoticonQuickBarHandle,
   type PendingMessage,
 } from "@/features/send-message";
 import { useTypingSignal } from "@/features/typing-indicator";
@@ -483,6 +484,7 @@ export function ChatRoom({
     useState<Nullable<{ query: string; token: number }>>(null);
   const [suggestedEmoticonSearchQuery, setSuggestedEmoticonSearchQuery] = useState("");
   const [dismissedQuickBarQuery, setDismissedQuickBarQuery] = useState<Nullable<string>>(null);
+  const quickBarRef = useRef<Nullable<EmoticonQuickBarHandle>>(null);
 
   useEffect(() => {
     if (suggestedEmoticonSearchQuery === "") {
@@ -2364,6 +2366,7 @@ export function ChatRoom({
                 />
               )}
               <EmoticonQuickBar
+                ref={quickBarRef}
                 query={suggestedEmoticonSearchQuery}
                 isOpen={
                   suggestedEmoticonSearchQuery !== "" &&
@@ -2376,6 +2379,7 @@ export function ChatRoom({
                 onSelect={handleQuickSelectEmoticon}
                 onQuickSend={handleQuickSendFromQuickBar}
                 onClose={handleCloseQuickBar}
+                onFocusComposer={focusComposer}
               />
               {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
               {/* WARN: § 13.6. `bottom-full` is above the composer, which the sheet never moves, clamped at the header for a short viewport (the wrapper is still composer + spacer at rest). */}
@@ -2418,6 +2422,7 @@ export function ChatRoom({
                 onKeywordTap={openEmoticonSearch}
                 onPreviewTap={openEmoticonSearch}
                 onSuggestedSearchQueryChange={setSuggestedEmoticonSearchQuery}
+                onNavigateUp={handleNavigateUpFromComposer}
                 onFieldFocus={yieldToComposer}
                 onSend={({ text, emoticons }) => submit(text, emoticons)}
               />
@@ -2738,6 +2743,10 @@ export function ChatRoom({
     setDismissedQuickBarQuery(suggestedEmoticonSearchQuery);
     // INFO: Dismissing the bar leaves focus in the composer.
     focusWithoutPan(composerFieldRef.current);
+  }
+
+  function handleNavigateUpFromComposer(): boolean {
+    return quickBarRef.current?.focusFirst() ?? false;
   }
 
   function deliverStagedEmoticon(
@@ -3274,6 +3283,16 @@ export function ChatRoom({
 
     if (isEmoticonPanelOpen) {
       closeEmoticonPanel();
+      focusComposer();
+
+      return;
+    }
+
+    if (
+      suggestedEmoticonSearchQuery !== "" &&
+      suggestedEmoticonSearchQuery !== dismissedQuickBarQuery
+    ) {
+      setDismissedQuickBarQuery(suggestedEmoticonSearchQuery);
       focusComposer();
 
       return;

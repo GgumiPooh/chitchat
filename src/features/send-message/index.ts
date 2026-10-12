@@ -27,7 +27,11 @@ export {
   type EmoticonPickerProps,
 } from "./ui/emoticon-picker";
 export { EmoticonPreview, type EmoticonPreviewProps } from "./ui/emoticon-preview";
-export { EmoticonQuickBar, type EmoticonQuickBarProps } from "./ui/emoticon-quick-bar";
+export {
+  EmoticonQuickBar,
+  type EmoticonQuickBarHandle,
+  type EmoticonQuickBarProps,
+} from "./ui/emoticon-quick-bar";
 export {
   MessageComposer,
   type ComposedMessage,

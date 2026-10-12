@@ -135,6 +135,7 @@ export {
   toWeekday,
 } from "./date/time";
 export { warmAnimatedImage } from "./dom/animated-image";
+export { isCaretOnFirstLine } from "./dom/caret-line";
 export { hasDataTransferFiles, isBrowser, isEditableElement } from "./dom/environment";
 export { focusWithoutPan, takeFocusWithoutPan } from "./dom/keyboard-focus";
 export { revealWithin } from "./dom/reveal-within";
