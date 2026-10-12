@@ -60,13 +60,24 @@ export function EmoticonQuickBar({
 
   const handleSelect = useCallback(
     (item: Emoticon) => {
+      if (typeof navigator !== "undefined" && "vibrate" in navigator) {
+        try {
+          navigator.vibrate?.(10);
+        } catch {
+          // INFO: Silently ignore devices that block vibrate
+        }
+      }
+
       const lastTap = lastTapRef.current;
       const now = Date.now();
 
       if (lastTap?.id === item.id && now - lastTap.at < DOUBLE_TAP_WINDOW) {
         lastTapRef.current = null;
         if (onQuickSend) {
-          onQuickSend(item);
+          // WARN: DESIGN.md § 7.15.3. A task, so the `keepsScroll` overlay outlives the dispatch before the bar dismisses.
+          setTimeout(() => {
+            onQuickSend(item);
+          });
         } else {
           onSelect(item);
         }
@@ -112,25 +123,32 @@ export function EmoticonQuickBar({
               );
 
               return (
-                <button
+                <HapticTarget
                   key={item.id}
-                  className="flex size-[54px] shrink-0 cursor-pointer touch-pan-x items-center justify-center rounded-lg p-0.5 transition-transform outline-none select-none [-webkit-touch-callout:none] hover:bg-canvas/50 focus-visible:ring-2 focus-visible:ring-primary active:scale-95"
-                  type="button"
-                  aria-label={item.keywords.length > 0 ? item.keywords.join(", ") : "이모티콘"}
-                  onPointerDown={(event) => {
-                    // WARN: Prevents touching or clicking an emoticon from blurring the composer field, keeping the virtual keyboard open on both mobile WebKit and desktop.
-                    event.preventDefault();
-                  }}
-                  onClick={() => handleSelect(item)}
+                  className="size-[54px] shrink-0"
+                  overlayClassName="touch-pan-x"
+                  keepsFocus
+                  keepsScroll
                 >
-                  <PreloadImage
-                    className="pointer-events-none size-full"
-                    imgClassName="pointer-events-none size-full rounded-md object-contain select-none"
-                    alt=""
-                    draggable={false}
-                    src={url}
-                  />
-                </button>
+                  <button
+                    className="flex size-full cursor-pointer touch-pan-x items-center justify-center rounded-lg p-0.5 transition-transform outline-none select-none [-webkit-touch-callout:none] group-data-[pressed]:scale-95 hover:bg-canvas/50 focus-visible:ring-2 focus-visible:ring-primary active:scale-95"
+                    type="button"
+                    aria-label={item.keywords.length > 0 ? item.keywords.join(", ") : "이모티콘"}
+                    onPointerDown={(event) => {
+                      // WARN: Prevents touching or clicking an emoticon from blurring the composer field, keeping the virtual keyboard open on both mobile WebKit and desktop.
+                      event.preventDefault();
+                    }}
+                    onClick={() => handleSelect(item)}
+                  >
+                    <PreloadImage
+                      className="pointer-events-none size-full"
+                      imgClassName="pointer-events-none size-full rounded-md object-contain select-none"
+                      alt=""
+                      draggable={false}
+                      src={url}
+                    />
+                  </button>
+                </HapticTarget>
               );
             })}
             {isCurrentQueryAnswered && isLoadingMore && (

@@ -74,9 +74,16 @@ export function HapticTap({
   const pressedParentRef = useRef<Nullable<HTMLElement>>(null);
   const pressOriginRef = useRef<Nullable<{ x: number; y: number }>>(null);
   const hasDraggedRef = useRef(false);
+  const activeTargetRef = useRef<Nullable<HTMLElement>>(null);
 
   // WARN: The flag lives on an element this component does not own, so nothing else takes it back down. The tab bar drops `haptic` off the tab it has just switched to, which unmounts this mid-press and would otherwise leave that tab bloomed for good.
-  useEffect(() => () => setPressed(pressedParentRef.current, false), []);
+  useEffect(
+    () => () => {
+      setPressed(pressedParentRef.current, false);
+      activeTargetRef.current = null;
+    },
+    [],
+  );
 
   if (!isCoarsePointer) {
     return null;
@@ -117,8 +124,32 @@ export function HapticTap({
               tabIndex={-1}
               id={switchId}
               aria-hidden
+              onMouseDown={(event) => {
+                if (keepsFocus) {
+                  // WARN: Prevents synthetic mousedown on the portalled switch from focusing it and blurring the composer field.
+                  event.preventDefault();
+                }
+              }}
               // WARN: The label's activation toggles the switch, and that toggle's own `click` bubbles. Left alone it reaches the ancestor the forwarded tap has already fired.
-              onClick={(event) => event.stopPropagation()}
+              onClick={(event) => {
+                event.stopPropagation();
+                if (
+                  keepsFocus &&
+                  activeTargetRef.current &&
+                  document.activeElement !== activeTargetRef.current
+                ) {
+                  activeTargetRef.current.focus({ preventScroll: true });
+                }
+              }}
+              onFocus={() => {
+                if (
+                  keepsFocus &&
+                  activeTargetRef.current &&
+                  document.activeElement !== activeTargetRef.current
+                ) {
+                  activeTargetRef.current.focus({ preventScroll: true });
+                }
+              }}
             />,
             document.body,
           )
@@ -133,6 +164,7 @@ export function HapticTap({
   function handlePointerDown(event: PointerEvent<HTMLElement>) {
     if (keepsFocus) {
       event.preventDefault();
+      activeTargetRef.current = (document.activeElement as Nullable<HTMLElement>) ?? null;
     }
 
     pressOriginRef.current = { x: event.clientX, y: event.clientY };
@@ -198,6 +230,9 @@ export function HapticTap({
           control.removeAttribute("tabindex");
         } else {
           control.setAttribute("tabindex", previousTabIndex);
+        }
+        if (activeTargetRef.current && document.activeElement !== activeTargetRef.current) {
+          activeTargetRef.current.focus({ preventScroll: true });
         }
       } else {
         control.click();
