@@ -29,6 +29,7 @@ import {
   DOUBLE_TAP_WINDOW,
   EmoticonPicker,
   EmoticonPreview,
+  EmoticonQuickBar,
   MessageComposer,
   toEmoticonPacksQuery,
   useAttachmentPromotion,
@@ -480,6 +481,13 @@ export function ChatRoom({
   const [emoticonSearch, setEmoticonSearch] =
     useState<Nullable<{ query: string; token: number }>>(null);
   const [suggestedEmoticonSearchQuery, setSuggestedEmoticonSearchQuery] = useState("");
+  const [dismissedQuickBarQuery, setDismissedQuickBarQuery] = useState<Nullable<string>>(null);
+
+  useEffect(() => {
+    if (suggestedEmoticonSearchQuery === "") {
+      setDismissedQuickBarQuery(null);
+    }
+  }, [suggestedEmoticonSearchQuery]);
   /**
    * INFO: REQUIREMENTS.md § 13.8. The word a send takes out of the draft, held apart
    * from the request above because a send spends **this** and leaves that standing —
@@ -2354,6 +2362,19 @@ export function ChatRoom({
                   onRemove={selection.remove}
                 />
               )}
+              <EmoticonQuickBar
+                query={suggestedEmoticonSearchQuery}
+                isOpen={
+                  suggestedEmoticonSearchQuery !== "" &&
+                  suggestedEmoticonSearchQuery !== dismissedQuickBarQuery &&
+                  !isEmoticonPanelOpen &&
+                  editingId === null &&
+                  !isRecording &&
+                  !aiSelection.isSelecting
+                }
+                onSelect={handleQuickSelectEmoticon}
+                onClose={handleCloseQuickBar}
+              />
               {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
               {/* WARN: § 13.6. `bottom-full` is above the composer, which the sheet never moves, clamped at the header for a short viewport (the wrapper is still composer + spacer at rest). */}
               {/* WARN: No `z-` of its own, so the sheet's `z-10` covers it once that is dragged over the composer — a card floating in the middle of a full-height grid reads as part of the grid. */}
@@ -2693,6 +2714,15 @@ export function ChatRoom({
     if (emoticonSheet.size === "expanded") {
       collapseTimerRef.current = setTimeout(emoticonSheet.collapse, DOUBLE_TAP_WINDOW);
     }
+  }
+
+  function handleQuickSelectEmoticon(emoticon: Emoticon) {
+    searchedWordRef.current = suggestedEmoticonSearchQuery;
+    stageEmoticon(emoticon);
+  }
+
+  function handleCloseQuickBar() {
+    setDismissedQuickBarQuery(suggestedEmoticonSearchQuery);
   }
 
   function deliverStagedEmoticon(

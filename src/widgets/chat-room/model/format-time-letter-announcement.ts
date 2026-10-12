@@ -27,7 +27,7 @@ export function formatTimeLetterAnnouncement(
   }
 
   const isBlind = !isMine && onlyMe;
-  const writtenDate = writtenDateStr ? new Date(writtenDateStr) : message.createdAt;
+  const writtenDate = new Date(writtenDateStr || message.createdAt);
   const diffMs = Math.max(0, now.getTime() - writtenDate.getTime());
   const diffMinutes = Math.floor(diffMs / (1000 * 60));
   const diffHours = Math.floor(diffMinutes / 60);

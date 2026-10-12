@@ -72,10 +72,6 @@ import { warmEmoticonUrls } from "../model/warm-emoticon-images";
 // WARN: DESIGN.md § 6.6. The vertical padding is what makes the field's *natural* height exactly the `min-h-11` beside it — 10.75+22.5+10.75 = 44. Nothing here can centre its text, so any height `min-height` adds over the intrinsic one is slack that lands entirely under the line, and the single line the composer opens on then sits above the discs it shares the pill with.
 // WARN: DESIGN.md § 4.2.3. `break-all` is this field's departure from the app-wide `keep-all`, and it is stated here so it cannot reach the field without the layer.
 const FIELD_BOX = "px-2xs py-[10.75px] text-body-md leading-normal break-all";
-// INFO: § 13.8. A 22.5px line of a short Korean word is well under a 44px target; the slop widens it without reaching the empty field around it.
-const KEYWORD_TAP_SLOP_X = 16;
-const KEYWORD_TAP_SLOP_Y = 12;
-const KEYWORD_TAP_MAX_TRAVEL = 10;
 
 // WARN: Hoisted so the pending query answers one array identity — an inline `= []` re-runs the match on every render of a field being typed into.
 const NO_KEYWORDS: string[] = [];
@@ -301,8 +297,6 @@ export function MessageComposer({
   );
   const layerRef = useRef<Nullable<HTMLDivElement>>(null);
   const keywordSpanRef = useRef<Nullable<HTMLSpanElement>>(null);
-  const pointerDownPosRef = useRef<Nullable<{ clientX: number; clientY: number }>>(null);
-  const isTappingKeywordRef = useRef(false);
   // INFO: § 8.14. Where the field last held its caret, which is where an emoticon from the picker goes in. Written by the field itself; null until it has held one.
   const caretOffsetRef = useRef<Nullable<number>>(null);
   const [draft, setDraft] = useState(EMPTY_DRAFT);
@@ -828,13 +822,11 @@ export function MessageComposer({
               }}
               onFocus={handleFieldFocus}
               onKeyDown={handleKeyDown}
-              onPointerCancel={handleFieldPointerCancel}
               onPointerDown={handleFieldPointerDown}
-              onPointerUp={handleFieldPointerUp}
               onScroll={syncKeywordLayer}
             >
               {/* WARN: REQUIREMENTS.md § 8.13. Withheld while correcting, like the two staging controls. The tap opens § 13.8.'s picker, whose staging clears the attachment tray this mode deliberately preserved and arms a quick-send that would post a **new** emoticon message beside the pending correction — and the emoticon it staged is invisible and unsendable here anyway. A correction is very likely to contain the keyword, since it is the text the user already typed. */}
-              {match && onKeywordTap && !isEditing && !isAiMode && (
+              {match && !isEditing && !isAiMode && (
                 <KeywordLayer
                   ref={layerRef}
                   keywordRef={keywordSpanRef}
@@ -864,13 +856,11 @@ export function MessageComposer({
                 onChange={handlePlainChange}
                 onFocus={handleFieldFocus}
                 onKeyDown={handleKeyDown}
-                onPointerCancel={handleFieldPointerCancel}
                 onPointerDown={handleFieldPointerDown}
-                onPointerUp={handleFieldPointerUp}
                 onScroll={syncKeywordLayer}
                 onSelect={handleTextareaSelect}
               />
-              {match && onKeywordTap && !isEditing && !isAiMode && (
+              {match && !isEditing && !isAiMode && (
                 <KeywordLayer
                   ref={layerRef}
                   keywordRef={keywordSpanRef}
@@ -1067,73 +1057,11 @@ export function MessageComposer({
   }
 
   function handleFieldFocus() {
-    if (isTappingKeywordRef.current) {
-      isTappingKeywordRef.current = false;
-      fieldRef.current?.blur();
-      return;
-    }
-
     onFieldFocus?.();
   }
 
-  /** WARN: § 13.6. Blurs for the same reason the toggle does — the panel this opens cannot share the screen with the keyboard. */
-  function handleKeywordTap() {
-    if (!match) {
-      return;
-    }
-
-    isTappingKeywordRef.current = true;
-    // WARN: § 13.6. Before the request and not after, which is the order this has always been in — the blur is what lowers the keyboard, and the panel is asked to open against a viewport that is already on its way back.
-    fieldRef.current?.blur();
-    openEmoticonSearch(match.query);
-
-    setTimeout(() => {
-      isTappingKeywordRef.current = false;
-    }, 200);
-  }
-
-  function isPointInKeyword(clientX: number, clientY: number) {
-    if (!match || isEditing || isAiMode || !keywordSpanRef.current) {
-      return false;
-    }
-
-    return Array.from(keywordSpanRef.current.getClientRects()).some(
-      (rect) =>
-        clientX >= rect.left - KEYWORD_TAP_SLOP_X &&
-        clientX <= rect.right + KEYWORD_TAP_SLOP_X &&
-        clientY >= rect.top - KEYWORD_TAP_SLOP_Y &&
-        clientY <= rect.bottom + KEYWORD_TAP_SLOP_Y,
-    );
-  }
-
-  // WARN: § 13.8. A press on the word must not take focus: `takeFocusWithoutPan` prevents the touch, and iOS ignores a `blur()` descending from a prevented touch — the one `handleKeywordTap` needs to lower the keyboard.
   function handleFieldPointerDown(event: PointerEvent<HTMLDivElement | HTMLTextAreaElement>) {
-    pointerDownPosRef.current = { clientX: event.clientX, clientY: event.clientY };
-
-    if (!isPointInKeyword(event.clientX, event.clientY)) {
-      takeFocusWithoutPan(event);
-    }
-  }
-
-  // WARN: § 13.8. The keyword tap is settled here, off the field's own pointer, and never by an element over the field — see `KeywordLayer`.
-  function handleFieldPointerUp(event: PointerEvent<HTMLDivElement | HTMLTextAreaElement>) {
-    const start = pointerDownPosRef.current;
-    pointerDownPosRef.current = null;
-
-    if (
-      start &&
-      event.button === 0 &&
-      Math.hypot(event.clientX - start.clientX, event.clientY - start.clientY) <=
-        KEYWORD_TAP_MAX_TRAVEL &&
-      isPointInKeyword(start.clientX, start.clientY)
-    ) {
-      handleKeywordTap();
-    }
-  }
-
-  function handleFieldPointerCancel() {
-    pointerDownPosRef.current = null;
-    isTappingKeywordRef.current = false;
+    takeFocusWithoutPan(event);
   }
 
   /** WARN: § 13.8. The toggle's own tap, kept apart from `handleKeywordTap` so the room can tell the two open requests apart. */
