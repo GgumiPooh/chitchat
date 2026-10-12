@@ -58,14 +58,15 @@ export function VisualViewportSync() {
     }
 
     let blurTimers: ReturnType<typeof setTimeout>[] = [];
+    let wasHidden = document.visibilityState !== "visible";
 
     sync();
     viewport.addEventListener("resize", sync);
     viewport.addEventListener("scroll", syncPan);
     document.addEventListener("focusout", onFocusOut);
-    document.addEventListener("visibilitychange", resume);
-    window.addEventListener("pageshow", resume);
-    window.addEventListener("focus", resume);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    window.addEventListener("pageshow", onPageShow);
+    window.addEventListener("focus", onWindowFocus);
 
     return () => {
       cancelAnimationFrame(frame);
@@ -76,9 +77,9 @@ export function VisualViewportSync() {
       viewport.removeEventListener("resize", sync);
       viewport.removeEventListener("scroll", syncPan);
       document.removeEventListener("focusout", onFocusOut);
-      document.removeEventListener("visibilitychange", resume);
-      window.removeEventListener("pageshow", resume);
-      window.removeEventListener("focus", resume);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+      window.removeEventListener("pageshow", onPageShow);
+      window.removeEventListener("focus", onWindowFocus);
       root.style.removeProperty(HEIGHT_PROPERTY);
       root.style.removeProperty(RESTING_HEIGHT_PROPERTY);
       root.style.removeProperty(TOP_PROPERTY);
@@ -164,6 +165,28 @@ export function VisualViewportSync() {
       correct();
     }
 
+    function onVisibilityChange() {
+      if (document.visibilityState !== "visible") {
+        wasHidden = true;
+        if (hasVirtualKeyboard && isEditableElement(document.activeElement)) {
+          (document.activeElement as HTMLElement).blur();
+        }
+        return;
+      }
+
+      const isFromBackground = wasHidden;
+      wasHidden = false;
+      resume(isFromBackground);
+    }
+
+    function onPageShow(event: PageTransitionEvent) {
+      resume(event.persisted);
+    }
+
+    function onWindowFocus() {
+      resume(false);
+    }
+
     /**
      * WARN: DESIGN.md § 3.4. iOS dismisses the keyboard while the PWA is in the
      * background and fires no `resize` on the way back, so the shell resumes sized to
@@ -174,18 +197,21 @@ export function VisualViewportSync() {
      * animation (~350ms to 500ms) without an event of its own, so staggered re-reads
      * catch the restored geometry when it settles.
      */
-    function resume() {
+    function resume(isFromBackground = false) {
       if (document.visibilityState !== "visible") {
-        if (hasVirtualKeyboard && isEditableElement(document.activeElement)) {
-          (document.activeElement as HTMLElement).blur();
-        }
         return;
       }
 
       // WARN: On coarse pointer devices, iOS dismisses the software keyboard when the app is backgrounded.
       // If WebKit preserved zombie focus on an input, blurring it ensures DOM focus matches physical reality.
-      if (hasVirtualKeyboard && isEditableElement(document.activeElement)) {
-        (document.activeElement as HTMLElement).blur();
+      // We only clear zombie focus when resuming from background, and never when the keyboard is physically open.
+      if (isFromBackground && hasVirtualKeyboard && isEditableElement(document.activeElement)) {
+        const isKeyboardOpen =
+          restingHeight - (viewport as VisualViewport).height > MIN_KEYBOARD_HEIGHT;
+
+        if (!isKeyboardOpen) {
+          (document.activeElement as HTMLElement).blur();
+        }
       }
 
       resumeTimers.forEach(clearTimeout);
