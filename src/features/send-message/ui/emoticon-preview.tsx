@@ -4,7 +4,7 @@ import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import { cn, useSyncedEmoticonPlayback } from "@/shared/lib";
 import { IconButton, PreloadImage, Skeleton } from "@/shared/ui";
-import { Star, X } from "lucide-react";
+import { Search, Star, X } from "lucide-react";
 import { useEffect } from "react";
 import { useEmoticonFavorites } from "../model/use-emoticon-favorites";
 
@@ -15,6 +15,8 @@ export type EmoticonPreviewProps = {
   className?: string;
   emoticon: Emoticon;
   onRemove: () => void;
+  /** REQUIREMENTS.md § 13.9. Opens the search/reveal picker for this emoticon. */
+  onFollow?: () => void;
 };
 
 /**
@@ -26,7 +28,7 @@ export type EmoticonPreviewProps = {
  *
  * WARN: Keyed by the emoticon at the call site, so staging another remounts this and the mount effect plays it.
  */
-export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPreviewProps) {
+export function EmoticonPreview({ className, emoticon, onRemove, onFollow }: EmoticonPreviewProps) {
   const { hasAnimated, hasAudio } = emoticon;
   const { isFavorite, toggleFavorite } = useEmoticonFavorites();
   const favorited = isFavorite(emoticon.id);
@@ -59,23 +61,35 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
         className,
       )}
     >
-      <div className="pointer-events-auto flex items-start gap-1 rounded-2xl border border-hairline bg-surface-soft/90 p-xs shadow-floating backdrop-blur-md">
-        {/* Top-left Star button */}
-        <IconButton
-          buttonClassName={cn(
-            "size-7 transition-colors hover:bg-canvas/60",
-            favorited ? "fill-primary text-primary" : "text-meta",
+      <div className="pointer-events-auto flex min-h-[68px] items-stretch gap-1 rounded-2xl border border-hairline bg-surface-soft/90 p-xs shadow-floating backdrop-blur-md">
+        {/* Left column: Star on top, Search on bottom */}
+        <div className="flex flex-col justify-between self-stretch">
+          <IconButton
+            buttonClassName={cn(
+              "size-7 transition-colors hover:bg-canvas/60",
+              favorited ? "fill-primary text-primary" : "text-meta",
+            )}
+            iconClassName={cn("size-4", favorited && "fill-primary text-primary")}
+            Icon={Star}
+            haptic
+            aria-label={favorited ? "즐겨찾기 해제" : "즐겨찾기 추가"}
+            onClick={() => toggleFavorite(emoticon)}
+          />
+          {onFollow && (
+            <IconButton
+              buttonClassName="size-7 text-meta transition-colors hover:bg-canvas/60"
+              iconClassName="size-4"
+              Icon={Search}
+              haptic
+              aria-label="연관 이모티콘 검색"
+              onClick={onFollow}
+            />
           )}
-          iconClassName={cn("size-4", favorited && "fill-primary text-primary")}
-          Icon={Star}
-          haptic
-          aria-label={favorited ? "즐겨찾기 해제" : "즐겨찾기 추가"}
-          onClick={() => toggleFavorite(emoticon)}
-        />
+        </div>
 
         {/* Emoticon asset button */}
         <button
-          className="flex cursor-pointer items-center justify-center rounded-lg transition-transform focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:scale-[0.96]"
+          className="flex cursor-pointer items-center justify-center self-center rounded-lg transition-transform focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:scale-[0.96]"
           type="button"
           style={{ width: box.width, height: box.height }}
           aria-label="이모티콘 다시 재생"
@@ -98,15 +112,17 @@ export function EmoticonPreview({ className, emoticon, onRemove }: EmoticonPrevi
           )}
         </button>
 
-        {/* Top-right Close button */}
-        <IconButton
-          buttonClassName="size-7 text-meta transition-colors hover:bg-canvas/60"
-          iconClassName="size-4"
-          Icon={X}
-          haptic
-          aria-label="이모티콘 취소"
-          onClick={onRemove}
-        />
+        {/* Right column: Close button on top */}
+        <div className="flex flex-col justify-start self-stretch">
+          <IconButton
+            buttonClassName="size-7 text-meta transition-colors hover:bg-canvas/60"
+            iconClassName="size-4"
+            Icon={X}
+            haptic
+            aria-label="이모티콘 취소"
+            onClick={onRemove}
+          />
+        </div>
       </div>
     </div>
   );

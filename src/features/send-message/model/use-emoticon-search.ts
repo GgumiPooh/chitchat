@@ -67,7 +67,7 @@ export function useEmoticonSearch(
   const isAsked = isActive && splitKeywordQuery(debounced).length > 0;
   const { data, isFetching, isFetchingNextPage, hasNextPage, fetchNextPage, isError } =
     useInfiniteQuery({
-      ...toEmoticonSearchQuery(debounced),
+      ...toEmoticonSearchQuery(debounced, hasReveal),
       enabled: isAsked,
       // INFO: § 13.8. The row keeps the previous word's answer while the next one is fetched — blanked between keystrokes it flickers once per character on the app's narrowest surface.
       // WARN: § 13.9. And **not** across a 따라하기, which is the one query change that is not a keystroke. A reveal replaces the field wholesale with another emoticon's words, so the answer being held over is the previous search's — drawn behind the tapped item and inside its ring, it reads as "these are related", which is the one thing it is not. Typing releases the reveal, so nothing keyed on it can flicker per character.

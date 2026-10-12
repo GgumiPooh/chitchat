@@ -38,7 +38,7 @@ import {
 } from "@/shared/ui";
 import { useQuery } from "@tanstack/react-query";
 import { josa } from "es-hangul";
-import { Clock, Delete, LoaderCircle, Search, Settings, Smile } from "lucide-react";
+import { ChevronDown, Clock, Delete, LoaderCircle, Search, Settings, Smile } from "lucide-react";
 import { useRouter } from "next/navigation";
 import {
   useEffect,
@@ -54,6 +54,7 @@ import {
 import { useStorageState } from "synced-storage/react";
 import {
   EMOTICON_GRID_COLUMNS,
+  FOCUS_HEADING_ATTRIBUTE,
   FOCUS_INDEX_ATTRIBUTE,
   MINI_GRID_COLUMNS,
   focusItem,
@@ -85,7 +86,7 @@ import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal
 import { useOutwardTabWarm } from "../model/use-outward-tab-warm";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
 import { MAX_WARMED_PER_TAB } from "../model/warm-emoticon-images";
-import { EmoticonCell } from "./emoticon-cell";
+import { CELL_KEYBOARD_RING, EmoticonCell } from "./emoticon-cell";
 import { EmoticonTabPane } from "./emoticon-tab-pane";
 
 // INFO: REQUIREMENTS.md § 13.6. Two taps on the same cell inside this window are the shortcut past the preview.
@@ -311,6 +312,7 @@ export function EmoticonPicker({
    * emoticon the search itself cannot yet find.
    */
   const [revealed, setRevealed] = useState<Nullable<Emoticon>>(null);
+  const [searchVisibleRows, setSearchVisibleRows] = useState(2);
   // INFO: REQUIREMENTS.md § 8.14. The one cell in the tab sequence, which the arrow keys move (ARIA's roving tabindex) — without it a pack of forty is forty tab stops between the composer and the send button.
   // WARN: Declared up here with the tokens rather than beside the other focus state below, because the render-phase adjustments that replace the list all reset it and a `useState` after them is in its own temporal dead zone.
   const [focusedIndex, setFocusedIndex] = useState(0);
@@ -449,6 +451,8 @@ export function EmoticonPicker({
     refetch: refetchPacks,
   } = useQuery({ ...toEmoticonPacksQuery(), staleTime: PACKS_MOUNT_STALE_TIME });
   const visiblePacks = packs.filter((pack) => pack.isEnabled);
+  // INFO: § 13.6. Every pack's kind, hidden ones included — a 따라하기 can name a pack this user has taken out of the strip, and the menu still has to be able to say which kind it was.
+  const packTypes = new Map(packs.map((pack) => [pack.id, pack.type] as const));
 
   /**
    * WARN: § 13.9. Applied during render, for the reason `searchRequest` is: an
@@ -464,9 +468,12 @@ export function EmoticonPicker({
     setAppliedRevealToken(revealRequest.token);
     setRevealed(revealRequest.emoticon);
     setForcedTab(SEARCH_TAB);
-    setQuery(revealRequest.emoticon.keywords.join(", "));
+    const isMini = packTypes.get(revealRequest.emoticon.packId) === "mini";
+    const keywords = isMini ? [] : revealRequest.emoticon.keywords;
+    setQuery(keywords.join(", "));
     // WARN: § 8.14. As the search request above resets it, and here the head of the row is the tapped item itself — a stop left mid-row is the one cell 따라하기 exists to put first not being the one a `Tab` reaches.
     setFocusedIndex(0);
+    setSearchVisibleRows(2);
   }
 
   const revealedId = revealed?.id ?? null;
@@ -481,8 +488,6 @@ export function EmoticonPicker({
       ? requestedTab
       : RECENTS_TAB;
   const isSearching = activeTab === SEARCH_TAB;
-  // INFO: § 13.6. Every pack's kind, hidden ones included — a 따라하기 can name a pack this user has taken out of the strip, and the menu still has to be able to say which kind it was.
-  const packTypes = new Map(packs.map((pack) => [pack.id, pack.type] as const));
   /**
    * REQUIREMENTS.md § 13.6. The open menu, **derived from the open tab** rather than
    * stored beside it.
@@ -532,14 +537,11 @@ export function EmoticonPicker({
    * away; asked for on a wider condition than the row's, the pack arrives for a case
    * the row does not use it in.
    */
-  const revealedRelated =
-    isSearching && revealed ? searchResults.filter((item) => item.id !== revealed.id) : NO_ITEMS;
-  // WARN: § 13.9.1. `!hasSearchFailed` is as load-bearing as `!isSearchPending` beside it. A failure unlatches pending, so without it the pack shelf arrived on the error path — silently, since a non-empty row never reaches `toEmptyMessage` — and the fallback asserted "these are related" for a question nothing had answered.
-  const fallbackPackId =
-    isSearching && revealed && revealedRelated.length === 0 && !isSearchPending && !hasSearchFailed
-      ? revealed.packId
-      : null;
-  const { data: fallbackPackItems = NO_ITEMS } = useQuery(toEmoticonPackItemsQuery(fallbackPackId));
+  const revealedPackId = isSearching && revealed ? revealed.packId : null;
+  const { data: revealedPackItems = NO_ITEMS, isPending: isRevealedPackPending } = useQuery(
+    toEmoticonPackItemsQuery(revealedPackId),
+  );
+  const revealedPack = revealed ? (findPack(packs, revealed.packId) ?? null) : null;
   // INFO: § 13.6. 최근 사용 stores ids alone, so the items behind them are resolved here rather than found in a list the panel no longer holds.
   const {
     data: recentItems = NO_ITEMS,
@@ -578,8 +580,36 @@ export function EmoticonPicker({
   const recentsSectionCount =
     recents.length === 0 ? 0 : hasMoreRecents ? recentsVisibleRows * columns : recents.length;
   const totalRecentsAndFavoritesCount = recentsSectionCount + favorites.length;
+
+  const isMiniRevealed = revealed ? packTypes.get(revealed.packId) === "mini" : false;
+  const hasSearchableKeywords = !isMiniRevealed && (revealed?.keywords.length ?? 0) > 0;
+  const revealedSearchItems =
+    isSearching && revealed
+      ? [revealed, ...searchResults.filter((item) => item.id !== revealed.id)]
+      : NO_ITEMS;
+  const maxSearchSlots = searchVisibleRows * EMOTICON_GRID_COLUMNS;
+  const hasMoreSearch = hasSearchMore || revealedSearchItems.length > maxSearchSlots;
+  const searchSliceCount = hasMoreSearch ? maxSearchSlots - 1 : maxSearchSlots;
+  const searchSectionCount =
+    revealedSearchItems.length === 0
+      ? 0
+      : hasMoreSearch
+        ? maxSearchSlots
+        : Math.min(revealedSearchItems.length, maxSearchSlots);
+  const orderedPackItems = revealed
+    ? [revealed, ...revealedPackItems.filter((item) => item.id !== revealed.id)]
+    : NO_ITEMS;
+  const showSearchSection =
+    hasSearchableKeywords &&
+    (revealedSearchItems.length > 1 || isSearchPending || searchResults.length > 0);
+  const totalRevealCount = (showSearchSection ? searchSectionCount : 0) + orderedPackItems.length;
+
   const gridItemCount =
-    isRecentsTabId(activeTab) && menuKind !== "mini" ? totalRecentsAndFavoritesCount : shown.length;
+    isSearching && revealed !== null
+      ? totalRevealCount
+      : isRecentsTabId(activeTab) && menuKind !== "mini"
+        ? totalRecentsAndFavoritesCount
+        : shown.length;
   // INFO: § 13.6. The second region's own list, which is this menu's alone — 검색 has a field there instead and therefore no tabs at all.
   const tabIds = isSearching ? [] : [recentsTab, allTab, ...menuPacks.map((pack) => pack.id)];
   const activeIndex = tabIds.indexOf(activeTab);
@@ -782,7 +812,7 @@ export function EmoticonPicker({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, isSearching, menuRequest, shown.length]);
 
-  // INFO: § 8.14. After 더보기 expands the recents rows, focus the emoticon that now occupies the slot where 더보기 was — a useLayoutEffect so the DOM is updated before focus() is called.
+  // INFO: § 8.14. After 더보기 expands the recents or search rows, focus the emoticon that now occupies the slot where 더보기 was — a useLayoutEffect so the DOM is updated before focus() is called.
   useLayoutEffect(() => {
     if (pendingExpandFocusRef.current === undefined) {
       return;
@@ -793,7 +823,7 @@ export function EmoticonPicker({
     if (scroller) {
       focusItem(scroller, targetIndex, { revealHeading: isKeyboardDriven });
     }
-  }, [recentsVisibleRows, isKeyboardDriven]);
+  }, [recentsVisibleRows, searchVisibleRows, isKeyboardDriven]);
 
   return (
     <div
@@ -852,6 +882,16 @@ export function EmoticonPicker({
           fieldRef={searchFieldRef}
           rowRef={cellScrollerRef}
           skipAutofocusRef={skipSearchAutofocusRef}
+          revealed={revealed}
+          revealedPack={revealedPack}
+          isRevealedPackPending={isRevealedPackPending}
+          searchVisibleRows={searchVisibleRows}
+          showSearchSection={showSearchSection}
+          hasMoreSearch={hasMoreSearch}
+          searchSliceCount={searchSliceCount}
+          searchSectionCount={searchSectionCount}
+          orderedPackItems={orderedPackItems}
+          onExpandSearch={handleExpandSearch}
           onLoadMore={loadMoreSearch}
           onQueryChange={changeQuery}
           onSelect={handleSelect}
@@ -1029,36 +1069,7 @@ export function EmoticonPicker({
         return searchResults;
       }
 
-      /**
-       * INFO: § 13.9. The tapped item first, then everything its words reached, best
-       * first.
-       *
-       * WARN: Its own pack is the fallback and **only** the fallback. Appended to
-       * every answer it buried the cross-pack matches under one pack's shelf, which
-       * is what made the feature read as "this set only" — the exact thing the
-       * ranking exists to undo. It is still needed, because an item nobody has
-       * described answers to nothing and would otherwise stand in the row alone.
-       *
-       * WARN: `isSearchPending` guards it, and that guard is new with the server
-       * search. Reached while the answer is still in flight, every 따라하기 would
-       * paint one pack's shelf for a frame and then swap it for the ranked row —
-       * which is the "this set only" reading arriving anyway, just briefly.
-       *
-       * WARN: § 13.9.1. A failed search is not a fallback either, and it reached one
-       * by the back door: an error unlatches pending, so the shelf appeared with
-       * nothing saying the words had never been answered. `fallbackPackId` withholds
-       * the request and `SearchPane` says so under the row instead.
-       *
-       * WARN: § 13.6. The pack is a request of its own now, so it lands a round trip
-       * after the reveal rather than being in hand. The row shows the tapped item
-       * alone until it does, which is the honest intermediate state — and it is only
-       * honest because the hook drops the previous query's answer for a reveal, which
-       * is what used to fill this row with the last search's results.
-       */
-      const related =
-        revealedRelated.length > 0 || isSearchPending ? revealedRelated : fallbackPackItems;
-
-      return [revealed, ...related.filter((item) => item.id !== revealed.id)];
+      return [revealed, ...searchResults.filter((item) => item.id !== revealed.id)];
     }
 
     // INFO: § 13.6. Either menu's 최근 사용 — the stored id list is one, and `recents` is already cut to this menu's kind.
@@ -1074,6 +1085,22 @@ export function EmoticonPicker({
   }
 
   function getEmoticonAtIndex(index: number): Optional<Emoticon> {
+    if (isSearching && revealed !== null) {
+      if (showSearchSection) {
+        if (index < searchSliceCount) {
+          return revealedSearchItems[index];
+        }
+        if (hasMoreSearch && index === searchSliceCount) {
+          return undefined;
+        }
+        const packIndex = index - searchSectionCount;
+
+        return orderedPackItems[packIndex];
+      }
+
+      return orderedPackItems[index];
+    }
+
     if (isRecentsTabId(activeTab) && menuKind !== "mini") {
       if (index < recentsSliceCount) {
         return recents[index];
@@ -1310,6 +1337,12 @@ export function EmoticonPicker({
    * INFO: Delegated to the scroller rather than bound per cell — `keydown` bubbles,
    * and a grid of forty cells would otherwise mint forty handlers per render.
    */
+  function handleExpandSearch() {
+    pendingExpandFocusRef.current = searchSliceCount;
+    setSearchVisibleRows((rows) => rows + 10);
+    loadMoreSearch();
+  }
+
   function handleCellKeys(event: KeyboardEvent<HTMLDivElement>) {
     if (event.defaultPrevented || event.nativeEvent.isComposing) {
       return;
@@ -1323,6 +1356,19 @@ export function EmoticonPicker({
 
     // WARN: § 8.14. `Space` as well as `Enter`. It activates on `keyup` rather than repeating, so it needs no guard of its own — but left to the native click it reaches `handleSelect` and two presses inside `DOUBLE_TAP_WINDOW` send, which is the pair this route exists to keep out of the keyboard.
     if (event.key === "Enter" || event.key === " ") {
+      if (
+        isSearching &&
+        revealed !== null &&
+        showSearchSection &&
+        hasMoreSearch &&
+        index === searchSliceCount
+      ) {
+        event.preventDefault();
+        handleExpandSearch();
+
+        return;
+      }
+
       if (
         isRecentsTabId(activeTab) &&
         menuKind !== "mini" &&
@@ -1356,6 +1402,21 @@ export function EmoticonPicker({
     if (next !== undefined) {
       event.preventDefault();
       focusItem(event.currentTarget, next, { revealHeading: true });
+
+      return;
+    }
+
+    if (
+      event.key === "ArrowDown" &&
+      isSearching &&
+      revealed !== null &&
+      showSearchSection &&
+      hasMoreSearch &&
+      index === searchSliceCount &&
+      orderedPackItems.length > 0
+    ) {
+      event.preventDefault();
+      focusItem(event.currentTarget, searchSectionCount, { revealHeading: true });
 
       return;
     }
@@ -1865,6 +1926,7 @@ export function EmoticonPicker({
   function changeQuery(next: string) {
     setQuery(next);
     setRevealed(null);
+    setSearchVisibleRows(2);
     // INFO: § 8.14. The row is a different list now, so the stop goes back to its head rather than to whatever the previous query happened to have at that offset.
     setFocusedIndex(0);
   }
@@ -1897,6 +1959,7 @@ export function EmoticonPicker({
     setForcedTab(id === SEARCH_TAB ? SEARCH_TAB : null);
     // INFO: § 13.9. Walking to another tab ends the reveal — the ring belongs to the tap that asked for it, not to the panel.
     setRevealed(null);
+    setSearchVisibleRows(2);
 
     // WARN: § 13.8. The search tab is deliberately never remembered. It is a place the user passes through with a word in hand, so reopening the panel onto an empty search — days later, over the pack they actually use — would be answering a question nobody asked twice.
     if (id !== SEARCH_TAB) {
@@ -1953,6 +2016,16 @@ type SearchPaneProps = {
   rowRef: RefObject<Nullable<HTMLDivElement>>;
   hasMore?: boolean;
   isLoadingMore?: boolean;
+  revealed?: Nullable<Emoticon>;
+  revealedPack?: Nullable<EmoticonPackSummary>;
+  isRevealedPackPending?: boolean;
+  searchVisibleRows?: number;
+  showSearchSection?: boolean;
+  hasMoreSearch?: boolean;
+  searchSliceCount?: number;
+  searchSectionCount?: number;
+  orderedPackItems?: Emoticon[];
+  onExpandSearch?: () => void;
   onLoadMore?: () => void;
   onQueryChange: (query: string) => void;
   onSelect: (item: Emoticon) => void;
@@ -1994,6 +2067,16 @@ function SearchPane({
   fieldRef,
   rowRef,
   skipAutofocusRef,
+  revealed = null,
+  revealedPack = null,
+  isRevealedPackPending = false,
+  searchVisibleRows = 2,
+  showSearchSection = false,
+  hasMoreSearch = false,
+  searchSliceCount = 0,
+  searchSectionCount = 0,
+  orderedPackItems = NO_ITEMS,
+  onExpandSearch,
   onLoadMore,
   onQueryChange,
   onSelect,
@@ -2005,6 +2088,8 @@ function SearchPane({
 }: SearchPaneProps) {
   const trimmed = query.trim();
   const emptyMessage = toEmptyMessage();
+  const isRevealMode = revealed !== null;
+  const isMini = revealed ? packTypes.get(revealed.packId) === "mini" : false;
 
   /**
    * REQUIREMENTS.md § 8.14. Whether this `isOpen` session has already put focus
@@ -2088,7 +2173,164 @@ function SearchPane({
           onKeyDown={onFieldKeys}
         />
       </div>
-      {results.length === 0 ? (
+      {isRevealMode ? (
+        <div
+          ref={rowRef}
+          className="scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain"
+          onKeyDown={onCellKeys}
+          onFocus={onCellFocus}
+        >
+          {showSearchSection ? (
+            <div className="flex flex-col gap-md">
+              <section>
+                <div className="square-grid-4" role="group" aria-label="검색 결과">
+                  {results.slice(0, searchSliceCount).map((item, index) => (
+                    <EmoticonCell
+                      key={item.id}
+                      className="flex"
+                      buttonClassName="emoticon-cell w-full"
+                      item={item}
+                      index={index}
+                      isFocusable={index === focusableIndex}
+                      isKeyboardDriven={isKeyboardDriven}
+                      isRevealed={item.id === revealedId}
+                      isMini={packTypes.get(item.packId) === "mini"}
+                      onSelect={onSelect}
+                      onFocusCell={onFocusCell}
+                    />
+                  ))}
+                  {isPending &&
+                    results.length <= 1 &&
+                    Array.from({
+                      length: Math.max(
+                        0,
+                        searchVisibleRows * EMOTICON_GRID_COLUMNS - results.length,
+                      ),
+                    }).map((_, index) => (
+                      <div key={`search-skeleton-${index}`} className="flex" aria-hidden>
+                        <div className="emoticon-cell w-full p-2xs">
+                          <Skeleton className="size-full rounded-sm" />
+                        </div>
+                      </div>
+                    ))}
+                  {isLoadingMore &&
+                    Array.from({ length: EMOTICON_GRID_COLUMNS }).map((_, index) => (
+                      <div key={`search-loading-${index}`} className="flex" aria-hidden>
+                        <div className="emoticon-cell w-full p-2xs">
+                          <Skeleton className="size-full rounded-sm" />
+                        </div>
+                      </div>
+                    ))}
+                  {hasMoreSearch && (!isPending || results.length > 1) && (
+                    <button
+                      className={cn(
+                        "flex emoticon-cell w-full cursor-pointer flex-col items-center justify-center rounded-sm text-body-sm text-meta transition-colors select-none [-webkit-touch-callout:none] hover:bg-surface-soft hover:text-body focus-visible:bg-primary-tint focus-visible:text-body focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none focus-visible:ring-inset active:bg-surface-soft active:text-body",
+                        isKeyboardDriven && CELL_KEYBOARD_RING,
+                      )}
+                      type="button"
+                      tabIndex={searchSliceCount === focusableIndex ? 0 : -1}
+                      aria-label="이모티콘 검색 결과 더보기"
+                      {...{ [FOCUS_INDEX_ATTRIBUTE]: searchSliceCount }}
+                      onMouseDown={(event) => {
+                        event.preventDefault();
+                      }}
+                      onClick={(event) => {
+                        event.currentTarget.focus({ preventScroll: true });
+                        onExpandSearch?.();
+                      }}
+                    >
+                      <span className="leading-tight">더보기</span>
+                      <ChevronDown className="-mt-1 size-6" strokeWidth={1.5} />
+                    </button>
+                  )}
+                </div>
+              </section>
+              <section>
+                <h2 className="pb-xs text-body-sm text-meta" {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}>
+                  {revealedPack?.name ?? ""}
+                </h2>
+                <div
+                  className={isMini ? "square-grid-6" : "square-grid-4"}
+                  role="group"
+                  aria-label={revealedPack?.name ?? "이모티콘팩"}
+                >
+                  {isRevealedPackPending
+                    ? Array.from({ length: isMini ? 18 : 12 }).map((_, index) => (
+                        <div key={index} className="flex" aria-hidden>
+                          <div
+                            className={cn(isMini ? "square-cell" : "emoticon-cell", "w-full p-2xs")}
+                          >
+                            <Skeleton className="size-full rounded-sm" />
+                          </div>
+                        </div>
+                      ))
+                    : orderedPackItems.map((item, packIndex) => {
+                        const itemIndex = searchSectionCount + packIndex;
+
+                        return (
+                          <EmoticonCell
+                            key={item.id}
+                            className="flex"
+                            buttonClassName={cn(isMini ? "square-cell" : "emoticon-cell", "w-full")}
+                            item={item}
+                            index={itemIndex}
+                            isFocusable={itemIndex === focusableIndex}
+                            isKeyboardDriven={isKeyboardDriven}
+                            isRevealed={false}
+                            isMini={isMini}
+                            onSelect={onSelect}
+                            onFocusCell={onFocusCell}
+                          />
+                        );
+                      })}
+                </div>
+              </section>
+            </div>
+          ) : (
+            <section>
+              <h2 className="pb-xs text-body-sm text-meta" {...{ [FOCUS_HEADING_ATTRIBUTE]: "" }}>
+                {revealedPack?.name ?? ""}
+              </h2>
+              <div
+                className={isMini ? "square-grid-6" : "square-grid-4"}
+                role="group"
+                aria-label={revealedPack?.name ?? "이모티콘팩"}
+              >
+                {isRevealedPackPending
+                  ? Array.from({ length: isMini ? 18 : 12 }).map((_, index) => (
+                      <div key={index} className="flex" aria-hidden>
+                        <div
+                          className={cn(isMini ? "square-cell" : "emoticon-cell", "w-full p-2xs")}
+                        >
+                          <Skeleton className="size-full rounded-sm" />
+                        </div>
+                      </div>
+                    ))
+                  : orderedPackItems.map((item, packIndex) => (
+                      <EmoticonCell
+                        key={item.id}
+                        className="flex"
+                        buttonClassName={cn(isMini ? "square-cell" : "emoticon-cell", "w-full")}
+                        item={item}
+                        index={packIndex}
+                        isFocusable={packIndex === focusableIndex}
+                        isKeyboardDriven={isKeyboardDriven}
+                        isRevealed={packIndex === 0 && item.id === revealedId}
+                        isMini={isMini}
+                        onSelect={onSelect}
+                        onFocusCell={onFocusCell}
+                      />
+                    ))}
+              </div>
+            </section>
+          )}
+          {hasFailed && (
+            <p className="mt-xs shrink-0 touch-pan-y text-center text-body-sm text-meta">
+              {SEARCH_FAILED_MESSAGE}
+            </p>
+          )}
+        </div>
+      ) : results.length === 0 ? (
         // INFO: § 13.8. The whole pane below the field, and with no row to scroll it is where the tab swipe has the most room to be made.
         <div className="flex flex-1 touch-pan-y items-center justify-center">
           {isPending ? (

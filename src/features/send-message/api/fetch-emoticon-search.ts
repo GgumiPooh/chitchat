@@ -18,8 +18,12 @@ export type EmoticonSearchPage = {
  * goes in front, which the picker does because it holds an item the search may not
  * be able to reach yet.
  */
-export async function fetchEmoticonSearch(query: string, offset = 0): Promise<EmoticonSearchPage> {
-  const url = `${EMOTICON_ITEMS_URL}?q=${encodeURIComponent(query)}&offset=${offset}&limit=${EMOTICON_SEARCH_PAGE_SIZE}`;
+export async function fetchEmoticonSearch(
+  query: string,
+  offset = 0,
+  limit = EMOTICON_SEARCH_PAGE_SIZE,
+): Promise<EmoticonSearchPage> {
+  const url = `${EMOTICON_ITEMS_URL}?q=${encodeURIComponent(query)}&offset=${offset}&limit=${limit}`;
   const response = await request(url);
 
   if (!response.ok) {

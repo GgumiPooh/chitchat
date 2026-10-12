@@ -2391,6 +2391,7 @@ export function ChatRoom({
                       stopSound();
                       setStagedEmoticon(null);
                     }}
+                    onFollow={() => followEmoticon(stagedEmoticon)}
                   />
                 </div>
               )}
