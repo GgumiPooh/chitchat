@@ -50,8 +50,8 @@ export function EmoticonQuickBar({
             "mx-md mb-2xs flex items-center gap-xs rounded-2xl border border-hairline bg-surface-soft/90 px-xs py-1.5 shadow-floating backdrop-blur-md",
             "transition-[opacity,transform] ease-route",
             isExpanded
-              ? "duration-state translate-y-0 opacity-100"
-              : "duration-columns-step translate-y-2 opacity-0",
+              ? "duration-state pointer-events-auto translate-y-0 opacity-100"
+              : "duration-columns-step pointer-events-none translate-y-2 opacity-0",
           )}
         >
           <div
@@ -74,18 +74,18 @@ export function EmoticonQuickBar({
                   keepsScroll
                 >
                   <button
-                    className="flex size-full cursor-pointer items-center justify-center rounded-lg p-0.5 transition-transform outline-none hover:bg-canvas/50 focus-visible:ring-2 focus-visible:ring-primary active:scale-95"
+                    className="flex size-full cursor-pointer touch-pan-x items-center justify-center rounded-lg p-0.5 transition-transform outline-none select-none [-webkit-touch-callout:none] hover:bg-canvas/50 focus-visible:ring-2 focus-visible:ring-primary active:scale-95"
                     type="button"
                     aria-label={item.keywords.length > 0 ? item.keywords.join(", ") : "이모티콘"}
-                    onPointerDown={(event) => {
-                      // INFO: Prevents dropping keyboard focus on mobile WebKit.
+                    onMouseDown={(event) => {
+                      // WARN: Prevents desktop mousedown from blurring composer field.
                       event.preventDefault();
                     }}
                     onClick={() => onSelect(item)}
                   >
                     <PreloadImage
-                      className="size-full"
-                      imgClassName="size-full object-contain rounded-md"
+                      className="pointer-events-none size-full"
+                      imgClassName="size-full object-contain rounded-md select-none pointer-events-none"
                       alt=""
                       draggable={false}
                       src={url}
@@ -107,18 +107,20 @@ export function EmoticonQuickBar({
               />
             )}
           </div>
-          <button
-            className="inline-flex size-7 shrink-0 cursor-pointer items-center justify-center rounded-full bg-surface-strong/60 text-meta transition-transform outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-primary active:scale-95"
-            type="button"
-            aria-label="추천 닫기"
-            onPointerDown={(event) => {
-              // INFO: Prevents dropping keyboard focus on mobile WebKit.
-              event.preventDefault();
-            }}
-            onClick={onClose}
-          >
-            <X className="size-3.5" strokeWidth={2.5} />
-          </button>
+          <HapticTarget className="inline-flex size-7 shrink-0" keepsFocus>
+            <button
+              className="flex size-full cursor-pointer items-center justify-center rounded-full bg-surface-strong/60 text-meta transition-transform outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-primary active:scale-95"
+              type="button"
+              aria-label="추천 닫기"
+              onMouseDown={(event) => {
+                // WARN: Prevents desktop mousedown from blurring composer field.
+                event.preventDefault();
+              }}
+              onClick={onClose}
+            >
+              <X className="size-3.5" strokeWidth={2.5} />
+            </button>
+          </HapticTarget>
         </div>
       </div>
     </div>
