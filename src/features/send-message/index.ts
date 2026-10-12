@@ -6,6 +6,8 @@ export { toBubbles, toDraftKind, type DraftKind } from "./model/to-bubbles";
 export { EMOTICON_MENUS, type EmoticonMenu } from "./model/emoticon-tabs";
 // INFO: REQUIREMENTS.md § 13.6. Warmed from the room rather than from the panel, which does not exist until the tap this exists to make cheap.
 export { useEmoticonPreload } from "./model/use-emoticon-preload";
+// INFO: REQUIREMENTS.md § 13.8. One-jamo typo checking for keyword recovery and draft consumption.
+export { isOneJamoEdit } from "./model/find-keyword-typo";
 // INFO: REQUIREMENTS.md § 13.6. 최근 "사용" is recorded at the send, which the room owns — the picker only reads the list back.
 export { useRecentEmoticons } from "./model/use-recent-emoticons";
 // INFO: REQUIREMENTS.md § 10. 채팅으로 보내기 — 보관함 calls `stageArchiveMedia` before navigating here; the composer consumes it through `useStagedMediaIntake`.

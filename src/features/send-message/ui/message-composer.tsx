@@ -473,14 +473,14 @@ export function MessageComposer({
 
   // WARN: § 13.8. Only the *disappearing* half goes through a timer, and only here — a delay is a side effect, where the render-phase swap above is instant on purpose.
   useEffect(() => {
-    if (previewUrl) {
+    if (previewUrl || (fallbackKeywordQuery !== null && displayedPreviewUrl !== null)) {
       return;
     }
 
     const timer = setTimeout(() => setDisplayedPreviewUrl(null), TOGGLE_PREVIEW_HIDE_DEBOUNCE);
 
     return () => clearTimeout(timer);
-  }, [previewUrl]);
+  }, [previewUrl, fallbackKeywordQuery, displayedPreviewUrl]);
 
   // INFO: § 13.6. Held back while the panel is open — the panel this button now closes is what the sticker's own tab already shows, so the toggle reads by its usual glyph rather than repeating the pack behind it.
   const showsPreview = displayedPreviewUrl !== null && !isEmoticonPickerOpen;
@@ -548,10 +548,18 @@ export function MessageComposer({
     }
 
     // WARN: Read outside the updater. A `setDraft` callback must be pure, and StrictMode double-invokes it — the § 8.12. retraction fired twice per consume from in there.
-    setDraft((current) => (current.text.trim() === tapped ? EMPTY_DRAFT : current));
+    setDraft((current) => {
+      const isMatch =
+        current.text.trim() === tapped ||
+        (tapped !== null && isOneJamoEdit(tapped, current.text.trim()));
+      return isMatch ? EMPTY_DRAFT : current;
+    });
     setFallbackKeywordQuery(null);
 
-    if (draft.text.trim() === tapped) {
+    if (
+      draft.text.trim() === tapped ||
+      (tapped !== null && isOneJamoEdit(tapped, draft.text.trim()))
+    ) {
       // WARN: The clear never goes through `onChange`, so the § 8.12. broadcast has to be retracted by hand or 입력 중 outlives the send.
       onEdit?.(false);
     }

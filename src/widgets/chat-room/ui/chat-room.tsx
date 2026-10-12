@@ -31,6 +31,7 @@ import {
   EmoticonPreview,
   EmoticonQuickBar,
   MessageComposer,
+  isOneJamoEdit,
   toEmoticonPacksQuery,
   useAttachmentPromotion,
   useEmoticonPreload,
@@ -2373,6 +2374,7 @@ export function ChatRoom({
                   !aiSelection.isSelecting
                 }
                 onSelect={handleQuickSelectEmoticon}
+                onQuickSend={handleQuickSendFromQuickBar}
                 onClose={handleCloseQuickBar}
               />
               {/* WARN: REQUIREMENTS.md § 13.6. Absolute so it adds nothing to the wrapper this hook measures — in flow it would grow the clearance and shove the history up under a preview that is glass and meant to float over it. */}
@@ -2719,6 +2721,12 @@ export function ChatRoom({
   function handleQuickSelectEmoticon(emoticon: Emoticon) {
     searchedWordRef.current = suggestedEmoticonSearchQuery;
     stageEmoticon(emoticon);
+  }
+
+  function handleQuickSendFromQuickBar(emoticon: Emoticon) {
+    searchedWordRef.current = suggestedEmoticonSearchQuery;
+    setDismissedQuickBarQuery(suggestedEmoticonSearchQuery);
+    sendStagedEmoticon(emoticon);
   }
 
   function handleCloseQuickBar() {
@@ -3083,7 +3091,12 @@ export function ChatRoom({
 
   /** INFO: REQUIREMENTS.md § 13.8. Only ever true beside an emoticon — on its own the word is the message the user typed. */
   function isConsumedByEmoticonSearch(text: string): boolean {
-    return stagedEmoticon !== null && text.trim() === searchedWordRef.current;
+    const trimmed = text.trim();
+    if (stagedEmoticon === null || !searchedWordRef.current) {
+      return false;
+    }
+
+    return trimmed === searchedWordRef.current || isOneJamoEdit(searchedWordRef.current, trimmed);
   }
 
   /**
