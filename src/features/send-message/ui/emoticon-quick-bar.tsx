@@ -50,7 +50,7 @@ export function EmoticonQuickBar({
     }
   }
 
-  if ((!isOpen || query.trim() === "") && persistedResults.length > 0) {
+  if (query.trim() === "" && persistedResults.length > 0) {
     setPersistedResults([]);
   }
 
@@ -112,32 +112,25 @@ export function EmoticonQuickBar({
               );
 
               return (
-                <HapticTarget
+                <button
                   key={item.id}
-                  className="size-[54px] shrink-0"
-                  overlayClassName="touch-pan-x"
-                  keepsFocus
-                  keepsScroll
+                  className="flex size-[54px] shrink-0 cursor-pointer touch-pan-x items-center justify-center rounded-lg p-0.5 transition-transform outline-none select-none [-webkit-touch-callout:none] hover:bg-canvas/50 focus-visible:ring-2 focus-visible:ring-primary active:scale-95"
+                  type="button"
+                  aria-label={item.keywords.length > 0 ? item.keywords.join(", ") : "이모티콘"}
+                  onPointerDown={(event) => {
+                    // WARN: Prevents touching or clicking an emoticon from blurring the composer field, keeping the virtual keyboard open on both mobile WebKit and desktop.
+                    event.preventDefault();
+                  }}
+                  onClick={() => handleSelect(item)}
                 >
-                  <button
-                    className="flex size-full cursor-pointer touch-pan-x items-center justify-center rounded-lg p-0.5 transition-transform outline-none select-none [-webkit-touch-callout:none] hover:bg-canvas/50 focus-visible:ring-2 focus-visible:ring-primary active:scale-95"
-                    type="button"
-                    aria-label={item.keywords.length > 0 ? item.keywords.join(", ") : "이모티콘"}
-                    onMouseDown={(event) => {
-                      // WARN: Prevents desktop mousedown from blurring composer field.
-                      event.preventDefault();
-                    }}
-                    onClick={() => handleSelect(item)}
-                  >
-                    <PreloadImage
-                      className="pointer-events-none size-full"
-                      imgClassName="size-full object-contain rounded-md select-none pointer-events-none"
-                      alt=""
-                      draggable={false}
-                      src={url}
-                    />
-                  </button>
-                </HapticTarget>
+                  <PreloadImage
+                    className="pointer-events-none size-full"
+                    imgClassName="pointer-events-none size-full rounded-md object-contain select-none"
+                    alt=""
+                    draggable={false}
+                    src={url}
+                  />
+                </button>
               );
             })}
             {isCurrentQueryAnswered && isLoadingMore && (
@@ -158,8 +151,8 @@ export function EmoticonQuickBar({
               className="flex size-full cursor-pointer items-center justify-center rounded-full bg-surface-strong/60 text-meta transition-transform outline-none hover:text-ink focus-visible:ring-2 focus-visible:ring-primary active:scale-95"
               type="button"
               aria-label="추천 닫기"
-              onMouseDown={(event) => {
-                // WARN: Prevents desktop mousedown from blurring composer field.
+              onPointerDown={(event) => {
+                // WARN: Prevents closing the recommendation bar from blurring the composer.
                 event.preventDefault();
               }}
               onClick={onClose}

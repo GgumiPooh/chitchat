@@ -2721,16 +2721,22 @@ export function ChatRoom({
   function handleQuickSelectEmoticon(emoticon: Emoticon) {
     searchedWordRef.current = suggestedEmoticonSearchQuery;
     stageEmoticon(emoticon);
+    // INFO: Keeps the composer field focused and virtual keyboard raised without panning.
+    focusWithoutPan(composerFieldRef.current);
   }
 
   function handleQuickSendFromQuickBar(emoticon: Emoticon) {
     searchedWordRef.current = suggestedEmoticonSearchQuery;
     setDismissedQuickBarQuery(suggestedEmoticonSearchQuery);
     sendStagedEmoticon(emoticon);
+    // INFO: Preserves field focus for subsequent typing after quick send.
+    focusWithoutPan(composerFieldRef.current);
   }
 
   function handleCloseQuickBar() {
     setDismissedQuickBarQuery(suggestedEmoticonSearchQuery);
+    // INFO: Dismissing the bar leaves focus in the composer.
+    focusWithoutPan(composerFieldRef.current);
   }
 
   function deliverStagedEmoticon(
@@ -3096,7 +3102,11 @@ export function ChatRoom({
       return false;
     }
 
-    return trimmed === searchedWordRef.current || isOneJamoEdit(searchedWordRef.current, trimmed);
+    return (
+      trimmed === searchedWordRef.current ||
+      isOneJamoEdit(searchedWordRef.current, trimmed) ||
+      trimmed.startsWith(searchedWordRef.current)
+    );
   }
 
   /**

@@ -89,3 +89,28 @@ export function isOneJamoEdit(left: string, right: string): boolean {
 function stripTrailingPunctuation(value: string): string {
   return value.replace(/\p{P}+$/gu, "");
 }
+
+/**
+ * Whether the currently typed draft still represents a continuing composition
+ * or slight typo of an earlier successful keyword search.
+ *
+ * Handles virtual keyboard re-composition on mobile iOS where intermediate input
+ * events can temporarily delete or swap characters while settling syllables.
+ */
+export function isKeywordCandidateContinuing(fallback: string, text: string): boolean {
+  const tokens = [...text.matchAll(/\S+/gu)].map((match) =>
+    stripTrailingPunctuation(match[0]).toLowerCase(),
+  );
+  if (tokens.length === 0) {
+    return false;
+  }
+
+  const normalizedFallback = stripTrailingPunctuation(fallback).toLowerCase();
+
+  return tokens.some(
+    (token) =>
+      token.startsWith(normalizedFallback) ||
+      normalizedFallback.startsWith(token) ||
+      isOneJamoEdit(normalizedFallback, token),
+  );
+}

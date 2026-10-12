@@ -56,7 +56,7 @@ import {
   type SyntheticEvent,
   type TransitionEvent,
 } from "react";
-import { findKeywordTypo, isOneJamoEdit } from "../model/find-keyword-typo";
+import { findKeywordTypo, isKeywordCandidateContinuing } from "../model/find-keyword-typo";
 import { toEmoticonKeywordsQuery } from "../model/keywords-query";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
 import { warmEmoticonUrls } from "../model/warm-emoticon-images";
@@ -405,6 +405,16 @@ export function MessageComposer({
   // INFO: § 13.8. A completed word can turn into an IME slip as its final consonant settles (`어디` → `어딩`), so the toggle keeps the last answer while the reader is still adding to that word. A deletion starts a new search instead.
   const [fallbackKeywordQuery, setFallbackKeywordQuery] = useState<Nullable<string>>(null);
   const discoveredKeywordQuery = match?.query ?? typoKeywordQuery;
+
+  // INFO: REQUIREMENTS.md § 13.8. Clears fallback only when the draft no longer continues or resembles the earlier keyword search.
+  if (
+    fallbackKeywordQuery !== null &&
+    !discoveredKeywordQuery &&
+    !isKeywordCandidateContinuing(fallbackKeywordQuery, draft.text)
+  ) {
+    setFallbackKeywordQuery(null);
+  }
+
   const keywordQuery = discoveredKeywordQuery ?? fallbackKeywordQuery ?? "";
 
   useEffect(() => {
@@ -551,14 +561,14 @@ export function MessageComposer({
     setDraft((current) => {
       const isMatch =
         current.text.trim() === tapped ||
-        (tapped !== null && isOneJamoEdit(tapped, current.text.trim()));
+        (tapped !== null && isKeywordCandidateContinuing(tapped, current.text.trim()));
       return isMatch ? EMPTY_DRAFT : current;
     });
     setFallbackKeywordQuery(null);
 
     if (
       draft.text.trim() === tapped ||
-      (tapped !== null && isOneJamoEdit(tapped, draft.text.trim()))
+      (tapped !== null && isKeywordCandidateContinuing(tapped, draft.text.trim()))
     ) {
       // WARN: The clear never goes through `onChange`, so the § 8.12. broadcast has to be retracted by hand or 입력 중 outlives the send.
       onEdit?.(false);
@@ -812,8 +822,8 @@ export function MessageComposer({
               // WARN: The keys are what say *which* emoticons a deletion took — the text only says one of them is gone, and a Backspace in the middle of a draft would otherwise drop the last.
               onChange={(next, keys) => {
                 if (
-                  next.length < draft.text.length ||
-                  (!next.startsWith(draft.text) && !isOneJamoEdit(draft.text, next))
+                  fallbackKeywordQuery !== null &&
+                  !isKeywordCandidateContinuing(fallbackKeywordQuery, next)
                 ) {
                   setFallbackKeywordQuery(null);
                 }
@@ -1129,14 +1139,10 @@ export function MessageComposer({
   function handlePlainChange(event: ChangeEvent<HTMLTextAreaElement>) {
     const field = event.target;
     const next = field.value;
-    const isComposing =
-      typeof InputEvent !== "undefined" &&
-      event.nativeEvent instanceof InputEvent &&
-      event.nativeEvent.isComposing;
 
     if (
-      next.length < draft.text.length ||
-      (!isComposing && !next.startsWith(draft.text) && !isOneJamoEdit(draft.text, next))
+      fallbackKeywordQuery !== null &&
+      !isKeywordCandidateContinuing(fallbackKeywordQuery, next)
     ) {
       setFallbackKeywordQuery(null);
     }
