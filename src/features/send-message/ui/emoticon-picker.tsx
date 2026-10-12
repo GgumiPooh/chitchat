@@ -589,13 +589,18 @@ export function EmoticonPicker({
       : NO_ITEMS;
   const maxSearchSlots = searchVisibleRows * EMOTICON_GRID_COLUMNS;
   const hasMoreSearch = hasSearchMore || revealedSearchItems.length > maxSearchSlots;
-  const searchSliceCount = hasMoreSearch ? maxSearchSlots - 1 : maxSearchSlots;
+  const maxSearchCandidates = Math.min(
+    revealedSearchItems.length,
+    hasMoreSearch ? maxSearchSlots - 1 : maxSearchSlots,
+  );
+  // INFO: When more items exist, ensure the 더보기 button is placed in the 4th column by clamping item count to 4k - 1 (e.g. 7, 11, ..., 47).
+  const searchSliceCount = hasMoreSearch
+    ? maxSearchCandidates >= 3
+      ? Math.floor((maxSearchCandidates + 1) / EMOTICON_GRID_COLUMNS) * EMOTICON_GRID_COLUMNS - 1
+      : maxSearchCandidates
+    : maxSearchCandidates;
   const searchSectionCount =
-    revealedSearchItems.length === 0
-      ? 0
-      : hasMoreSearch
-        ? maxSearchSlots
-        : Math.min(revealedSearchItems.length, maxSearchSlots);
+    revealedSearchItems.length === 0 ? 0 : hasMoreSearch ? searchSliceCount + 1 : searchSliceCount;
   const orderedPackItems = revealed
     ? [revealed, ...revealedPackItems.filter((item) => item.id !== revealed.id)]
     : NO_ITEMS;
@@ -1364,7 +1369,9 @@ export function EmoticonPicker({
         index === searchSliceCount
       ) {
         event.preventDefault();
-        handleExpandSearch();
+        if (!isSearchLoadingMore) {
+          handleExpandSearch();
+        }
 
         return;
       }
@@ -2213,14 +2220,6 @@ function SearchPane({
                         </div>
                       </div>
                     ))}
-                  {isLoadingMore &&
-                    Array.from({ length: EMOTICON_GRID_COLUMNS }).map((_, index) => (
-                      <div key={`search-loading-${index}`} className="flex" aria-hidden>
-                        <div className="emoticon-cell w-full p-2xs">
-                          <Skeleton className="size-full rounded-sm" />
-                        </div>
-                      </div>
-                    ))}
                   {hasMoreSearch && (!isPending || results.length > 1) && (
                     <button
                       className={cn(
@@ -2228,19 +2227,35 @@ function SearchPane({
                         isKeyboardDriven && CELL_KEYBOARD_RING,
                       )}
                       type="button"
+                      disabled={isLoadingMore}
                       tabIndex={searchSliceCount === focusableIndex ? 0 : -1}
-                      aria-label="이모티콘 검색 결과 더보기"
+                      aria-label={
+                        isLoadingMore ? "검색 결과 불러오는 중" : "이모티콘 검색 결과 더보기"
+                      }
                       {...{ [FOCUS_INDEX_ATTRIBUTE]: searchSliceCount }}
                       onMouseDown={(event) => {
                         event.preventDefault();
                       }}
                       onClick={(event) => {
+                        if (isLoadingMore) {
+                          return;
+                        }
                         event.currentTarget.focus({ preventScroll: true });
                         onExpandSearch?.();
                       }}
                     >
-                      <span className="leading-tight">더보기</span>
-                      <ChevronDown className="-mt-1 size-6" strokeWidth={1.5} />
+                      {isLoadingMore ? (
+                        <LoaderCircle
+                          className="size-5 animate-spin text-meta"
+                          strokeWidth={1.75}
+                          aria-hidden
+                        />
+                      ) : (
+                        <>
+                          <span className="leading-tight">더보기</span>
+                          <ChevronDown className="-mt-1 size-6" strokeWidth={1.5} />
+                        </>
+                      )}
                     </button>
                   )}
                 </div>
