@@ -1,4 +1,4 @@
-import type { ChatMessage } from "@/entities/message";
+import type { ChatMessage, ReplyPreview } from "@/entities/message";
 import type { PendingMessage } from "@/features/send-message";
 import type { UserId } from "@/shared/lib";
 import { toDayKey, type Nullable } from "@/shared/lib";
@@ -45,7 +45,7 @@ export function buildChatRows({
 
   const entries: Entry[] = [
     ...visibleMessages.map((message) => ({
-      key: `m${message.id}:${toRowRevision(message)}`,
+      key: `m${message.clientMsgId || message.id}:${toRowRevision(message)}`,
       dayKey: toDayKey(message.createdAt),
       // INFO: DESIGN.md § 6.3. A group is one sender inside one clock minute; a `system` notice never joins one.
       groupKey: message.type === "system" ? null : toGroupKey(message.senderId, message.createdAt),
@@ -53,7 +53,7 @@ export function buildChatRows({
       pending: null,
     })),
     ...pending.map((entry) => ({
-      key: `p${entry.clientMsgId}`,
+      key: `m${entry.clientMsgId}:${toRowRevision(entry)}`,
       dayKey: toDayKey(entry.createdAt),
       groupKey: toGroupKey(currentUserId, entry.createdAt),
       message: null,
@@ -163,7 +163,19 @@ function toGroupKey(senderId: UserId, createdAt: string): string {
  * quote's own text is deliberately absent, since § 6.10.'s box is two fixed lines
  * whatever it says.
  */
-function toRowRevision({ editedAt, isDeleted, replyTo, isCollapsed }: ChatMessage): string {
+type RowRevisionPayload = {
+  editedAt?: Nullable<string>;
+  isDeleted?: boolean;
+  replyTo?: Nullable<ReplyPreview>;
+  isCollapsed?: boolean;
+};
+
+function toRowRevision({
+  editedAt = null,
+  isDeleted = false,
+  replyTo = null,
+  isCollapsed = false,
+}: RowRevisionPayload): string {
   // WARN: REQUIREMENTS.md § 8.13. First, and the widest swing of the three. A withdrawn photo message drops a whole media box for one line, so a row that kept its key here would sit on a cached height hundreds of pixels wrong until it next mounted.
   // INFO: DESIGN.md § 6.10. The quote is `max(thumbnail, two lines)`, so losing the thumbnail to a § 8.10. delete is a real change of height rather than only of wording.
   // WARN: Presence and not the asset's identity, because that is all the box is `max`ed against — an attachment tile and an emoticon tile are the same 32px, and the § 8.10. count beside them rides on a `truncate`d line that cannot grow.
