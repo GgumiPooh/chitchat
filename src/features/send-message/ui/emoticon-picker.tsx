@@ -90,6 +90,7 @@ import { toEmoticonPackItemsQuery } from "../model/pack-items-query";
 import { toEmoticonPacksQuery } from "../model/packs-query";
 import { useAllPackSections } from "../model/use-all-pack-sections";
 import { useEmoticonFavorites } from "../model/use-emoticon-favorites";
+import { EMOTICON_MENU_HEIGHT, useEmoticonMenuCollapse } from "../model/use-emoticon-menu-collapse";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
 import { useOutwardTabWarm } from "../model/use-outward-tab-warm";
@@ -629,6 +630,12 @@ export function EmoticonPicker({
   const activeIndex = tabIds.indexOf(activeTab);
 
   const swipeHandlers = useHorizontalSwipe(goToAdjacentTab);
+  const menuCollapse = useEmoticonMenuCollapse({
+    activeTab,
+    isOpen,
+    isSearching,
+    scrollerRef: cellScrollerRef,
+  });
   const tabThumbnailUrls = menuPacks.flatMap((pack) =>
     pack.thumbnailItemId
       ? [
@@ -855,29 +862,51 @@ export function EmoticonPicker({
       {/* INFO: The track is as wide as the three labels and no wider (`w-fit`), then centred in the panel — `self-center`, since a flex column would otherwise stretch it to the full width. */}
       {/* WARN: The two margins are deliberately unequal. What sits under the track is not the panel's edge but the strip's own `py-2xs`, so an even `m-2xs` reads as 4px above against 8px below; 6 and 2 are what put the same 6px of air on both sides. Their sum is unchanged, which is why `--emoticon-menu-height` is. */}
       <div
-        ref={menuBarRef}
-        // INFO: § 13.6. `touch-none`, so a vertical pull that begins on a chip reaches the sheet's drag instead of being spent as a pan of nothing.
-        className="mt-1.5 mb-0.5 flex w-fit shrink-0 touch-none items-center gap-2xs self-center rounded-full bg-surface-soft p-2xs"
-        role="toolbar"
-        aria-label="이모티콘 메뉴"
-        onKeyDown={handleMenuKeys}
+        className={cn(
+          "flex w-full shrink-0 justify-center overflow-hidden",
+          menuCollapse.isSettling && "transition-[height,opacity] duration-200 ease-out",
+        )}
+        aria-hidden={menuCollapse.isCollapsed}
+        style={{
+          height: `${Math.max(0, EMOTICON_MENU_HEIGHT - menuCollapse.collapseOffset)}px`,
+          opacity:
+            menuCollapse.collapseOffset > 0
+              ? Math.max(0, 1 - (menuCollapse.collapseOffset / EMOTICON_MENU_HEIGHT) * 0.5)
+              : 1,
+          pointerEvents: menuCollapse.isCollapsed ? "none" : undefined,
+        }}
       >
-        {EMOTICON_MENUS.map((menu, index) => (
-          <MenuSegment
-            key={menu}
-            index={index}
-            isSelected={menu === activeMenu}
-            // WARN: § 8.14. The row's roving tab stop, so three menus are one stop rather than three between the panel and the composer. It follows the **focused** menu rather than the open one, because the arrows walk this bar without opening what they land on.
-            isFocusable={menu === focusableMenu}
-            isKeyboardDriven={isKeyboardDriven}
-            onClick={() => {
-              setFocusedMenu(menu);
-              selectMenu(menu);
-            }}
-          >
-            {MENU_LABELS[menu]}
-          </MenuSegment>
-        ))}
+        <div
+          ref={menuBarRef}
+          // INFO: § 13.6. `touch-none`, so a vertical pull that begins on a chip reaches the sheet's drag instead of being spent as a pan of nothing.
+          className={cn(
+            "mt-1.5 mb-0.5 flex w-fit shrink-0 touch-none items-center gap-2xs self-center rounded-full bg-surface-soft p-2xs",
+            menuCollapse.isSettling && "transition-transform duration-200 ease-out",
+          )}
+          role="toolbar"
+          aria-label="이모티콘 메뉴"
+          style={{
+            transform: `translateY(-${menuCollapse.collapseOffset}px)`,
+          }}
+          onKeyDown={handleMenuKeys}
+        >
+          {EMOTICON_MENUS.map((menu, index) => (
+            <MenuSegment
+              key={menu}
+              index={index}
+              isSelected={menu === activeMenu}
+              // WARN: § 8.14. The row's roving tab stop, so three menus are one stop rather than three between the panel and the composer. It follows the **focused** menu rather than the open one, because the arrows walk this bar without opening what they land on.
+              isFocusable={menu === focusableMenu}
+              isKeyboardDriven={isKeyboardDriven}
+              onClick={() => {
+                setFocusedMenu(menu);
+                selectMenu(menu);
+              }}
+            >
+              {MENU_LABELS[menu]}
+            </MenuSegment>
+          ))}
+        </div>
       </div>
       {isSearching ? (
         <SearchPane
@@ -1559,6 +1588,7 @@ export function EmoticonPicker({
 
   /** REQUIREMENTS.md § 8.14. Into the menu bar, which is the top of the panel and the end of the way up. */
   function focusActiveMenu() {
+    menuCollapse.expand();
     const bar = menuBarRef.current;
 
     if (bar) {
@@ -1928,6 +1958,8 @@ export function EmoticonPicker({
    * other menu's, since that fallback knows nothing about kinds.
    */
   function selectMenu(menu: EmoticonMenu) {
+    menuCollapse.expand();
+
     if (menu === activeMenu) {
       return;
     }
