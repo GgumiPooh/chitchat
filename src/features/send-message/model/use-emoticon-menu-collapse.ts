@@ -68,6 +68,24 @@ export function useEmoticonMenuCollapse({
   const expand = useCallback(() => settleTo(0), [settleTo]);
   const collapse = useCallback(() => settleTo(menuHeight), [settleTo, menuHeight]);
 
+  // INFO: Mark data-menu-collapsed on the scroller so useSheetDrag does not mistake pulling down to expand the menu for pulling down the sheet to close it.
+  useEffect(() => {
+    const scroller = scrollerRef.current;
+    if (!scroller) {
+      return;
+    }
+
+    if (isCollapsed) {
+      scroller.setAttribute("data-menu-collapsed", "true");
+    } else {
+      scroller.removeAttribute("data-menu-collapsed");
+    }
+
+    return () => {
+      scroller.removeAttribute("data-menu-collapsed");
+    };
+  }, [isCollapsed, scrollerRef]);
+
   useEffect(() => {
     return () => {
       if (settlingTimerRef.current) {
@@ -81,6 +99,43 @@ export function useEmoticonMenuCollapse({
     if (!scroller || !isOpen || isSearching) {
       return;
     }
+
+    let lastScrollTop = scroller.scrollTop;
+
+    const gestureRef = {
+      current: null as Nullable<{
+        axis: Nullable<"vertical" | "horizontal">;
+        lastTime: number;
+        lastY: number;
+        startOffset: number;
+        startScrollTop: number;
+        startX: number;
+        startY: number;
+        startedAt: number;
+      }>,
+    };
+
+    const handleScroll = () => {
+      const currentScrollTop = scroller.scrollTop;
+      const scrollDelta = currentScrollTop - lastScrollTop;
+
+      // INFO: When reaching the top, or scrolling back up meaningfully, expand the menu.
+      if (currentScrollTop <= 2) {
+        if (collapseOffsetRef.current > 0) {
+          settleTo(0);
+        }
+      } else if (scrollDelta < -15) {
+        if (collapseOffsetRef.current > 0) {
+          settleTo(0);
+        }
+      } else if (scrollDelta > 15 && currentScrollTop > 20) {
+        if (collapseOffsetRef.current < menuHeight) {
+          settleTo(menuHeight);
+        }
+      }
+
+      lastScrollTop = currentScrollTop;
+    };
 
     const handleTouchStart = (event: TouchEvent) => {
       if (event.touches.length !== 1) {
@@ -127,9 +182,9 @@ export function useEmoticonMenuCollapse({
         return;
       }
 
-      // Case 1: Currently expanded or in-progress collapse
-      if (gesture.startOffset < menuHeight) {
-        if (deltaY > 0) {
+      // Dragging up (deltaY > 0) -> collapse
+      if (deltaY > 0) {
+        if (gesture.startOffset < menuHeight) {
           if (deltaY <= menuHeight) {
             // WARN: Cancel native scroll while menu bar is absorbing the travel to avoid 2x speed jump.
             if (event.cancelable) {
@@ -144,19 +199,15 @@ export function useEmoticonMenuCollapse({
             setCollapseOffset(menuHeight);
             scroller.scrollTop = deltaY - (menuHeight - gesture.startOffset);
           }
-        } else {
-          collapseOffsetRef.current = 0;
-          setCollapseOffset(0);
         }
       }
-      // Case 2: Currently fully collapsed
-      else {
-        // Dragging down while at top of scroller pulls the menu back into view
-        if (gesture.startScrollTop <= 0 && deltaY < 0 && scroller.scrollTop <= 0) {
+      // Dragging down (deltaY < 0) -> expand
+      else if (deltaY < 0) {
+        if (collapseOffsetRef.current > 0 && scroller.scrollTop <= 20) {
           if (event.cancelable) {
             event.preventDefault();
           }
-          const next = Math.max(0, menuHeight + deltaY);
+          const next = Math.max(0, gesture.startOffset + deltaY);
           collapseOffsetRef.current = next;
           setCollapseOffset(next);
         }
@@ -189,30 +240,18 @@ export function useEmoticonMenuCollapse({
     };
 
     const handleWheel = (event: WheelEvent) => {
-      if (Math.abs(event.deltaY) < 10) {
+      if (Math.abs(event.deltaY) < 5) {
         return;
       }
 
       if (event.deltaY > 0 && collapseOffsetRef.current < menuHeight) {
         collapse();
-      } else if (event.deltaY < 0 && scroller.scrollTop <= 0 && collapseOffsetRef.current > 0) {
+      } else if (event.deltaY < 0 && collapseOffsetRef.current > 0) {
         expand();
       }
     };
 
-    const gestureRef = {
-      current: null as Nullable<{
-        axis: Nullable<"vertical" | "horizontal">;
-        lastTime: number;
-        lastY: number;
-        startOffset: number;
-        startScrollTop: number;
-        startX: number;
-        startY: number;
-        startedAt: number;
-      }>,
-    };
-
+    scroller.addEventListener("scroll", handleScroll, { passive: true });
     scroller.addEventListener("touchstart", handleTouchStart, { passive: true });
     scroller.addEventListener("touchmove", handleTouchMove, { passive: false });
     scroller.addEventListener("touchend", handleTouchEnd, { passive: true });
@@ -220,6 +259,7 @@ export function useEmoticonMenuCollapse({
     scroller.addEventListener("wheel", handleWheel, { passive: true });
 
     return () => {
+      scroller.removeEventListener("scroll", handleScroll);
       scroller.removeEventListener("touchstart", handleTouchStart);
       scroller.removeEventListener("touchmove", handleTouchMove);
       scroller.removeEventListener("touchend", handleTouchEnd);

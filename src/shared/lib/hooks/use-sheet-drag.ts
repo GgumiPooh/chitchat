@@ -194,7 +194,8 @@ export function useSheetDrag({
 
     const scroller = findVerticalScroller(event.target, sheet);
 
-    const takesPullDown = !scroller || scroller.scrollTop <= 0;
+    const takesPullDown =
+      !scroller || (scroller.scrollTop <= 0 && !scroller.hasAttribute("data-menu-collapsed"));
     const takesPullUp =
       !scroller ||
       (size !== "expanded" &&
