@@ -128,7 +128,7 @@ export function EmoticonTabPane({
     <div
       ref={targetScrollerRef}
       className={cn(
-        "scrollbar-hidden h-full min-h-0 flex-1 touch-pan-x touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain p-xs",
+        "scrollbar-hidden h-full min-h-0 flex-1 touch-pan-x touch-pan-y overflow-x-hidden overflow-y-auto overscroll-contain p-xs pb-[calc(var(--spacing-xs)+var(--bottom-inset))]",
         className,
       )}
       onKeyDown={onCellKeys}

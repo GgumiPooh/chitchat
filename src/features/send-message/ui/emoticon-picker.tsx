@@ -2178,7 +2178,7 @@ function SearchPane({
     <div
       ref={rowRef}
       className={cn(
-        "scrollbar-hidden flex min-h-0 flex-1 touch-pan-y flex-col gap-2xs overflow-x-hidden overflow-y-auto overscroll-contain p-xs",
+        "scrollbar-hidden flex min-h-0 flex-1 touch-pan-y flex-col gap-2xs overflow-x-hidden overflow-y-auto overscroll-contain p-xs pb-[calc(var(--spacing-xs)+var(--bottom-inset))]",
         className,
       )}
       onKeyDown={onCellKeys}

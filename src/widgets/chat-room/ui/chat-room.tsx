@@ -2453,7 +2453,7 @@ export function ChatRoom({
               {hasMountedEmoticonPanel && (
                 <div
                   className={cn(
-                    "pointer-events-auto flex h-(--emoticon-sheet-height) shrink-0 flex-col rounded-t-xl border-t border-hairline bg-canvas pb-(--bottom-inset) will-change-transform",
+                    "pointer-events-auto flex h-(--emoticon-sheet-height) shrink-0 flex-col rounded-t-xl border-t border-hairline bg-canvas will-change-transform",
                     emoticonSheetTransition,
                   )}
                   {...emoticonSheet.dragProps}

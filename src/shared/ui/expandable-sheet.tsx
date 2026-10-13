@@ -185,7 +185,12 @@ export function ExpandableSheet({
           )}
 
           {/* 스크롤 가능한 콘텐츠 영역 */}
-          <div className="-mx-md -mb-md flex min-h-0 flex-1 flex-col px-md">
+          <div
+            className={cn(
+              "-mx-md flex min-h-0 flex-1 flex-col px-md",
+              footer ? "-mb-md" : "-mb-[max(var(--spacing-md),env(safe-area-inset-bottom))]",
+            )}
+          >
             <div className="flex min-h-0 flex-1 flex-col">{children}</div>
             {footer && (
               <div className="shrink-0 pt-sm pb-[max(var(--spacing-md),env(safe-area-inset-bottom))]">

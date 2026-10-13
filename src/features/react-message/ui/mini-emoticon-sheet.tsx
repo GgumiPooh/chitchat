@@ -226,12 +226,9 @@ export function MiniEmoticonSheet({
   const content = (
     <div
       ref={scrollContainerRef}
-      className="relative scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain"
+      className="relative scrollbar-hidden min-h-0 flex-1 touch-pan-y overflow-y-auto overscroll-contain pb-[max(var(--spacing-md),env(safe-area-inset-bottom))]"
     >
-      <div
-        className="relative w-full pb-6"
-        style={{ height: `${rowVirtualizer.getTotalSize()}px` }}
-      >
+      <div className="relative w-full" style={{ height: `${rowVirtualizer.getTotalSize()}px` }}>
         {rowVirtualizer.getVirtualItems().map((virtualRow) => {
           const row = virtualRows[virtualRow.index];
 
