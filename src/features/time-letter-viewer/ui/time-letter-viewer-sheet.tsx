@@ -202,7 +202,7 @@ export function TimeLetterViewerSheet({
         }}
         onClose={onClose}
       >
-        <div className="space-y-md pt-xs pb-md">
+        <div className="space-y-md pt-xs">
           {/* Author preview banner (when sender previews an unsealed scheduled letter) */}
           {!isSent && (
             <div className="flex items-center gap-1.5 rounded-lg border border-hairline bg-surface-soft/70 px-sm py-1.5 text-caption text-meta">

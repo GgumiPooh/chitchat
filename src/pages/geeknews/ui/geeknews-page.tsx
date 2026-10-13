@@ -557,7 +557,7 @@ export function GeeknewsPage({ className, initialArticleId, initialArticles }: G
         onClose={() => setOpenedArticleId(null)}
       >
         {displayedSheetArticle && (
-          <div className="flex flex-col pb-md">
+          <div className="flex flex-col">
             <div className="flex flex-wrap items-center gap-xs text-caption text-meta">
               <span className="rounded-full bg-surface-soft px-2 py-0.5 font-medium text-meta">
                 {toDomain(displayedSheetArticle.sourceUrl ?? displayedSheetArticle.url)}

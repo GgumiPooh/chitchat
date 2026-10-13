@@ -532,7 +532,7 @@ export function TimeLetterComposeSheet({
         }}
         onClose={handleClose}
       >
-        <div className="space-y-lg pt-xs pb-xl">
+        <div className="space-y-lg pt-xs">
           {/* Draft restore banner (create mode only) */}
           {!isEditMode && pendingDraft && (
             <div

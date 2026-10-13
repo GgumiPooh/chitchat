@@ -2,7 +2,7 @@
 
 import type { MessageBookmark } from "@/entities/message";
 import type { Participant } from "@/entities/user";
-import type { MessageId } from "@/shared/lib";
+import { cn, type MessageId } from "@/shared/lib";
 import {
   Button,
   ExpandableSheet,
@@ -97,7 +97,9 @@ export function MessageBookmarkSheet({
         onClose={handleClose}
       >
         <MessageBookmarkList
-          className="pb-md"
+          className={cn(
+            isEditing ? "pb-md" : "pb-[max(var(--spacing-md),env(safe-area-inset-bottom))]",
+          )}
           bookmarks={bookmarks}
           participants={participants}
           isEditing={isEditing}
