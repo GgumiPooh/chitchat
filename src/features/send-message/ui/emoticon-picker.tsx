@@ -257,6 +257,8 @@ export type EmoticonPickerProps = {
   menuRequest?: Nullable<{ menu: EmoticonMenu; token: number }>;
   /** REQUIREMENTS.md § 13.8. The composer's current suggestion, used only to seed an otherwise empty manually opened search field. */
   suggestedSearchQuery?: string;
+  isSheetDragging?: boolean;
+  isSheetExpanded?: boolean;
   /** REQUIREMENTS.md § 13.8. Whether the search tab is the one on screen — the room exempts it from § 13.6.'s keyboard gate. */
   onSearchTabChange?: (isOnSearchTab: boolean, query: string) => void;
   onSelect: (emoticon: Emoticon) => void;
@@ -293,6 +295,8 @@ export function EmoticonPicker({
   revealRequest,
   menuRequest,
   suggestedSearchQuery = "",
+  isSheetDragging = false,
+  isSheetExpanded = false,
   onSearchTabChange,
   onSelect,
   onQuickSend,
@@ -634,6 +638,8 @@ export function EmoticonPicker({
     activeTab,
     isOpen,
     isSearching,
+    isSheetDragging,
+    isSheetExpanded,
     scrollerRef: cellScrollerRef,
   });
   const tabThumbnailUrls = menuPacks.flatMap((pack) =>

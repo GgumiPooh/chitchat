@@ -2483,6 +2483,8 @@ export function ChatRoom({
                     revealRequest={emoticonReveal}
                     menuRequest={menuRequest}
                     suggestedSearchQuery={suggestedEmoticonSearchQuery}
+                    isSheetDragging={emoticonSheet.isDragging}
+                    isSheetExpanded={emoticonSheet.size === "expanded"}
                     onSearchTabChange={reportEmoticonSearchTab}
                     onSearchFieldFocus={emoticonSheet.expand}
                     onSelect={stageEmoticon}
