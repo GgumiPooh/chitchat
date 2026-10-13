@@ -869,7 +869,7 @@ export function EmoticonPicker({
       {/* WARN: The two margins are deliberately unequal. What sits under the track is not the panel's edge but the strip's own `py-2xs`, so an even `m-2xs` reads as 4px above against 8px below; 6 and 2 are what put the same 6px of air on both sides. Their sum is unchanged, which is why `--emoticon-menu-height` is. */}
       <div
         className={cn(
-          "flex w-full shrink-0 justify-center overflow-hidden",
+          "flex w-full shrink-0 justify-center overflow-hidden will-change-[height,opacity]",
           menuCollapse.isSettling && "transition-[height,opacity] duration-200 ease-out",
         )}
         aria-hidden={menuCollapse.isCollapsed}
@@ -877,7 +877,7 @@ export function EmoticonPicker({
           height: `${Math.max(0, EMOTICON_MENU_HEIGHT - menuCollapse.collapseOffset)}px`,
           opacity:
             menuCollapse.collapseOffset > 0
-              ? Math.max(0, 1 - (menuCollapse.collapseOffset / EMOTICON_MENU_HEIGHT) * 0.5)
+              ? Math.max(0, 1 - menuCollapse.collapseOffset / EMOTICON_MENU_HEIGHT)
               : 1,
           pointerEvents: menuCollapse.isCollapsed ? "none" : undefined,
         }}
@@ -886,7 +886,7 @@ export function EmoticonPicker({
           ref={menuBarRef}
           // INFO: § 13.6. `touch-none`, so a vertical pull that begins on a chip reaches the sheet's drag instead of being spent as a pan of nothing.
           className={cn(
-            "mt-1.5 mb-0.5 flex w-fit shrink-0 touch-none items-center gap-2xs self-center rounded-full bg-surface-soft p-2xs",
+            "mt-1.5 mb-0.5 flex w-fit shrink-0 touch-none items-center gap-2xs self-center rounded-full bg-surface-soft p-2xs will-change-transform",
             menuCollapse.isSettling && "transition-transform duration-200 ease-out",
           )}
           role="toolbar"

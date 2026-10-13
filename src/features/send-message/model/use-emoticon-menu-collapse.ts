@@ -46,17 +46,41 @@ export function useEmoticonMenuCollapse({
   const [isSettling, setIsSettling] = useState(false);
 
   // INFO: When closed, searching, or expanded to full screen, always show the header without flickering.
-  const effectiveOffset = !isOpen || isSearching || isSheetExpanded ? 0 : collapseOffset;
+  const isBypassed = !isOpen || isSearching || isSheetExpanded;
+  const effectiveOffset = isBypassed ? 0 : collapseOffset;
   const isCollapsed = effectiveOffset >= menuHeight * 0.5;
 
+  const [prevBypassed, setPrevBypassed] = useState(isBypassed);
+  if (isBypassed !== prevBypassed) {
+    setPrevBypassed(isBypassed);
+    if (isBypassed) {
+      setCollapseOffset(0);
+    }
+  }
+
   const collapseOffsetRef = useRef(0);
+  const isDraggingRef = useRef(false);
+  const hasScrolledAwayFromTopRef = useRef(false);
+  const rafIdRef = useRef<Nullable<number>>(null);
   const settlingTimerRef = useRef<Nullable<ReturnType<typeof setTimeout>>>(null);
 
   useEffect(() => {
     collapseOffsetRef.current = effectiveOffset;
-  }, [effectiveOffset]);
+    if (isBypassed) {
+      hasScrolledAwayFromTopRef.current = false;
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
+    }
+  }, [effectiveOffset, isBypassed]);
 
   const settleTo = useCallback((target: number) => {
+    if (rafIdRef.current) {
+      cancelAnimationFrame(rafIdRef.current);
+      rafIdRef.current = null;
+    }
+    collapseOffsetRef.current = target;
     setIsSettling(true);
     setCollapseOffset(target);
 
@@ -69,8 +93,14 @@ export function useEmoticonMenuCollapse({
     }, SETTLING_DURATION_MS);
   }, []);
 
-  const expand = useCallback(() => settleTo(0), [settleTo]);
-  const collapse = useCallback(() => settleTo(menuHeight), [settleTo, menuHeight]);
+  const expand = useCallback(() => {
+    hasScrolledAwayFromTopRef.current = false;
+    settleTo(0);
+  }, [settleTo]);
+
+  const collapse = useCallback(() => {
+    settleTo(menuHeight);
+  }, [settleTo, menuHeight]);
 
   // INFO: Mark data-menu-collapsed on the scroller so useSheetDrag does not mistake pulling down to expand the menu for pulling down the sheet to close it.
   useEffect(() => {
@@ -95,6 +125,9 @@ export function useEmoticonMenuCollapse({
       if (settlingTimerRef.current) {
         clearTimeout(settlingTimerRef.current);
       }
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
     };
   }, []);
 
@@ -117,17 +150,33 @@ export function useEmoticonMenuCollapse({
       }>,
     };
 
+    const scheduleOffsetUpdate = (offset: number) => {
+      collapseOffsetRef.current = offset;
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+      }
+      rafIdRef.current = requestAnimationFrame(() => {
+        setCollapseOffset(offset);
+        rafIdRef.current = null;
+      });
+    };
+
     const handleScroll = () => {
-      if (isSheetDragging) {
+      if (isSheetDragging || isDraggingRef.current) {
         return;
       }
 
       const currentScrollTop = scroller.scrollTop;
 
+      if (currentScrollTop > 20) {
+        hasScrolledAwayFromTopRef.current = true;
+      }
+
       // INFO: Hysteresis threshold to eliminate any flicker:
-      // Re-expand when reaching top (<= 2px)
+      // Re-expand when user scrolled into content and returned to top (<= 2px)
       if (currentScrollTop <= 2) {
-        if (collapseOffsetRef.current > 0) {
+        if (hasScrolledAwayFromTopRef.current && collapseOffsetRef.current > 0) {
+          hasScrolledAwayFromTopRef.current = false;
           settleTo(0);
         }
       }
@@ -146,6 +195,7 @@ export function useEmoticonMenuCollapse({
 
       const touch = event.touches[0];
       setIsSettling(false);
+      isDraggingRef.current = true;
 
       gestureRef.current = {
         axis: null,
@@ -203,13 +253,16 @@ export function useEmoticonMenuCollapse({
               event.preventDefault();
             }
             const next = Math.min(menuHeight, gesture.startOffset + deltaY);
-            collapseOffsetRef.current = next;
-            setCollapseOffset(next);
-            scroller.scrollTop = 0;
+            scheduleOffsetUpdate(next);
           } else {
-            collapseOffsetRef.current = menuHeight;
-            setCollapseOffset(menuHeight);
+            if (event.cancelable) {
+              event.preventDefault();
+            }
+            scheduleOffsetUpdate(menuHeight);
             scroller.scrollTop = deltaY - (menuHeight - gesture.startOffset);
+            if (scroller.scrollTop > 20) {
+              hasScrolledAwayFromTopRef.current = true;
+            }
           }
         }
       }
@@ -220,13 +273,14 @@ export function useEmoticonMenuCollapse({
             event.preventDefault();
           }
           const next = Math.max(0, gesture.startOffset + deltaY);
-          collapseOffsetRef.current = next;
-          setCollapseOffset(next);
+          scheduleOffsetUpdate(next);
         }
       }
     };
 
     const handleTouchEnd = () => {
+      isDraggingRef.current = false;
+
       if (isSheetDragging) {
         return;
       }
@@ -275,6 +329,11 @@ export function useEmoticonMenuCollapse({
     scroller.addEventListener("wheel", handleWheel, { passive: true });
 
     return () => {
+      isDraggingRef.current = false;
+      if (rafIdRef.current) {
+        cancelAnimationFrame(rafIdRef.current);
+        rafIdRef.current = null;
+      }
       scroller.removeEventListener("scroll", handleScroll);
       scroller.removeEventListener("touchstart", handleTouchStart);
       scroller.removeEventListener("touchmove", handleTouchMove);
