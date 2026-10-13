@@ -362,8 +362,8 @@
   --chat-bottom-gap: 0px;
   /* INFO: REQUIREMENTS.md § 13.6. The 검색 / 이모티콘 / 미니 menu bar, which every menu draws above its own second region. */
   /* WARN: The whole region and **not** the track drawn in it — the 24 segment, the track's own padding, and the margins above and below it. Written to the track alone the panel is short by that last term and the grid below is clipped by exactly as much. */
-  /* INFO: The margins are 6 and 2 rather than 4 and 4 (see the track in `emoticon-picker.tsx`), which is why they are one `xs` here rather than two more `2xs`. */
-  --emoticon-menu-height: calc(24px + var(--spacing-2xs) * 2 + var(--spacing-xs));
+  /* INFO: The margins are 2 and 2 rather than 6 and 2 to balance handle and menu bar gaps. */
+  --emoticon-menu-height: calc(24px + var(--spacing-2xs) * 3);
   /* INFO: REQUIREMENTS.md § 13.6. The emoticon panel's own height, shared so the chat room can animate the strip open against the same value the panel is drawn at. */
   /* WARN: The cap is `px` and never `rem`. A reader's enlarged default font size scales `rem` but not `--viewport-height`, so a `rem` cap wins the `min()` on exactly the devices that can least afford it and the panel overruns the shell. */
   /* WARN: § 13.6. The menu bar is added **outside** the `min()` on purpose. The cap is what the strip and the grid were measured at, and the third region charged to it cost the cells a full row on a 393px screen — three rows of a 4-column grid fit in what was left before it, two after. */
@@ -372,8 +372,8 @@
     min(364px, calc(var(--chat-screen-height) * 0.5)) + var(--emoticon-menu-height)
   );
   /* INFO: REQUIREMENTS.md § 13.6. The sheet's grab handle row, added outside the height above for the menu bar's reason — it was not measured with it. */
-  /* INFO: DESIGN.md § 7.5. 28 rather than the 20 it was drawn at: the row is the drag target, and with the hit box the button extends past it this is what reaches a ~40px target under a thumb. */
-  --emoticon-sheet-handle-height: 28px;
+  /* INFO: DESIGN.md § 7.5. 20px handle row with 40px+ touch hit box expanded past it via pseudo-element. */
+  --emoticon-sheet-handle-height: 20px;
   --emoticon-search-field: 44px;
   /* INFO: REQUIREMENTS.md § 13.6. The staged preview at its tallest — the § 13.6. clamp needs the box's height before the emoticon that fills it is known. */
   --emoticon-preview-height: calc(96px + var(--spacing-2xs) * 2 + 2px);

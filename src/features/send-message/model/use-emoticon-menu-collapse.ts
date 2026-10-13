@@ -3,8 +3,8 @@
 import type { Nullable } from "@/shared/lib";
 import { useCallback, useEffect, useRef, useState, type RefObject } from "react";
 
-// INFO: Height of the menu bar region including vertical margins (6px mt + 24px segment + 8px py + 2px mb = 40px), matching --emoticon-menu-height in theme.css.
-export const EMOTICON_MENU_HEIGHT = 40;
+// INFO: Height of the menu bar region including vertical margins (2px mt + 24px segment + 8px py + 2px mb = 36px), matching --emoticon-menu-height in theme.css.
+export const EMOTICON_MENU_HEIGHT = 36;
 
 const SNAP_THRESHOLD = 0.5;
 const FLICK_VELOCITY = 0.3; // px per ms for fast fling snap

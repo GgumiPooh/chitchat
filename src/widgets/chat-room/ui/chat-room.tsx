@@ -2462,8 +2462,8 @@ export function ChatRoom({
                   <button
                     className={cn(
                       "relative flex h-(--emoticon-sheet-handle-height) w-full shrink-0 cursor-grab touch-none items-center justify-center focus-visible:outline-none active:cursor-grabbing hover:[&>span]:bg-primary focus-visible:[&>span]:bg-primary",
-                      // INFO: DESIGN.md § 7.5. The hit box past the row: 8px up into the composer's own bottom padding, which takes no pointer, and 4px down into the menu bar's top margin.
-                      "before:absolute before:inset-x-0 before:-top-2 before:-bottom-1 before:content-['']",
+                      // INFO: DESIGN.md § 7.5. The hit box past the row: 12px up into the composer's own bottom padding, which takes no pointer, and 8px down into the menu bar's top margin (~40px under a thumb).
+                      "before:absolute before:inset-x-0 before:-top-3 before:-bottom-2 before:content-['']",
                     )}
                     type="button"
                     aria-expanded={emoticonSheet.size === "expanded"}
