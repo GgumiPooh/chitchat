@@ -3663,6 +3663,7 @@ export function ChatRoom({
           <SystemNotice
             currentUserId={currentUserId}
             isBookmarked={bookmarkedIds.has(row.message.id)}
+            isHighlighted={row.message.id === highlightedId}
             isSelecting={aiSelection.isSelecting}
             message={row.message}
             reactions={row.message.reactions ?? []}
@@ -3672,6 +3673,7 @@ export function ChatRoom({
             onLongPress={(anchor, point) => openMessageMenu(row.message, anchor, point)}
             onOpenEvent={onOpenEvent}
             onOpenTimeLetter={onOpenTimeLetter}
+            onReply={() => stageReply(row.message)}
             onToggleReaction={(reaction) => void handleReaction(row.message.id, reaction)}
           />
         );

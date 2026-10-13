@@ -1,7 +1,7 @@
 import type { ChatMessage, MessageReaction } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import type { ReactionPayload } from "@/features/react-message";
-import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE } from "@/shared/config";
+import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE, MESSAGE_FLASH_DURATION } from "@/shared/config";
 import {
   cn,
   composeEventNotice,
@@ -11,6 +11,7 @@ import {
   type UserId,
 } from "@/shared/lib";
 import { Link } from "@/shared/ui";
+import type { CSSProperties } from "react";
 import { EventNoticeCard } from "./event-notice-card";
 import { TimeLetterArrivalNoticeCard } from "./time-letter-arrival-notice-card";
 import { VocaCompletionNoticeCard } from "./voca-completion-notice-card";
@@ -22,14 +23,20 @@ export type SystemNoticeProps = {
   currentUserId?: UserId;
   isSelecting?: boolean;
   isBookmarked?: boolean;
+  isHighlighted?: boolean;
   unreadCount?: number;
   readerTotal?: number;
   reactions?: MessageReaction[];
+  onReply?: () => void;
   onToggleReaction?: (reaction: ReactionPayload) => void;
   /** REQUIREMENTS.md § 11.5. Opens the event in place; only a notice still carrying an `eventId` can, the rest link to the day. */
   onOpenEvent?: (message: ChatMessage) => void;
   onOpenTimeLetter?: (letterId: string) => void;
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
+};
+
+const FLASH_STYLE: CSSProperties = {
+  animationDuration: `${MESSAGE_FLASH_DURATION}ms`,
 };
 
 // INFO: DESIGN.md § 6.5. System message notice rows rendered as rich cards in chat timeline.
@@ -40,9 +47,11 @@ export function SystemNotice({
   currentUserId,
   isSelecting = false,
   isBookmarked = false,
+  isHighlighted = false,
   unreadCount = 0,
   readerTotal = 0,
   reactions,
+  onReply,
   onToggleReaction,
   onOpenEvent,
   onOpenTimeLetter,
@@ -58,6 +67,7 @@ export function SystemNotice({
         className={className}
         currentUserId={currentUserId}
         isBookmarked={isBookmarked}
+        isHighlighted={isHighlighted}
         isMine={isMine}
         isSelecting={isSelecting}
         message={message}
@@ -66,6 +76,7 @@ export function SystemNotice({
         senderName={actor}
         unreadCount={unreadCount}
         onLongPress={onLongPress}
+        onReply={onReply}
         onToggleReaction={onToggleReaction}
       />
     );
@@ -87,6 +98,7 @@ export function SystemNotice({
         className={className}
         currentUserId={currentUserId}
         isBookmarked={isBookmarked}
+        isHighlighted={isHighlighted}
         isMine={Boolean(currentUserId && message.senderId === currentUserId)}
         isSelecting={isSelecting}
         message={message}
@@ -94,8 +106,9 @@ export function SystemNotice({
         readerTotal={readerTotal}
         senderName={actor}
         unreadCount={unreadCount}
-        onOpen={letterId && onOpenTimeLetter ? () => onOpenTimeLetter(letterId) : undefined}
         onLongPress={onLongPress}
+        onOpen={letterId && onOpenTimeLetter ? () => onOpenTimeLetter(letterId) : undefined}
+        onReply={onReply}
         onToggleReaction={onToggleReaction}
       />
     );
@@ -107,6 +120,7 @@ export function SystemNotice({
         className={className}
         currentUserId={currentUserId}
         isBookmarked={isBookmarked}
+        isHighlighted={isHighlighted}
         isMine={Boolean(currentUserId && message.senderId === currentUserId)}
         isSelecting={isSelecting}
         message={message}
@@ -115,8 +129,9 @@ export function SystemNotice({
         sender={sender}
         senderName={actor}
         unreadCount={unreadCount}
-        onOpenEvent={onOpenEvent}
         onLongPress={onLongPress}
+        onOpenEvent={onOpenEvent}
+        onReply={onReply}
         onToggleReaction={onToggleReaction}
       />
     );
@@ -134,7 +149,10 @@ export function SystemNotice({
   );
 
   return (
-    <div className={cn("flex justify-center px-md py-sm", className)}>
+    <div
+      className={cn("flex justify-center px-md py-sm", isHighlighted && "message-flash", className)}
+      style={isHighlighted ? FLASH_STYLE : undefined}
+    >
       {message.eventId && onOpenEvent ? (
         <button
           className={cn("cursor-pointer", pillClassName)}

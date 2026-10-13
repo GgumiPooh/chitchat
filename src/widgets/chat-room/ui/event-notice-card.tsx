@@ -3,7 +3,7 @@
 import type { ChatMessage, MessageReaction } from "@/entities/message";
 import type { Participant } from "@/entities/user";
 import { ReactionBadges, type ReactionPayload } from "@/features/react-message";
-import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE } from "@/shared/config";
+import { CALENDAR_DAY_PARAM, CALENDAR_ROUTE, MESSAGE_FLASH_DURATION } from "@/shared/config";
 import type { SystemAction } from "@/shared/db";
 import {
   cn,
@@ -18,7 +18,7 @@ import {
   type Optional,
   type UserId,
 } from "@/shared/lib";
-import { HapticTarget, Link } from "@/shared/ui";
+import { HapticTarget, IconButton, Link } from "@/shared/ui";
 import {
   Bell,
   Bookmark,
@@ -28,10 +28,12 @@ import {
   CalendarPlus,
   CalendarX,
   ChevronRight,
+  CornerUpRight,
   Heart,
 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import type { MouseEvent } from "react";
+import type { CSSProperties, MouseEvent } from "react";
+import { useSwipeToReply } from "../model/use-swipe-to-reply";
 
 export type EventNoticeCardProps = {
   className?: string;
@@ -43,12 +45,18 @@ export type EventNoticeCardProps = {
   isMine?: boolean;
   isSelecting?: boolean;
   isBookmarked?: boolean;
+  isHighlighted?: boolean;
   unreadCount?: number;
   readerTotal?: number;
   reactions?: MessageReaction[];
+  onReply?: () => void;
   onToggleReaction?: (reaction: ReactionPayload) => void;
   onOpenEvent?: (message: ChatMessage) => void;
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
+};
+
+const FLASH_STYLE: CSSProperties = {
+  animationDuration: `${MESSAGE_FLASH_DURATION}ms`,
 };
 
 function toCalendarHref(message: ChatMessage): string {
@@ -109,9 +117,11 @@ export function EventNoticeCard({
   isMine = false,
   isSelecting = false,
   isBookmarked = false,
+  isHighlighted = false,
   unreadCount = 0,
   readerTotal = 0,
   reactions = [],
+  onReply,
   onToggleReaction,
   onOpenEvent,
   onLongPress,
@@ -130,8 +140,11 @@ export function EventNoticeCard({
     actorName.endsWith("님") && actorName.length > 1 ? actorName.slice(0, -1) : actorName;
   const senderTitle = "캘린더 알리미";
 
+  const swipe = useSwipeToReply(isSelecting ? undefined : onReply, false);
+
   const longPressHandlers = useLongPress(
     !isSelecting && onLongPress ? (point, element) => onLongPress(element, point) : undefined,
+    { onFire: swipe.cancel },
   );
 
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
@@ -170,7 +183,14 @@ export function EventNoticeCard({
   const BadgeIcon = badge.Icon;
 
   return (
-    <div className={cn("group/row flex items-start gap-xs px-md pt-sm", className)}>
+    <div
+      className={cn(
+        "group/row flex items-start gap-xs px-md pt-sm",
+        isHighlighted && "message-flash",
+        className,
+      )}
+      style={isHighlighted ? FLASH_STYLE : undefined}
+    >
       {/* 1. Calendar Bot Avatar */}
       <HapticTarget keepsScroll>
         <button
@@ -193,8 +213,14 @@ export function EventNoticeCard({
         className={cn(
           "relative flex flex-col gap-2xs transition-[max-width] duration-(--duration-state) ease-out motion-reduce:transition-none",
           isSelecting ? "max-w-[calc(100%-84px)]" : "max-w-[calc(100%-44px)]",
+          onReply && "touch-pan-y",
+          !swipe.isDragging && "transition-transform duration-200",
         )}
+        style={{ transform: `translateX(${swipe.offset}px)` }}
+        {...swipe.handlers}
       >
+        {renderPullIndicator()}
+
         {/* Sender Name */}
         <span className="px-2xs text-chat-name text-chat-sender [[data-wallpaper]_&]:on-wallpaper">
           {senderTitle}
@@ -257,7 +283,7 @@ export function EventNoticeCard({
           </Link>
 
           {/* Time beside bubble */}
-          <div className="flex shrink-0 flex-col items-start pb-0.5 text-chat-time whitespace-nowrap text-chat-meta select-none [[data-wallpaper]_&]:on-wallpaper">
+          <div className="relative flex w-[68px] shrink-0 flex-col items-start pb-0.5 text-chat-time whitespace-nowrap text-chat-meta select-none [[data-wallpaper]_&]:on-wallpaper">
             {(unreadCount > 0 || isBookmarked) && (
               <span className="flex h-[1lh] items-center gap-1">
                 {unreadCount > 0 &&
@@ -284,7 +310,15 @@ export function EventNoticeCard({
                 )}
               </span>
             )}
-            <time dateTime={message.createdAt}>{timeString}</time>
+            <div
+              className={cn(
+                "flex flex-col items-start transition-opacity",
+                onReply && "group-focus-within/row:opacity-0 group-hover/row:opacity-0",
+              )}
+            >
+              <time dateTime={message.createdAt}>{timeString}</time>
+            </div>
+            {renderHoverActions()}
           </div>
         </div>
 
@@ -299,4 +333,45 @@ export function EventNoticeCard({
       </div>
     </div>
   );
+
+  function renderPullIndicator() {
+    if (!onReply || swipe.offset === 0) {
+      return null;
+    }
+
+    return (
+      <span
+        className={cn(
+          "pointer-events-none absolute top-1/2 right-full mr-2xs flex size-8 -translate-y-1/2 items-center justify-center rounded-full transition-colors",
+          swipe.isArmed ? "bg-primary text-on-primary" : "bg-surface-soft text-meta",
+        )}
+        aria-hidden
+      >
+        <CornerUpRight className="size-4" strokeWidth={1.75} />
+      </span>
+    );
+  }
+
+  function renderHoverActions() {
+    if (!onReply) {
+      return null;
+    }
+
+    return (
+      <div
+        className={cn(
+          "absolute inset-x-0 bottom-0 flex items-center gap-0.5 rounded-full border border-hairline bg-surface-soft px-1 py-0.5 shadow-raised",
+          "pointer-events-none opacity-0 transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
+        )}
+      >
+        <IconButton
+          className="size-7"
+          iconClassName="size-4"
+          Icon={CornerUpRight}
+          aria-label="답장"
+          onClick={onReply}
+        />
+      </div>
+    );
+  }
 }
