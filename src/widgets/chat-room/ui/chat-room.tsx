@@ -479,6 +479,8 @@ export function ChatRoom({
   const [hasMountedEmoticonPanel, setHasMountedEmoticonPanel] = useState(false);
   // INFO: REQUIREMENTS.md § 13.6. Staged rather than sent on selection, so it can be sent with a line of text the way an attachment can.
   const [stagedEmoticon, setStagedEmoticon] = useState<Nullable<Emoticon>>(null);
+  const stagedEmoticonRef = useRef<Nullable<Emoticon>>(null);
+  stagedEmoticonRef.current = stagedEmoticon;
   // INFO: REQUIREMENTS.md § 13.8. A word tapped in the composer, handed to the picker's search tab.
   const [emoticonSearch, setEmoticonSearch] =
     useState<Nullable<{ query: string; token: number }>>(null);
@@ -536,7 +538,9 @@ export function ChatRoom({
     // WARN: § 13.8. Leaving 검색 ends the search, exactly as closing the panel does — unless the field still holds something the reader typed, which a walk to another tab and back should find undisturbed regardless of which tap opened it.
     if (!isOnSearchTab && query.trim() === "") {
       setEmoticonSearch(null);
-      searchedWordRef.current = null;
+      if (!stagedEmoticonRef.current) {
+        searchedWordRef.current = null;
+      }
     }
   }, []);
   // INFO: § 13.8. Bumped when a send should take the searched word out of the field; the composer owns the draft and decides whether it still holds only that word.
@@ -2394,6 +2398,8 @@ export function ChatRoom({
                     onRemove={() => {
                       stopSound();
                       setStagedEmoticon(null);
+                      stagedEmoticonRef.current = null;
+                      searchedWordRef.current = null;
                     }}
                     onFollow={() => followEmoticon(stagedEmoticon)}
                   />
@@ -2719,6 +2725,7 @@ export function ChatRoom({
     stopSound();
     selection.clear();
     setStagedEmoticon(emoticon);
+    stagedEmoticonRef.current = emoticon;
     clearTimeout(collapseTimerRef.current);
 
     if (emoticonSheet.size === "expanded") {
@@ -2787,6 +2794,7 @@ export function ChatRoom({
     void goLiveForSend();
     stopSound();
     setStagedEmoticon(null);
+    stagedEmoticonRef.current = null;
     const { sounded } = deliverStagedEmoticon(emoticon, replyTarget, notifyMode);
 
     if (!sounded) {
@@ -2806,6 +2814,8 @@ export function ChatRoom({
   async function stageMedia(files: File[]) {
     stopSound();
     setStagedEmoticon(null);
+    stagedEmoticonRef.current = null;
+    searchedWordRef.current = null;
     await selection.add(files);
   }
 
@@ -2893,6 +2903,7 @@ export function ChatRoom({
 
       hasSounded = sounded || hasSounded;
       setStagedEmoticon(null);
+      stagedEmoticonRef.current = null;
       hasSent = true;
     }
 
@@ -2954,6 +2965,8 @@ export function ChatRoom({
       }
       hasSounded = sounded;
       setStagedEmoticon(null);
+      stagedEmoticonRef.current = null;
+      searchedWordRef.current = null;
     }
 
     // INFO: REQUIREMENTS.md § 8.15. `isAiAttachment = true` tells the server to stamp `expires_at` so the bytes are cleaned up after one day instead of being kept indefinitely.
@@ -3132,7 +3145,11 @@ export function ChatRoom({
     setIsEmoticonSearchExempt(false);
     setIsEmoticonSearchTab(false);
 
-    if (isFinePointer || !isEmoticonPanelOpen) {
+    if (!isEmoticonPanelOpen) {
+      return;
+    }
+
+    if (isFinePointer) {
       closeEmoticonPanel();
 
       return;
@@ -3146,7 +3163,9 @@ export function ChatRoom({
     setSheetSwap(null);
     setIsEmoticonPickerOpen(false);
     setEmoticonSearch(null);
-    searchedWordRef.current = null;
+    if (!stagedEmoticonRef.current) {
+      searchedWordRef.current = null;
+    }
     setEmoticonReveal(null);
   }
 
@@ -3300,6 +3319,8 @@ export function ChatRoom({
 
     if (stagedEmoticon) {
       setStagedEmoticon(null);
+      stagedEmoticonRef.current = null;
+      searchedWordRef.current = null;
       focusComposer();
 
       return;
