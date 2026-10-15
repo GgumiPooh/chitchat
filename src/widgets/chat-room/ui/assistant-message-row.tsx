@@ -212,26 +212,28 @@ export function AssistantMessageRow({
           </div>
           {/* WARN: DESIGN.md § 6.3. `relative`, and always rendered — the § 8.10./§ 8.11. pill overlays this exact box (`renderHoverActions`) in place of the timestamp on hover, rather than sitting beside it. */}
           <div className="relative flex w-[68px] shrink-0 flex-col items-start text-chat-time whitespace-nowrap text-chat-meta [[data-wallpaper]_&]:on-wallpaper">
-            {/* INFO: REQUIREMENTS.md § 8.19. `MessageRow`'s own marker line — an AI answer carries no unread count or § 16.1. mark to share it with. */}
-            {isBookmarked && (
-              <span className="flex h-[1lh] items-center" role="img" aria-label="책갈피">
-                <Bookmark className="size-3 fill-current" />
-              </span>
-            )}
-            {/* INFO: REQUIREMENTS.md § 16.1. `MessageRow`'s own shared line — the `BellOff` mark outermost, the mark's own aria-label carrying the meaning a bare glyph cannot. An assistant row is always `theirs`-shaped, so the order is `MessageRow`'s reversed one: the mark follows the time rather than leading it. */}
-            <span
+            <div
               className={cn(
-                "flex h-[1lh] flex-row-reverse items-center gap-0.5 transition-opacity",
+                "flex flex-col items-start transition-opacity",
                 (followUp || share) && "group-focus-within/row:opacity-0 group-hover/row:opacity-0",
               )}
             >
-              {message.silent && (
-                <span className="flex items-center" role="img" aria-label="조용히 보낸 메시지">
-                  <BellOff className="size-2.5" />
+              {/* INFO: REQUIREMENTS.md § 8.19. `MessageRow`'s own marker line — an AI answer carries no unread count or § 16.1. mark to share it with. */}
+              {isBookmarked && (
+                <span className="flex h-[1lh] items-center" role="img" aria-label="책갈피">
+                  <Bookmark className="size-3 fill-current" />
                 </span>
               )}
-              <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
-            </span>
+              {/* INFO: REQUIREMENTS.md § 16.1. `MessageRow`'s own shared line — the `BellOff` mark outermost, the mark's own aria-label carrying the meaning a bare glyph cannot. An assistant row is always `theirs`-shaped, so the order is `MessageRow`'s reversed one: the mark follows the time rather than leading it. */}
+              <span className="flex h-[1lh] flex-row-reverse items-center gap-0.5">
+                {message.silent && (
+                  <span className="flex items-center" role="img" aria-label="조용히 보낸 메시지">
+                    <BellOff className="size-2.5" />
+                  </span>
+                )}
+                <time dateTime={message.createdAt}>{formatTime(message.createdAt)}</time>
+              </span>
+            </div>
             {renderHoverActions()}
           </div>
         </div>
@@ -270,8 +272,8 @@ export function AssistantMessageRow({
    * @see MessageRow's own `renderHoverActions` (AGENTS.md § 4.2.) — the pointer
    * half of the gestures above.
    *
-   * WARN: DESIGN.md § 6.3. Fills the same `w-[68px]` box the timestamp renders in
-   * (`inset-x-0 bottom-0`) rather than sitting beside or past it, and is `absolute`
+   * WARN: DESIGN.md § 6.3. Overlays the same `w-[68px]` box the timestamp renders in
+   * (`left-0 bottom-0`) rather than sitting beside or past it, and is `absolute`
    * so a one-line answer whose slot is shorter than the pill lets it overflow
    * **upward** instead of adding flow height.
    */
@@ -283,7 +285,9 @@ export function AssistantMessageRow({
     return (
       <div
         className={cn(
-          "absolute inset-x-0 bottom-0 flex items-center gap-0.5 rounded-full border border-hairline bg-surface-soft px-1 py-0.5 shadow-raised",
+          "absolute bottom-0 left-0 flex w-fit items-center gap-0.5 rounded-full border border-hairline bg-surface-soft px-1 py-0.5 shadow-raised",
+          // WARN: DESIGN.md § 6.3. `w-fit left-0` on the bubble's own edge of the 68px slot, never `inset-x-0` — a row with followUp alone would otherwise stretch the pill across the slot and hang half of it empty.
+          // INFO: `hover:` already resolves under `@media (hover: hover)`, so a touch device never reveals these and never has to.
           "pointer-events-none opacity-0 transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
         )}
       >

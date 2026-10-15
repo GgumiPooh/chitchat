@@ -17,7 +17,16 @@ import {
 } from "@/shared/lib";
 import { HapticTarget, IconButton, Link, toast } from "@/shared/ui";
 import { josa } from "es-hangul";
-import { Bookmark, ChevronRight, CornerUpRight, Heart, Lock, Mail, Sparkles } from "lucide-react";
+import {
+  Bookmark,
+  ChevronRight,
+  CornerUpLeft,
+  CornerUpRight,
+  Heart,
+  Lock,
+  Mail,
+  Sparkles,
+} from "lucide-react";
 import { useRouter } from "next/navigation";
 import type { CSSProperties, MouseEvent } from "react";
 import { useSwipeToReply } from "../model/use-swipe-to-reply";
@@ -291,38 +300,38 @@ export function TimeLetterArrivalNoticeCard({
 
           {/* Time beside bubble */}
           <div className="relative flex w-[68px] shrink-0 flex-col items-start pb-0.5 text-chat-time whitespace-nowrap text-chat-meta select-none [[data-wallpaper]_&]:on-wallpaper">
-            {(unreadCount > 0 || isBookmarked) && (
-              <span className="flex h-[1lh] items-center gap-1">
-                {unreadCount > 0 &&
-                  (readerTotal === 1 ? (
-                    <span
-                      className="flex items-center text-unread"
-                      role="img"
-                      aria-label="읽지 않음"
-                    >
-                      <Heart className="size-2.5 fill-current" strokeWidth={0} />
-                    </span>
-                  ) : (
-                    <span
-                      className="text-unread tabular-nums"
-                      aria-label={`읽지 않음 ${unreadCount}`}
-                    >
-                      {unreadCount}
-                    </span>
-                  ))}
-                {isBookmarked && (
-                  <span className="flex items-center" role="img" aria-label="책갈피">
-                    <Bookmark className="size-3 fill-current" />
-                  </span>
-                )}
-              </span>
-            )}
             <div
               className={cn(
                 "flex flex-col items-start transition-opacity",
                 onReply && "group-focus-within/row:opacity-0 group-hover/row:opacity-0",
               )}
             >
+              {(unreadCount > 0 || isBookmarked) && (
+                <span className="flex h-[1lh] items-center gap-1">
+                  {unreadCount > 0 &&
+                    (readerTotal === 1 ? (
+                      <span
+                        className="flex items-center text-unread"
+                        role="img"
+                        aria-label="읽지 않음"
+                      >
+                        <Heart className="size-2.5 fill-current" strokeWidth={0} />
+                      </span>
+                    ) : (
+                      <span
+                        className="text-unread tabular-nums"
+                        aria-label={`읽지 않음 ${unreadCount}`}
+                      >
+                        {unreadCount}
+                      </span>
+                    ))}
+                  {isBookmarked && (
+                    <span className="flex items-center" role="img" aria-label="책갈피">
+                      <Bookmark className="size-3 fill-current" />
+                    </span>
+                  )}
+                </span>
+              )}
               <time dateTime={message.createdAt}>{timeString}</time>
             </div>
             {renderHoverActions()}
@@ -367,14 +376,16 @@ export function TimeLetterArrivalNoticeCard({
     return (
       <div
         className={cn(
-          "absolute inset-x-0 bottom-0 flex items-center gap-0.5 rounded-full border border-hairline bg-surface-soft px-1 py-0.5 shadow-raised",
+          "absolute bottom-0 left-0 flex w-fit items-center gap-0.5 rounded-full border border-hairline bg-surface-soft px-1 py-0.5 shadow-raised",
+          // WARN: DESIGN.md § 6.3. `w-fit left-0` on the bubble's own edge of the 68px slot, never `inset-x-0` — a row with 답장 alone would otherwise stretch the pill across the slot and hang half of it empty.
+          // INFO: `hover:` already resolves under `@media (hover: hover)`, so a touch device never reveals these and never has to.
           "pointer-events-none opacity-0 transition-opacity group-hover/row:pointer-events-auto group-hover/row:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100",
         )}
       >
         <IconButton
           className="size-7"
           iconClassName="size-4"
-          Icon={CornerUpRight}
+          Icon={CornerUpLeft}
           aria-label="답장"
           onClick={onReply}
         />
