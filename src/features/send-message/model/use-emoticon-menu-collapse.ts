@@ -13,7 +13,6 @@ const SETTLING_DURATION_MS = 220;
 export type UseEmoticonMenuCollapseOptions = {
   activeTab?: string;
   isOpen?: boolean;
-  isSearching?: boolean;
   isSheetDragging?: boolean;
   isSheetExpanded?: boolean;
   menuHeight?: number;
@@ -36,7 +35,6 @@ export type EmoticonMenuCollapse = {
 export function useEmoticonMenuCollapse({
   activeTab,
   isOpen = true,
-  isSearching = false,
   isSheetDragging = false,
   isSheetExpanded = false,
   menuHeight = EMOTICON_MENU_HEIGHT,
@@ -45,8 +43,8 @@ export function useEmoticonMenuCollapse({
   const [collapseOffset, setCollapseOffset] = useState(0);
   const [isSettling, setIsSettling] = useState(false);
 
-  // INFO: When closed, searching, or expanded to full screen, always show the header without flickering.
-  const isBypassed = !isOpen || isSearching || isSheetExpanded;
+  // INFO: When closed or expanded to full screen, always show the header without flickering.
+  const isBypassed = !isOpen || isSheetExpanded;
   const effectiveOffset = isBypassed ? 0 : collapseOffset;
   const isCollapsed = effectiveOffset >= menuHeight * 0.5;
 
@@ -54,6 +52,14 @@ export function useEmoticonMenuCollapse({
   if (isBypassed !== prevBypassed) {
     setPrevBypassed(isBypassed);
     if (isBypassed) {
+      setCollapseOffset(0);
+    }
+  }
+
+  const [prevTab, setPrevTab] = useState(activeTab);
+  if (activeTab !== prevTab) {
+    setPrevTab(activeTab);
+    if (collapseOffset !== 0) {
       setCollapseOffset(0);
     }
   }
@@ -133,7 +139,7 @@ export function useEmoticonMenuCollapse({
 
   useEffect(() => {
     const scroller = scrollerRef.current;
-    if (!scroller || !isOpen || isSearching || isSheetExpanded) {
+    if (!scroller || !isOpen || isSheetExpanded) {
       return;
     }
 
@@ -346,7 +352,6 @@ export function useEmoticonMenuCollapse({
     collapse,
     expand,
     isOpen,
-    isSearching,
     isSheetDragging,
     isSheetExpanded,
     menuHeight,
