@@ -76,7 +76,14 @@ export function MessageText({
     // INFO: § 13. A deleted item keeps its stored box, so the replacement occupies exactly what the picture did; an id the page never sized takes the square `toInlineEmoticonBox` falls back to.
     // WARN: An unsized id is not a withdrawn one, and only this caller knows which it is — the tombstone's default copy would tell a screen reader an item was deleted when it may be perfectly alive.
     return (
-      <span className="inline-block align-bottom" style={{ height: "1lh", aspectRatio: box.ratio }}>
+      <span
+        className="inline-block align-bottom"
+        style={{
+          width: `calc(1lh * ${box.ratio})`,
+          height: "1lh",
+          aspectRatio: box.ratio,
+        }}
+      >
         <InlineEmoticonTombstone label={info?.isDeleted ? undefined : "이모티콘"} />
       </span>
     );

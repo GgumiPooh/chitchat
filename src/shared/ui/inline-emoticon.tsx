@@ -132,7 +132,12 @@ export function InlineEmoticon({
     <span
       ref={ref}
       className={cn("inline-block align-bottom", className)}
-      style={{ height: "1lh", aspectRatio: `${width} / ${height}` }}
+      // WARN: WebKit cannot transfer `height: 1lh` across `aspect-ratio` during intrinsic inline sizing before layout, falling back to the <img>'s natural width and blowing out the bubble. Explicit `width` keeps the inline-block shrink-wrapped.
+      style={{
+        width: height > 0 ? `calc(1lh * ${width} / ${height})` : "1lh",
+        height: "1lh",
+        aspectRatio: `${width} / ${height}`,
+      }}
     >
       {isTappable ? (
         <button
