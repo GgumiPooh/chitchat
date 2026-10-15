@@ -2215,7 +2215,7 @@ function SearchPane({
 
   return (
     <div className={cn("flex min-h-0 flex-1 flex-col", className)}>
-      <div className="shrink-0 px-xs pt-xs pb-xs">
+      <div className="shrink-0 px-xs pt-xs">
         <div className="relative shrink-0 touch-pan-y">
           {/* WARN: The icon is inset by the field's own padding rather than sat against its edge — the pill's radius is half its height, so a glyph at `2xs` is inside the curve rather than beside the text. */}
           {isPending ? (
@@ -2249,7 +2249,7 @@ function SearchPane({
       </div>
       <div
         ref={rowRef}
-        className="scrollbar-hidden flex min-h-0 flex-1 touch-pan-y flex-col gap-2xs overflow-x-hidden overflow-y-auto overscroll-contain px-xs pb-[calc(var(--spacing-xs)+var(--bottom-inset))]"
+        className="scrollbar-hidden flex min-h-0 flex-1 touch-pan-y flex-col gap-2xs overflow-x-hidden overflow-y-auto overscroll-contain px-xs pt-xs pb-[calc(var(--spacing-xs)+var(--bottom-inset))]"
         onKeyDown={onCellKeys}
         onFocus={onCellFocus}
       >
