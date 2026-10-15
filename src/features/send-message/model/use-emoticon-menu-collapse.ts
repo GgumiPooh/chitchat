@@ -9,6 +9,8 @@ export const EMOTICON_MENU_HEIGHT = 36;
 const SNAP_THRESHOLD = 0.5;
 const FLICK_VELOCITY = 0.3; // px per ms for fast fling snap
 const SETTLING_DURATION_MS = 220;
+const COLLAPSE_SCROLL_THRESHOLD = 8;
+const EXPAND_SCROLL_THRESHOLD = 2;
 
 export type UseEmoticonMenuCollapseOptions = {
   activeTab?: string;
@@ -174,20 +176,20 @@ export function useEmoticonMenuCollapse({
 
       const currentScrollTop = scroller.scrollTop;
 
-      if (currentScrollTop > 20) {
+      if (currentScrollTop > COLLAPSE_SCROLL_THRESHOLD) {
         hasScrolledAwayFromTopRef.current = true;
       }
 
       // INFO: Hysteresis threshold to eliminate any flicker:
-      // Re-expand when user scrolled into content and returned to top (<= 2px)
-      if (currentScrollTop <= 2) {
+      // Re-expand when user scrolled into content and returned to top (<= EXPAND_SCROLL_THRESHOLD)
+      if (currentScrollTop <= EXPAND_SCROLL_THRESHOLD) {
         if (hasScrolledAwayFromTopRef.current && collapseOffsetRef.current > 0) {
           hasScrolledAwayFromTopRef.current = false;
           settleTo(0);
         }
       }
-      // Collapse when scrolling down past top (> 30px)
-      else if (currentScrollTop > 30) {
+      // Collapse when scrolling down past top (> COLLAPSE_SCROLL_THRESHOLD)
+      else if (currentScrollTop > COLLAPSE_SCROLL_THRESHOLD) {
         if (collapseOffsetRef.current === 0) {
           settleTo(menuHeight);
         }
@@ -266,7 +268,7 @@ export function useEmoticonMenuCollapse({
             }
             scheduleOffsetUpdate(menuHeight);
             scroller.scrollTop = deltaY - (menuHeight - gesture.startOffset);
-            if (scroller.scrollTop > 20) {
+            if (scroller.scrollTop > COLLAPSE_SCROLL_THRESHOLD) {
               hasScrolledAwayFromTopRef.current = true;
             }
           }
@@ -322,7 +324,11 @@ export function useEmoticonMenuCollapse({
 
       if (event.deltaY > 0 && collapseOffsetRef.current < menuHeight && scroller.scrollTop <= 20) {
         collapse();
-      } else if (event.deltaY < 0 && collapseOffsetRef.current > 0 && scroller.scrollTop <= 2) {
+      } else if (
+        event.deltaY < 0 &&
+        collapseOffsetRef.current > 0 &&
+        scroller.scrollTop <= EXPAND_SCROLL_THRESHOLD
+      ) {
         expand();
       }
     };
