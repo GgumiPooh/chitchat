@@ -85,6 +85,7 @@ export {
   type UserEmoticonPref,
   type UserEmoticonUsage,
   type VocaCardRow,
+  type VocaRecommendationSession,
   type VocaReviewRow,
   type VocaUserSettingsRow,
 } from "./schema";

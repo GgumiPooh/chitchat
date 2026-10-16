@@ -80,6 +80,7 @@ export {
   type NewVocaReviewRow,
   type NewVocaUserSettingsRow,
   type VocaCardRow,
+  type VocaRecommendationSession,
   type VocaReviewRow,
   type VocaUserSettingsRow,
 } from "./voca";

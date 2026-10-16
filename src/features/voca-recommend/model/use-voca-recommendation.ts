@@ -1,25 +1,44 @@
 "use client";
 
+import type { Nullable, Optional } from "@/shared/lib";
 import { josa } from "es-hangul";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { toast } from "sonner";
-import type {
-  VocaRecommendGrade,
-  VocaRecommendItem,
-  VocaRecommendTag,
-  VocaWordGenerationStatus,
+import {
+  isVocaRecommendTag,
+  type VocaRecommendGrade,
+  type VocaRecommendItem,
+  type VocaRecommendParams,
+  type VocaRecommendResponse,
+  type VocaRecommendTag,
+  type VocaWordGenerationStatus,
 } from "./types";
 
 export type UseVocaRecommendationOptions = {
-  initialGrade?: VocaRecommendGrade;
-  initialTag?: VocaRecommendTag;
+  initialGrade?: Optional<VocaRecommendGrade>;
+  initialTag?: Optional<VocaRecommendTag>;
   isOpen: boolean;
-  onCardCreated?: () => void;
+  onCardCreated?: Optional<() => void>;
 };
+
+function mergeAddedWords(
+  prev: Record<string, VocaWordGenerationStatus>,
+  addedWords: string[],
+): Record<string, VocaWordGenerationStatus> {
+  const next = { ...prev };
+  for (const word of addedWords) {
+    const key = word.toLowerCase();
+    if (next[key] !== "loading") {
+      next[key] = "added";
+    }
+  }
+  return next;
+}
 
 export function useVocaRecommendation({
   initialGrade = "core",
   initialTag = "전체",
+  isOpen,
   onCardCreated,
 }: UseVocaRecommendationOptions) {
   const [tag, setTag] = useState<VocaRecommendTag>(initialTag);
@@ -34,15 +53,134 @@ export function useVocaRecommendation({
   >({});
   const [hasCreatedAny, setHasCreatedAny] = useState(false);
 
-  // Tracks what parameters were used in the last successful fetch
-  const [lastFetchedParams, setLastFetchedParams] = useState<{
-    customTopic: string;
-    grade: VocaRecommendGrade;
-    tag: VocaRecommendTag;
-  } | null>(null);
+  const [lastFetchedParams, setLastFetchedParams] = useState<Nullable<VocaRecommendParams>>(null);
+
+  // Hydrate saved recommendation state from the server when sheet opens
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+
+    let isMounted = true;
+
+    async function hydrate() {
+      try {
+        const res = await fetch("/api/voca/recommend");
+        if (!res.ok || !isMounted) {
+          return;
+        }
+
+        const data: VocaRecommendResponse = await res.json();
+        if (!isMounted) {
+          return;
+        }
+
+        if (data.addedWords && data.addedWords.length > 0) {
+          setGenerationStatuses((prev) => mergeAddedWords(prev, data.addedWords));
+        }
+
+        if (data.state) {
+          const restoredTag = isVocaRecommendTag(data.state.tag) ? data.state.tag : "전체";
+          const restoredGrade = data.state.grade;
+          const restoredTopic = data.state.customTopic ?? "";
+
+          setTag(restoredTag);
+          setGrade(restoredGrade);
+          setCustomTopic(restoredTopic);
+          setIsCustomInputOpen(Boolean(restoredTopic));
+
+          if (data.state.status === "completed") {
+            setItems(data.state.items ?? []);
+            setLastFetchedParams({
+              customTopic: restoredTopic,
+              grade: restoredGrade,
+              tag: restoredTag,
+            });
+            setIsLoading(false);
+          } else if (data.state.status === "pending") {
+            setIsLoading(true);
+            setLastFetchedParams({
+              customTopic: restoredTopic,
+              grade: restoredGrade,
+              tag: restoredTag,
+            });
+          } else if (data.state.status === "failed") {
+            setIsLoading(false);
+          }
+        }
+      } catch (error) {
+        console.error("[useVocaRecommendation] Hydration failed:", error);
+      }
+    }
+
+    void hydrate();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [isOpen]);
+
+  // Polling interval while recommendation is generating on the server and sheet is open
+  useEffect(() => {
+    if (!isOpen || !isLoading) {
+      return;
+    }
+
+    let isMounted = true;
+    let isPolling = false;
+
+    const poll = async () => {
+      if (isPolling) {
+        return;
+      }
+      isPolling = true;
+      try {
+        const res = await fetch("/api/voca/recommend");
+        if (!res.ok || !isMounted) {
+          return;
+        }
+
+        const data: VocaRecommendResponse = await res.json();
+        if (!isMounted) {
+          return;
+        }
+
+        if (data.state?.status === "completed") {
+          const restoredTag = isVocaRecommendTag(data.state.tag) ? data.state.tag : "전체";
+          setItems(data.state.items ?? []);
+          setLastFetchedParams({
+            customTopic: data.state.customTopic ?? "",
+            grade: data.state.grade,
+            tag: restoredTag,
+          });
+          if (data.addedWords && data.addedWords.length > 0) {
+            setGenerationStatuses((prev) => mergeAddedWords(prev, data.addedWords));
+          }
+          setIsLoading(false);
+        } else if (data.state?.status === "failed") {
+          setIsLoading(false);
+          toast.error("추천 단어 목록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
+        }
+      } catch (error) {
+        console.error("[useVocaRecommendation] Polling failed:", error);
+      } finally {
+        isPolling = false;
+      }
+    };
+
+    const timer = setInterval(() => {
+      void poll();
+    }, 1500);
+
+    return () => {
+      isMounted = false;
+      clearInterval(timer);
+    };
+  }, [isOpen, isLoading]);
 
   const fetchRecommendations = useCallback(async () => {
     setIsLoading(true);
+    setItems([]);
     try {
       const res = await fetch("/api/voca/recommend", {
         body: JSON.stringify({
@@ -59,8 +197,6 @@ export function useVocaRecommendation({
         throw new Error(`Failed to fetch recommendations: ${res.status}`);
       }
 
-      const data = await res.json();
-      setItems(data.items ?? []);
       setLastFetchedParams({
         customTopic: customTopic.trim(),
         grade,
@@ -68,9 +204,8 @@ export function useVocaRecommendation({
       });
     } catch (error) {
       console.error("[useVocaRecommendation] Fetch failed:", error);
-      toast.error("추천 단어 목록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
-    } finally {
       setIsLoading(false);
+      toast.error("추천 단어 목록을 불러오지 못했어요. 잠시 후 다시 시도해주세요.");
     }
   }, [tag, grade, customTopic]);
 

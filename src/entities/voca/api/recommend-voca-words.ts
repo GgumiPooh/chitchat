@@ -1,7 +1,13 @@
 import "server-only";
 
-import { getDb, llmAgents, vocaCards } from "@/shared/db";
-import type { UserId } from "@/shared/lib";
+import {
+  getDb,
+  llmAgents,
+  vocaCards,
+  vocaUserSettings,
+  type VocaRecommendationSession,
+} from "@/shared/db";
+import type { Nullable, UserId } from "@/shared/lib";
 import { GoogleGenAI } from "@google/genai";
 import { and, desc, eq, isNull, or, sql } from "drizzle-orm";
 
@@ -188,4 +194,50 @@ export async function recommendVocaWords({
   }
 
   return uniqueItems;
+}
+
+export type VocaRecommendationSnapshot = {
+  state: Nullable<VocaRecommendationSession>;
+  addedWords: string[];
+};
+
+export async function getVocaRecommendationState(
+  userId: UserId,
+): Promise<VocaRecommendationSnapshot> {
+  const db = getDb();
+  const [row] = await db
+    .select({ recommendationState: vocaUserSettings.recommendationState })
+    .from(vocaUserSettings)
+    .where(eq(vocaUserSettings.userId, userId));
+
+  const state = row?.recommendationState ?? null;
+  if (!state || state.items.length === 0) {
+    return { state, addedWords: [] };
+  }
+
+  const existingCards = await db
+    .select({ targetWord: vocaCards.targetWord })
+    .from(vocaCards)
+    .where(and(eq(vocaCards.userId, userId), isNull(vocaCards.deletedAt)));
+
+  const existingSet = new Set(existingCards.map((c) => c.targetWord.trim().toLowerCase()));
+  const addedWords = state.items
+    .map((item) => item.targetWord.trim().toLowerCase())
+    .filter((word) => existingSet.has(word));
+
+  return { state, addedWords };
+}
+
+export async function saveVocaRecommendationState(
+  userId: UserId,
+  state: VocaRecommendationSession,
+): Promise<void> {
+  const db = getDb();
+  await db
+    .insert(vocaUserSettings)
+    .values({ userId, recommendationState: state })
+    .onConflictDoUpdate({
+      target: vocaUserSettings.userId,
+      set: { recommendationState: state },
+    });
 }

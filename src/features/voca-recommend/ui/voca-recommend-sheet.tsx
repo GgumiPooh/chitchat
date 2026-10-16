@@ -84,6 +84,14 @@ export function VocaRecommendSheet({
         <div className="space-y-2">
           {isLoading ? (
             <div className="space-y-2 pt-1">
+              <div className="rounded-2xl border border-hairline bg-primary-tint/40 px-4 py-3 text-center">
+                <p className="text-body-sm font-medium text-ink">
+                  AI가 맞춤 단어를 엄선하고 있어요
+                </p>
+                <p className="mt-0.5 text-caption text-meta">
+                  창을 닫거나 다른 페이지로 이동해도 완료되면 푸시 알림으로 알려드려요.
+                </p>
+              </div>
               {[1, 2, 3, 4].map((idx) => (
                 <div
                   key={idx}

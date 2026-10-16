@@ -3,6 +3,7 @@ import {
   boolean,
   index,
   integer,
+  jsonb,
   pgTable,
   real,
   text,
@@ -12,6 +13,19 @@ import {
 import { snowflake } from "../types";
 import { media } from "./media";
 import { users } from "./users";
+
+export type VocaRecommendationSession = {
+  status: "idle" | "pending" | "completed" | "failed";
+  tag: string;
+  grade: "essential" | "core" | "killer";
+  customTopic?: string;
+  updatedAt: string;
+  items: Array<{
+    targetWord: string;
+    pos: string;
+    koreanMeaning: string;
+  }>;
+};
 
 export const vocaUserSettings = pgTable("voca_user_settings", {
   userId: snowflake<UserId>("user_id")
@@ -24,6 +38,7 @@ export const vocaUserSettings = pgTable("voca_user_settings", {
   autoplayAudio: boolean("autoplay_audio").notNull().default(true),
   desiredRetention: real("desired_retention").notNull().default(0.9),
   todayExtraNewCards: integer("today_extra_new_cards").notNull().default(0),
+  recommendationState: jsonb("recommendation_state").$type<VocaRecommendationSession>(),
 });
 
 export const vocaCards = pgTable(

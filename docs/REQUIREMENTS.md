@@ -2421,7 +2421,9 @@ _(None)_
 
 ## 17.8. AI Vocabulary Recommendation (AI 맞춤 단어 추천)
 
-- **Stateless Architecture**: Built as a 100% stateless API (`POST /api/voca/recommend`), supporting horizontal scale-out with zero shared cache locks or database churn.
+- **Non-Blocking Background Execution & DB Persistence**: `POST /api/voca/recommend` immediately records a `pending` state in `voca_user_settings.recommendation_state` (`jsonb`) and delegates Gemini candidate generation and deduplication to Next.js `after()`, returning `202 Accepted`.
+- **Cross-Device & Cross-Page Sharing**: `GET /api/voca/recommend` hydrates the user's latest recommendation session (`tag`, `grade`, `customTopic`, `status`, `items`) from `voca_user_settings.recommendation_state` and cross-checks `voca_cards` to return `addedWords`, keeping recommended words and `[✓ 추가됨]` states synchronized across `/playground/voca`, `/playground/voca/cards`, and all user devices.
+- **Completion Web Push & Deep-Link**: Upon background recommendation completion (or failure), sends a Web Push notification via `pushToUser` with deep-link URL `/playground/voca?action=recommend` (`VOCA_ACTION_RECOMMEND`), which automatically opens `VocaRecommendSheet` on entry to display the results.
 - **Categorization & Frequency Grades**: Supports category tags (`전체`, `토익`, `수능`, `공무원`, `비즈니스`, `일상 회화`, `IT/개발`, custom topic) and 3 frequency/difficulty grades (`essential`, `core`, `killer`).
 - **Guaranteed Deduplication**: Pre-generates 12~~15 candidate words via Gemini Flash and deterministically prunes duplicates against the user's active `voca_cards` table via indexed lookup (`voca_cards_user_target_word_idx`), returning 6~~8 clean, net-new words.
 - **Real-time Spinner & Progress Feedback**: Per-word `[생성하기]` button switches to an animated circular spinner (`RotateCw`) during synthesis, updating synchronously to `[✓ 추가됨]` upon card and audio creation.

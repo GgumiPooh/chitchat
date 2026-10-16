@@ -156,6 +156,7 @@ export const TIME_LETTER_ACTION_NEW = "new";
 /** REQUIREMENTS.md § 17.5. Deep-link action to automatically open the AI word input dialog. */
 export const VOCA_ACTION_PARAM = "action";
 export const VOCA_ACTION_ADD = "add-word";
+export const VOCA_ACTION_RECOMMEND = "recommend";
 
 export const SETTINGS_ROUTE = "/settings";
 

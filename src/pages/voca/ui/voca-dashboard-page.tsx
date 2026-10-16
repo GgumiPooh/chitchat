@@ -31,6 +31,7 @@ export type VocaDashboardPageProps = {
   initialDueSummary: VocaDueSummary;
   initialHeatmap: VocaHeatmapDay[];
   initialOpenAiDialog?: boolean;
+  initialOpenRecommendSheet?: boolean;
   initialSettings: VocaUserSettings;
   totalCardsCount?: number;
 };
@@ -40,22 +41,23 @@ export function VocaDashboardPage({
   initialDueSummary,
   initialHeatmap,
   initialOpenAiDialog = false,
+  initialOpenRecommendSheet = false,
   totalCardsCount = 0,
 }: VocaDashboardPageProps) {
   const router = useRouter();
   const [isAiDialogOpen, setIsAiDialogOpen] = useState(initialOpenAiDialog);
-  const [isRecommendOpen, setIsRecommendOpen] = useState(false);
+  const [isRecommendOpen, setIsRecommendOpen] = useState(initialOpenRecommendSheet);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   useEffect(() => {
-    if (initialOpenAiDialog && typeof window !== "undefined") {
+    if ((initialOpenAiDialog || initialOpenRecommendSheet) && typeof window !== "undefined") {
       const url = new URL(window.location.href);
       if (url.searchParams.has(VOCA_ACTION_PARAM)) {
         url.searchParams.delete(VOCA_ACTION_PARAM);
         window.history.replaceState(null, "", `${url.pathname}${url.search}`);
       }
     }
-  }, [initialOpenAiDialog]);
+  }, [initialOpenAiDialog, initialOpenRecommendSheet]);
 
   const dueSummary = initialDueSummary;
   const heatmap = initialHeatmap;

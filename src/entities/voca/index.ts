@@ -19,9 +19,12 @@ export {
   type ListVocaCardsResult,
 } from "./api/list-cards";
 export {
+  getVocaRecommendationState,
   recommendVocaWords,
+  saveVocaRecommendationState,
   type RecommendVocaOptions,
   type RecommendedVocaItem,
+  type VocaRecommendationSnapshot,
 } from "./api/recommend-voca-words";
 export { revertVocaReview as revertReview, revertVocaReview } from "./api/revert-review";
 export {

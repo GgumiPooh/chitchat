@@ -1,7 +1,12 @@
 import { getDueCards, getVocaHeatmap, getVocaUserSettings } from "@/entities/voca";
 import { VocaDashboardPage } from "@/pages/voca";
 import { requireUserOrRedirect } from "@/shared/auth";
-import { VOCA_ACTION_ADD, VOCA_ACTION_PARAM, VOCA_REMINDER_COOKIE_NAME } from "@/shared/config";
+import {
+  VOCA_ACTION_ADD,
+  VOCA_ACTION_PARAM,
+  VOCA_ACTION_RECOMMEND,
+  VOCA_REMINDER_COOKIE_NAME,
+} from "@/shared/config";
 import { getDb, vocaCards } from "@/shared/db";
 import type { Maybe } from "@/shared/lib";
 import { and, count, eq, isNull } from "drizzle-orm";
@@ -33,12 +38,14 @@ export default async function Page({ searchParams }: PageProps) {
       : settings;
 
   const initialOpenAiDialog = params[VOCA_ACTION_PARAM] === VOCA_ACTION_ADD;
+  const initialOpenRecommendSheet = params[VOCA_ACTION_PARAM] === VOCA_ACTION_RECOMMEND;
 
   return (
     <VocaDashboardPage
       initialDueSummary={summary}
       initialHeatmap={heatmap}
       initialOpenAiDialog={initialOpenAiDialog}
+      initialOpenRecommendSheet={initialOpenRecommendSheet}
       initialSettings={effectiveSettings}
       totalCardsCount={Number(totalCardsRow?.count ?? 0)}
     />
