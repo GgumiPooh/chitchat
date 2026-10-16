@@ -244,19 +244,40 @@ function loadVideoFrame(src: string): Promise<HTMLVideoElement> {
 
     video.muted = true;
     video.playsInline = true;
-    video.preload = "metadata";
+    video.preload = "auto";
     video.onerror = () => fail(new Error("video decode failed"));
 
     video.onloadedmetadata = () => {
       video.currentTime = toPosterTime(video.duration);
       void video.play().catch(() => undefined);
-      video.requestVideoFrameCallback?.(() => succeed());
-    };
 
-    // INFO: Only reached where `requestVideoFrameCallback` is absent — it resolves first everywhere else, and `isSettled` is what keeps the loser from re-entering.
-    video.onseeked = () => succeed();
-    // WARN: Seeking to the position the video already holds produces no `seeked` at all. Playback is running by then, so the first frame decoded arrives here instead.
-    video.ontimeupdate = () => succeed();
+      if ("requestVideoFrameCallback" in HTMLVideoElement.prototype) {
+        const waitForFrame = () => {
+          video.requestVideoFrameCallback(() => {
+            if (video.seeking || video.readyState < HTMLMediaElement.HAVE_CURRENT_DATA) {
+              waitForFrame();
+              return;
+            }
+
+            succeed();
+          });
+        };
+
+        waitForFrame();
+        return;
+      }
+
+      const trySucceed = () => {
+        if (!video.seeking && video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) {
+          succeed();
+        }
+      };
+
+      video.onseeked = trySucceed;
+      // WARN: Seeking to the position the video already holds produces no `seeked` at all. Playback is running by then, so the first frame decoded arrives here instead.
+      video.ontimeupdate = trySucceed;
+      video.onloadeddata = trySucceed;
+    };
 
     video.src = src;
 
