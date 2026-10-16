@@ -3,6 +3,7 @@ import {
   BlobSource,
   BufferTarget,
   Conversion,
+  EncodedAudioPacketSource,
   Input,
   MP4,
   Mp4OutputFormat,
@@ -10,7 +11,7 @@ import {
   QTFF,
   WEBM,
 } from "mediabunny";
-import type { TrimRange } from "./trim-video";
+import { pumpAacPackets, type TrimRange } from "./trim-video";
 
 const EXTRACTED_MIME = "audio/mp4";
 
@@ -29,15 +30,17 @@ const INPUT_FORMATS = [MP4, QTFF, WEBM];
  * WARN: Run against the **source**, not against `trimVideo`'s output — that one
  * discards the audio track outright, and for a reason it states.
  *
- * WARN: No `audio` codec is named, so `mediabunny` copies the encoded samples
- * wherever the source is already AAC. Naming one would re-encode every clip through
- * an `AudioEncoder` half the point of this is avoiding.
+ * WARN: `codec: "aac"` keeps `mediabunny` on the packet-copy fast path at `start === 0`
+ * while stopping a `start > 0` transcode from falling back to `pcm-s16` (`ipcm`) or
+ * `opus`. Where the engine has no AAC `AudioEncoder`, `pumpAacPackets` copies the
+ * source's AAC packets across `[start, end)` directly.
  */
 export async function extractVideoAudio(file: File, range: TrimRange): Promise<Nullable<File>> {
   try {
     const input = new Input({ source: new BlobSource(file), formats: INPUT_FORMATS });
+    const audioTrack = await input.getPrimaryAudioTrack();
 
-    if (!(await input.getPrimaryAudioTrack())) {
+    if (!audioTrack) {
       return null;
     }
 
@@ -46,18 +49,35 @@ export async function extractVideoAudio(file: File, range: TrimRange): Promise<N
       input,
       output,
       video: { discard: true },
+      audio: { codec: "aac" },
       trim: { start: range.start, end: range.end },
     });
 
-    if (!conversion.isValid) {
+    if (conversion.isValid) {
+      await conversion.execute();
+
+      const buffer = output.target.buffer;
+
+      return buffer ? new File([buffer], toAudioName(file.name), { type: EXTRACTED_MIME }) : null;
+    }
+
+    if ((await audioTrack.getCodec()) !== "aac") {
       return null;
     }
 
-    await conversion.execute();
+    const packetOutput = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
+    const audioSource = new EncodedAudioPacketSource("aac");
 
-    const buffer = output.target.buffer;
+    packetOutput.addAudioTrack(audioSource);
+    await packetOutput.start();
+    await pumpAacPackets(audioTrack, audioSource, range);
+    await packetOutput.finalize();
 
-    return buffer ? new File([buffer], toAudioName(file.name), { type: EXTRACTED_MIME }) : null;
+    const packetBuffer = packetOutput.target.buffer;
+
+    return packetBuffer
+      ? new File([packetBuffer], toAudioName(file.name), { type: EXTRACTED_MIME })
+      : null;
   } catch {
     return null;
   }

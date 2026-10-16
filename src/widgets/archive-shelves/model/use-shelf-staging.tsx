@@ -191,6 +191,7 @@ export function useShelfStaging({
       <VideoTrimmer
         key={source.id}
         draft={source}
+        keepsAudio
         onCancel={editing.close}
         onDone={(file) => void editing.applyTrim(source, file)}
       />

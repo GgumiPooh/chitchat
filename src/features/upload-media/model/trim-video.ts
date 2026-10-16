@@ -3,12 +3,15 @@ import {
   BlobSource,
   BufferTarget,
   Conversion,
+  EncodedAudioPacketSource,
+  EncodedPacketSink,
   Input,
   MP4,
   Mp4OutputFormat,
   Output,
   QTFF,
   WEBM,
+  type InputAudioTrack,
 } from "mediabunny";
 
 // INFO: REQUIREMENTS.md § 12.1. The trimmer always writes MP4, whatever the source container was — it is the one thing every browser the app runs in can play back.
@@ -52,9 +55,9 @@ export type TrimRange = {
  * interfaces landed in Safari 26, so keeping the track unconditionally would raise
  * the app's floor by ten major versions to ship silence.
  *
- * INFO: § 13.4.1. passes `keepsAudio`, because its next screen plays this output
- * aloud — and it falls back to a silent trim rather than failing, since a browser
- * that cannot carry the track is exactly the one the paragraph above describes.
+ * INFO: § 9. and § 13.4.1. pass `keepsAudio`, because an attachment and an emoticon
+ * are played aloud — and it falls back to a silent trim rather than failing, since a
+ * browser that cannot carry the track is exactly the one the paragraph above describes.
  */
 export async function trimVideo(
   file: File,
@@ -83,9 +86,11 @@ export async function trimVideo(
  * INFO: Answers `null` for a conversion this browser cannot perform, which is what
  * lets `keepsAudio` retry without the track rather than report the clip unusable.
  *
- * WARN: No `audio` codec is named where the track is kept, so `mediabunny` copies the
- * encoded samples wherever the source is already AAC — `extractVideoAudio` avoids an
- * `AudioEncoder` the same way.
+ * WARN: Naming `codec: "aac"` keeps `mediabunny` on the packet-copy fast path at
+ * `start === 0` while stopping a `start > 0` transcode from falling back to `pcm-s16`
+ * (`ipcm`) or `opus`, which WebKit's MP4 player does not play. Where the engine has no
+ * AAC `AudioEncoder` (Safari < 26, Linux Chromium), `mediabunny` discards the track and
+ * `copyWithAacPackets` muxes the source's AAC packets across `[start, end)` directly.
  */
 async function convert(
   file: File,
@@ -96,9 +101,13 @@ async function convert(
   const conversion = await Conversion.init({
     input: new Input({ source: new BlobSource(file), formats: INPUT_FORMATS }),
     output,
-    ...(discardsAudio ? { audio: { discard: true } } : {}),
+    audio: discardsAudio ? { discard: true } : { codec: "aac" },
     trim: { start: range.start, end: range.end },
   });
+
+  if (!discardsAudio && conversion.discardedTracks.some((item) => item.track.isAudioTrack())) {
+    return copyWithAacPackets(file, range);
+  }
 
   if (!conversion.isValid) {
     return null;
@@ -113,6 +122,69 @@ async function convert(
   }
 
   return new File([buffer], toTrimmedName(file.name), { type: TRIMMED_MIME });
+}
+
+async function copyWithAacPackets(file: File, range: TrimRange): Promise<Nullable<File>> {
+  const input = new Input({ source: new BlobSource(file), formats: INPUT_FORMATS });
+  const audioTrack = await input.getPrimaryAudioTrack();
+
+  if (!audioTrack || (await audioTrack.getCodec()) !== "aac") {
+    return null;
+  }
+
+  const output = new Output({ format: new Mp4OutputFormat(), target: new BufferTarget() });
+  const conversion = await Conversion.init({
+    input,
+    output,
+    composable: true,
+    audio: { discard: true },
+    trim: { start: range.start, end: range.end },
+  });
+
+  if (conversion.utilizedTracks.length === 0) {
+    return null;
+  }
+
+  const audioSource = new EncodedAudioPacketSource("aac");
+
+  output.addAudioTrack(audioSource);
+  await output.start();
+  await Promise.all([conversion.execute(), pumpAacPackets(audioTrack, audioSource, range)]);
+  await output.finalize();
+
+  const buffer = output.target.buffer;
+
+  return buffer ? new File([buffer], toTrimmedName(file.name), { type: TRIMMED_MIME }) : null;
+}
+
+/** Copies encoded AAC packets overlapping `range` into `source` without `AudioDecoder` or `AudioEncoder`. */
+export async function pumpAacPackets(
+  track: InputAudioTrack,
+  source: EncodedAudioPacketSource,
+  range: TrimRange,
+): Promise<void> {
+  const sink = new EncodedPacketSink(track);
+  const decoderConfig = await track.getDecoderConfig();
+  const meta = { decoderConfig: decoderConfig ?? undefined };
+  const startPacket = (await sink.getKeyPacket(range.start)) ?? (await sink.getFirstKeyPacket());
+  let offset: Nullable<number> = null;
+
+  if (startPacket) {
+    for await (const packet of sink.packets(startPacket)) {
+      if (packet.timestamp >= range.end) {
+        break;
+      }
+
+      if (packet.timestamp + packet.duration <= range.start) {
+        continue;
+      }
+
+      offset ??= Math.min(range.start, packet.timestamp);
+      await source.add(packet.clone({ timestamp: packet.timestamp - offset }), meta);
+    }
+  }
+
+  source.close();
 }
 
 /** Whether this clip is already inside `maxDurationMs` and needs no trim at all. */

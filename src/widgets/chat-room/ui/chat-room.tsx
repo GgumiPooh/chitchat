@@ -3513,6 +3513,7 @@ export function ChatRoom({
       <VideoTrimmer
         key={source.id}
         draft={source}
+        keepsAudio
         onCancel={promotion.cancelEdit}
         onDone={(file) => void promotion.applyTrim(source, file)}
       />

@@ -27,7 +27,7 @@ export type VideoTrimmerProps = {
   draft: MediaDraft;
   /** REQUIREMENTS.md § 12.1. Omitted (§ 9.'s chat and library attachments, which have no length cap), both ends move freely and trimming is an edit rather than a requirement. */
   limit?: TrimLimit;
-  /** REQUIREMENTS.md § 13.4.1. Carries the source's sound into the cut, for a caller whose next screen plays it — a background is stored silent. */
+  /** REQUIREMENTS.md § 9., § 13.4.1. Carries the source's sound into the cut, for an attachment or a caller whose next screen plays it — a background is stored silent. */
   keepsAudio?: boolean;
   /** The cut this screen opens on, for a flow stepping back into it — the handles are where they were left rather than at the ends of the clip. */
   initialRange?: TrimRange;
