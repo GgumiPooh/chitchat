@@ -31,7 +31,7 @@ import {
   EmoticonPreview,
   EmoticonQuickBar,
   MessageComposer,
-  isOneJamoEdit,
+  isDraftConsumedByKeyword,
   toEmoticonPacksQuery,
   useAttachmentPromotion,
   useEmoticonPreload,
@@ -2420,6 +2420,9 @@ export function ChatRoom({
                 focusRequest={composerFocusRequest}
                 submitRequest={composerSubmitRequest}
                 fieldRef={composerFieldRef}
+                onSend={({ text, emoticons, isQuickSendFollowUp }) =>
+                  submit(text, emoticons, isQuickSendFollowUp)
+                }
                 onToggleAiMode={toggleAiMode}
                 // WARN: Toggled against what is on screen, not the flag behind it. The flag can be true while the keyboard suppresses the panel (§ 13.6.), and inverting it there closes a panel the user is asking to open.
                 onToggleEmoticons={openEmoticonPanel}
@@ -2430,7 +2433,6 @@ export function ChatRoom({
                 onSuggestedSearchQueryChange={setSuggestedEmoticonSearchQuery}
                 onNavigateUp={handleNavigateUpFromComposer}
                 onFieldFocus={yieldToComposer}
-                onSend={({ text, emoticons }) => submit(text, emoticons)}
               />
             </div>
             {/* INFO: REQUIREMENTS.md § 13.6. The sheet stands in the keyboard's slot under the composer, inside the same wrapper so the history is cleared by both and scrolls under both. */}
@@ -2724,6 +2726,9 @@ export function ChatRoom({
   function stageEmoticon(emoticon: Emoticon) {
     stopSound();
     selection.clear();
+    if (!searchedWordRef.current && suggestedEmoticonSearchQuery !== "") {
+      searchedWordRef.current = suggestedEmoticonSearchQuery;
+    }
     setStagedEmoticon(emoticon);
     stagedEmoticonRef.current = emoticon;
     clearTimeout(collapseTimerRef.current);
@@ -2840,11 +2845,11 @@ export function ChatRoom({
   }
 
   /**
-   * INFO: The attachments go first, then the text, so a caption reads under what it belongs to — and the emoticon last, so the quote and the words stay together on one bubble (REQUIREMENTS.md § 8.10.).
+   * INFO: Attachments go first (mutually exclusive with a staged emoticon), or a staged emoticon goes first, and the text follows so a caption or sentence lands right below the media/emoticon it was sent with (REQUIREMENTS.md § 8.10., § 13.6.).
    *
    * WARN: The order survives because `useSendMessage` delivers on one promise chain. Firing these in parallel would let the text win the race for `messages.id` and land above them on every other client and every reload.
    */
-  function submit(text: string, emoticons: ComposerEmoticon[]) {
+  function submit(text: string, emoticons: ComposerEmoticon[], isQuickSendFollowUp = false) {
     // WARN: REQUIREMENTS.md § 8.5. Ahead of everything below, and it returns. An AI question sends only its text — no staged emoticon, no tray, no reply quote — through the ordinary text path.
     if (aiSelection.isSelecting) {
       submitAiQuestion(text);
@@ -2861,7 +2866,7 @@ export function ChatRoom({
 
     void goLiveForSend();
 
-    // WARN: REQUIREMENTS.md § 8.10. Consumed by the first bubble only. Attachments, then text, then emoticon is the order they are queued in, and a quote repeated over three of them says the same thing three times.
+    // WARN: REQUIREMENTS.md § 8.10. Consumed by the first bubble only. Attachments or the staged emoticon go before text, and a quote repeated over multiple bubbles says the same thing twice.
     let quote = replyTarget;
     let hasSounded = false;
     let hasSent = false;
@@ -2874,6 +2879,8 @@ export function ChatRoom({
       return taken;
     };
 
+    // WARN: Evaluated before `stagedEmoticon` is cleared below, because `isConsumedByEmoticonSearch` checks whether an emoticon was staged alongside the keyword.
+    const isConsumed = isConsumedByEmoticonSearch(text, emoticons);
     let mediaClientMsgIds: string[] = [];
 
     if (selection.drafts.length > 0) {
@@ -2881,8 +2888,18 @@ export function ChatRoom({
       hasSent = true;
     }
 
-    // WARN: REQUIREMENTS.md § 13.8. A draft that is nothing but the word the emoticon was found by was a search term, not a message — sending it would put 고민 in the conversation beside the picture it was only ever used to reach. Anything else keeps § 13.6.'s second bubble.
-    if (text.trim() && !isConsumedByEmoticonSearch(text)) {
+    if (stagedEmoticon) {
+      stopSound();
+      const { sounded } = deliverStagedEmoticon(stagedEmoticon, take(), notifyMode);
+
+      hasSounded = sounded || hasSounded;
+      setStagedEmoticon(null);
+      stagedEmoticonRef.current = null;
+      hasSent = true;
+    }
+
+    // WARN: REQUIREMENTS.md § 13.8. A draft that is nothing but the word the emoticon was found by was a search term, not a message — sending it would put 고민 in the conversation beside the picture it was only ever used to reach. Anything else keeps § 13.6.'s second bubble right below the emoticon.
+    if (text.trim() && !isConsumed) {
       const soloId = toSoloInlineEmoticonId({
         text,
         inlineEmoticonItemIds: emoticons.map(({ id }) => id),
@@ -2897,18 +2914,8 @@ export function ChatRoom({
       hasSent = true;
     }
 
-    if (stagedEmoticon) {
-      stopSound();
-      const { sounded } = deliverStagedEmoticon(stagedEmoticon, take(), notifyMode);
-
-      hasSounded = sounded || hasSounded;
-      setStagedEmoticon(null);
-      stagedEmoticonRef.current = null;
-      hasSent = true;
-    }
-
-    // INFO: § 13.6. One 전송음 for the whole submit, and only where no emoticon in it sounded — the shared player would cut that off.
-    if (hasSent && !hasSounded) {
+    // INFO: § 13.6. One 전송음 for the whole submit, and only where no emoticon in it sounded — the shared player would cut that off. When `isQuickSendFollowUp` is true, `sendStagedEmoticon` already played the sound for the pair.
+    if (hasSent && !hasSounded && !isQuickSendFollowUp) {
       soundSubmit(mediaClientMsgIds);
     }
 
@@ -3119,17 +3126,15 @@ export function ChatRoom({
   }
 
   /** INFO: REQUIREMENTS.md § 13.8. Only ever true beside an emoticon — on its own the word is the message the user typed. */
-  function isConsumedByEmoticonSearch(text: string): boolean {
-    const trimmed = text.trim();
-    if (stagedEmoticon === null || !searchedWordRef.current) {
+  function isConsumedByEmoticonSearch(
+    text: string,
+    emoticons: readonly ComposerEmoticon[],
+  ): boolean {
+    if (stagedEmoticon === null || emoticons.length > 0 || !searchedWordRef.current) {
       return false;
     }
 
-    return (
-      trimmed === searchedWordRef.current ||
-      isOneJamoEdit(searchedWordRef.current, trimmed) ||
-      trimmed.startsWith(searchedWordRef.current)
-    );
+    return isDraftConsumedByKeyword(searchedWordRef.current, text);
   }
 
   /**

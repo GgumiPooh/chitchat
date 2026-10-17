@@ -114,3 +114,28 @@ export function isKeywordCandidateContinuing(fallback: string, text: string): bo
       isOneJamoEdit(normalizedFallback, token),
   );
 }
+
+/**
+ * Whether the entire draft is a single token that matches or continues `searchedWord`,
+ * meaning the draft was typed only to find an emoticon rather than as a sentence to send.
+ */
+export function isDraftConsumedByKeyword(searchedWord: string, text: string): boolean {
+  const trimmed = text.trim();
+  if (!trimmed || /\s/u.test(trimmed)) {
+    return false;
+  }
+
+  const normalizedWord = stripTrailingPunctuation(searchedWord).toLowerCase();
+  const normalizedDraft = stripTrailingPunctuation(trimmed).toLowerCase();
+
+  if (!normalizedWord || !normalizedDraft) {
+    return trimmed === searchedWord;
+  }
+
+  return (
+    normalizedDraft === normalizedWord ||
+    normalizedDraft.startsWith(normalizedWord) ||
+    normalizedWord.startsWith(normalizedDraft) ||
+    isOneJamoEdit(normalizedWord, normalizedDraft)
+  );
+}

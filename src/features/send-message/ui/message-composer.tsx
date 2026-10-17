@@ -58,7 +58,11 @@ import {
   type SyntheticEvent,
   type TransitionEvent,
 } from "react";
-import { findKeywordTypo, isKeywordCandidateContinuing } from "../model/find-keyword-typo";
+import {
+  findKeywordTypo,
+  isDraftConsumedByKeyword,
+  isKeywordCandidateContinuing,
+} from "../model/find-keyword-typo";
 import { toEmoticonKeywordsQuery } from "../model/keywords-query";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
 import { warmEmoticonUrls } from "../model/warm-emoticon-images";
@@ -117,7 +121,11 @@ type StagedEmoticon = ComposerEmoticon & { key: string };
 type Draft = { text: string; emoticons: StagedEmoticon[] };
 
 /** What a send hands over: the text with its placeholders, and what each one stands for. */
-export type ComposedMessage = { text: string; emoticons: ComposerEmoticon[] };
+export type ComposedMessage = {
+  text: string;
+  emoticons: ComposerEmoticon[];
+  isQuickSendFollowUp?: boolean;
+};
 
 const EMPTY_DRAFT: Draft = { text: "", emoticons: [] };
 
@@ -552,34 +560,8 @@ export function MessageComposer({
 
   // WARN: § 13.8. The word goes only when it was the whole draft. `오늘 고민 많다` keeps its sentence and sends as § 13.6.'s second message; `고민` alone was a search term and leaves with the emoticon it found.
   useEffect(() => {
-    if (keywordConsumeToken === undefined) {
-      return;
-    }
-
-    const tapped = tappedQueryRef.current ?? (keywordQuery !== "" ? keywordQuery : null);
-
-    // WARN: Spent on use, and that is what stops it deleting a message nobody searched for. The room bumps this token on **every** quick send, so a ref left holding `고민` from a search minutes ago would silently swallow a later draft that happened to read `고민` — typed as an actual message — the next time any emoticon was double-tapped.
-    tappedQueryRef.current = null;
-
-    if (tapped === null) {
-      return;
-    }
-
-    // WARN: Read outside the updater. A `setDraft` callback must be pure, and StrictMode double-invokes it — the § 8.12. retraction fired twice per consume from in there.
-    setDraft((current) => {
-      const isMatch =
-        current.text.trim() === tapped ||
-        (tapped !== null && isKeywordCandidateContinuing(tapped, current.text.trim()));
-      return isMatch ? EMPTY_DRAFT : current;
-    });
-    setFallbackKeywordQuery(null);
-
-    if (
-      draft.text.trim() === tapped ||
-      (tapped !== null && isKeywordCandidateContinuing(tapped, draft.text.trim()))
-    ) {
-      // WARN: The clear never goes through `onChange`, so the § 8.12. broadcast has to be retracted by hand or 입력 중 outlives the send.
-      onEdit?.(false);
+    if (keywordConsumeToken) {
+      settleQuickEmoticonSend();
     }
     // WARN: Keyed on the token alone. Adding `onEdit` or `draft` re-runs the clear whenever the room re-renders it, which wipes a draft typed after the send.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1059,6 +1041,37 @@ export function MessageComposer({
 
     // INFO: Runs inside the click gesture on purpose — iOS only re-opens the keyboard for a `focus()` a user activation still covers.
     focusWithoutPan(fieldRef.current);
+  }
+
+  function settleQuickEmoticonSend() {
+    const tapped = tappedQueryRef.current ?? (keywordQuery !== "" ? keywordQuery : null);
+
+    // WARN: Spent on use, and that is what stops it deleting a message nobody searched for. The room bumps this token on **every** quick send, so a ref left holding `고민` from a search minutes ago would silently swallow a later draft that happened to read `고민` — typed as an actual message — the next time any emoticon was double-tapped.
+    tappedQueryRef.current = null;
+
+    if (draft.text.trim() === "") {
+      setFallbackKeywordQuery(null);
+
+      return;
+    }
+
+    const isConsumed =
+      draft.emoticons.length === 0 &&
+      tapped !== null &&
+      isDraftConsumedByKeyword(tapped, draft.text);
+
+    if (!isConsumed) {
+      onSend({
+        text: draft.text,
+        emoticons: draft.emoticons,
+        isQuickSendFollowUp: true,
+      });
+    }
+
+    setDraft(EMPTY_DRAFT);
+    setFallbackKeywordQuery(null);
+    // WARN: The clear never goes through `onChange`, so the § 8.12. broadcast has to be retracted by hand or 입력 중 outlives the send.
+    onEdit?.(false);
   }
 
   /**
