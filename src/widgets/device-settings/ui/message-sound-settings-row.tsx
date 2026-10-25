@@ -9,7 +9,7 @@ export type MessageSoundSettingsRowProps = {
 };
 
 /**
- * REQUIREMENTS.md § 13.6. The 전송음 switch — per device, like 알림 소리 above it.
+ * REQUIREMENTS.md § 13.6. The 채팅방 효과음 switch — per device.
  */
 export function MessageSoundSettingsRow({ className }: MessageSoundSettingsRowProps) {
   const { isEnabled, setEnabled } = useMessageSound();
@@ -17,11 +17,16 @@ export function MessageSoundSettingsRow({ className }: MessageSoundSettingsRowPr
   return (
     <SettingsRow
       className={className}
-      description="메시지를 보내거나 받을 때 작은 소리가 나요"
+      description="대화 중 메시지를 보내거나 받을 때 효과음이 나요"
       Icon={Volume1}
-      label="전송음"
+      label="채팅방 효과음"
       trailing={
-        <Switch checked={isEnabled} haptic aria-label="전송음 켜기" onCheckedChange={setEnabled} />
+        <Switch
+          checked={isEnabled}
+          haptic
+          aria-label="채팅방 효과음 켜기"
+          onCheckedChange={setEnabled}
+        />
       }
     />
   );

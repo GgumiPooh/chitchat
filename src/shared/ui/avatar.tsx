@@ -1,13 +1,15 @@
 "use client";
 
 import { toMediaUrl } from "@/shared/config";
-import { cn, toId, type Maybe, type MediaId, type Nullable } from "@/shared/lib";
+import { cn, toId, useOfficeMode, type Maybe, type MediaId, type Nullable } from "@/shared/lib";
+import { UserRound } from "lucide-react";
 import { Avatar as AvatarPrimitive } from "radix-ui";
 import { useMemo, useState } from "react";
 import { HapticTarget } from "./haptic-target";
 import type { MediaCell } from "./media-cell";
 import { MediaViewer } from "./media-viewer";
 import { Skeleton } from "./skeleton";
+import { toast } from "./sonner";
 
 export type AvatarProps = {
   className?: string;
@@ -67,8 +69,10 @@ export function Avatar({
   keepsScroll = false,
   onClick,
 }: AvatarProps) {
+  const { isOfficeMode } = useOfficeMode();
   const [isViewerOpen, setIsViewerOpen] = useState(false);
-  const resolvedSrc = src ?? (mediaId ? toMediaUrl(mediaId) : undefined);
+  const effectiveMediaId = isOfficeMode ? null : mediaId;
+  const resolvedSrc = src ?? (effectiveMediaId ? toMediaUrl(effectiveMediaId) : undefined);
   const [imageStatus, setImageStatus] = useState<"idle" | "loading" | "loaded" | "error">("idle");
   const [trackedSrc, setTrackedSrc] = useState(resolvedSrc);
 
@@ -78,20 +82,29 @@ export function Avatar({
   }
 
   const cells = useMemo(() => {
-    if (mediaId) {
-      return [toAvatarCell(mediaId)];
+    if (effectiveMediaId) {
+      return [toAvatarCell(effectiveMediaId)];
     }
     if (resolvedSrc) {
       return [toStaticAvatarCell(resolvedSrc)];
     }
     return [];
-  }, [mediaId, resolvedSrc]);
+  }, [effectiveMediaId, resolvedSrc]);
   const isEnlargeable = canEnlarge && cells.length > 0;
   // INFO: A caller-supplied tap works with no photo at all — an initial-letter avatar still names a person whose profile there is to open (DESIGN.md § 7.7.).
-  const isTappable = onClick !== undefined || isEnlargeable;
+  // When Office Mode is active and enlarge is requested, keep the button tappable to inform the user via toast.
+  const isTappable = onClick !== undefined || isEnlargeable || (canEnlarge && isOfficeMode);
   // INFO: DESIGN.md § 7.8. A skeleton fills the avatar while the photo fetches; a missing or failed image ends on the § 7.7. initial fallback.
   const isImagePending =
     Boolean(resolvedSrc) && imageStatus !== "loaded" && imageStatus !== "error";
+
+  const handleEnlargeClick = () => {
+    if (isOfficeMode) {
+      toast("오피스 모드가 켜져 있어 프로필 사진을 볼 수 없어요");
+      return;
+    }
+    setIsViewerOpen(true);
+  };
 
   const face = (
     <AvatarPrimitive.Root
@@ -117,6 +130,8 @@ export function Avatar({
       >
         {isImagePending ? (
           <Skeleton className={cn("size-full rounded-full", fallbackClassName)} />
+        ) : isOfficeMode ? (
+          <UserRound className="size-1/2 text-meta" strokeWidth={1.75} />
         ) : (
           ([...name][0] ?? "")
         )}
@@ -138,7 +153,7 @@ export function Avatar({
       )}
       type="button"
       aria-label={onClick ? `${name} 프로필 보기` : `${name} 프로필 사진 크게 보기`}
-      onClick={onClick ?? (() => setIsViewerOpen(true))}
+      onClick={onClick ?? handleEnlargeClick}
     >
       {face}
     </button>

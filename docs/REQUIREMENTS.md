@@ -1544,16 +1544,18 @@ The screen opens on a **fixed-height cover header** (`DESIGN.md § 7.16.`) rathe
 **The main screen (`/settings`) organizes rows into profile, 4 subpage navigation links, theme, and account:**
 
 1. **프로필**: `ProfileSettingsRow` (닉네임 + 프로필 사진 + 커버 편집)
-2. **채팅방 설정 (`/settings/chat`)**: 채팅방 배경화면 (§ 12.2.), AI 지침 (§ 8.15.), 이모티콘 묶음 관리 (§ 13.5.), 미니이모티콘 묶음 관리 (§ 13).
-3. **알림 설정 (`/settings/notifications`)**: 푸시 알림 (§ 16.1.), 알림 소리, 알림 내용 표시 (오피스 모드 연동), 메시지 전송음 (§ 13.6.).
+2. **채팅방 설정 (`/settings/chat`)**: 채팅방 배경화면 (§ 12.2.), 채팅방 효과음 (§ 13.6.), AI 지침 (§ 8.15.), 이모티콘 묶음 관리 (§ 13.5.), 미니이모티콘 묶음 관리 (§ 13).
+3. **알림 설정 (`/settings/notifications`)**: 푸시 알림 (§ 16.1.), 알림 소리, 알림 내용 표시 (오피스 모드 연동).
 4. **보안 및 기기 관리 (`/settings/security`)**: 오피스 모드 (사내망 프라이버시 모드), 이 기기에서 화면 잠금 (6자리 PIN, § 5.5.), 비밀번호 변경, 입력 중 표시 (§ 8.12.), 공유 단축어 키, 로그인된 기기 목록 (`DeviceList`, `/settings/devices` redirects here).
 5. **서버 관리 (`/settings/server`)**: 서버 상태, 버전 정보, 캐시 초기화 (§ 12.4.).
 6. **앱 및 세션**: 화면 테마 (`ThemeSettingsRow`), 개발자 새로고침 (`DevRefreshRow` in dev), 로그아웃 (`LogoutButton`).
 
-**오피스 모드 (Office Mode)** — per-device toggle in `/settings/security` (`localStorage` key `jandh:office-mode`). Designed for corporate/office environments:
+**오피스 모드 (Office Mode)** — per-device toggle in `/settings/security` (`jandh:office-mode` cookie & `localStorage`). **Defaults to ON (`true`)** on every device until explicitly turned off. Designed for corporate/office environments:
 
+- **Zero Profile & Background Photos**: Suppresses fetching of all profile pictures (프사) and profile background covers (배사) for both myself and the partner across Chat, Settings (`ProfileCover`), Profile viewer (`UserProfileOverlay`), Calendar hero (`DDayHero`), and Desktop side panel. Avatars render a discreet neutral user silhouette icon (`UserRound`) instead of personal photos or nickname initials, preventing exposure of private identities or affectionate nicknames.
+- **Desktop Nav Rail Discretion**: In desktop mode, hides the smiling couple app icon (rendering a neutral chat icon) and replaces the bottom avatar with a neutral user silhouette, so the left navigation bar carries zero personal images.
 - **Zero Media Network Traffic**: Blocks all photo, video, file, and voice network GET requests (no presigned R2 URLs or `/api/media/{id}` fetches). Renders accessible placeholders (`사진 (오피스 모드)`, `동영상 (오피스 모드)`, disabled file cards) and disables viewer/playback with toast (`오피스 모드가 켜져 있어 미디어를 열 수 없어요`).
-- **Default Canvas Wallpaper**: Forces chat background to flat `bg-chat-canvas`, skipping wallpaper fetch and blurhash tinting entirely.
+- **Default Canvas Wallpaper**: Forces chat background to flat `bg-chat-canvas`, skipping wallpaper server preload (`ChatPage`), client fetch, and blurhash tinting entirely.
 - **Archive Protection**: Intercepts `보관함` tab taps in `TabBar` and `NavRail` with an explanation toast. Direct URL navigations to `/archive/*` are halted in `ArchiveShell` (rendering `null` with no month counts or media queries) and redirected immediately to `/chat`.
 - **Master Preset for Push Notification Privacy**: Turning on Office Mode automatically disables push preview (`preview_enabled = false`) so incoming OS banners in an office never expose sender or message contents. Locks the `알림 내용 표시` row in `/settings/notifications` with subtext (`오피스 모드가 켜져 있어 알림 내용이 자동으로 숨겨져요`). Turning off Office Mode restores the user's previous preview preference.
 

@@ -9,7 +9,6 @@ import {
 import { SETTINGS_ROUTE } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { AppHeader, IconButton } from "@/shared/ui";
-import { MessageSoundSettingsRow } from "@/widgets/device-settings";
 import { ChevronLeft } from "lucide-react";
 import { useRouter } from "next/navigation";
 
@@ -43,8 +42,6 @@ export function NotificationsSettingsPage({ className }: NotificationsSettingsPa
           <PushSoundRow />
           <PushPreviewRow />
         </PushSettingsProvider>
-        {/* INFO: REQUIREMENTS.md § 13.6. Message sent & received sound */}
-        <MessageSoundSettingsRow />
       </div>
     </div>
   );

@@ -3,6 +3,7 @@ import { listMessages, toMessagePayload } from "@/entities/message";
 import { encryptServerPayload } from "@/shared/auth";
 import {
   NOTIFY_MODE_COOKIE_NAME,
+  OFFICE_MODE_COOKIE_NAME,
   SIDE_PANEL_UPCOMING_PAGE_SIZE,
   toMediaUrl,
   toNotifyMode,
@@ -36,14 +37,16 @@ export async function ChatPage({
   jumpMessageId,
   jumpOnlyMe,
 }: ChatPageProps) {
+  // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 & REQUIREMENTS.md § 12. 오피스 모드
+  const cookieStore = await cookies();
+  const isOfficeMode = cookieStore.get(OFFICE_MODE_COOKIE_NAME)?.value !== "false";
+
   // WARN: REQUIREMENTS.md § 12.2. Emitted from the server render, not requested by the `<img>` on mount. The wallpaper is drawn across the whole screen behind the first bubble the user sees, so a request that waits for hydration paints the flat `chat-canvas` first and swaps the photo in underneath a conversation the reader is already looking at.
-  // WARN: Above the `await`, not below it. React only flushes the `<link rel=preload>` once this component resolves, so ordering it after the query holds the full-resolution wallpaper behind a database round trip it does not depend on.
-  if (backgroundMediaId) {
+  // Suppressed when Office Mode is active so zero network requests are made.
+  if (backgroundMediaId && !isOfficeMode) {
     preload(toMediaUrl(backgroundMediaId, "original"), { as: "image", fetchPriority: "high" });
   }
 
-  // INFO: REQUIREMENTS.md § 16.1. 나에게만 보내기 — read the cookie to seed the initial page with only private rows when that mode is active, preventing a short client-filtered page from triggering redundant upward fetches.
-  const cookieStore = await cookies();
   const notifyMode = toNotifyMode(cookieStore.get(NOTIFY_MODE_COOKIE_NAME)?.value);
   const onlyMeFilter = jumpOnlyMe ?? notifyMode === "onlyMe";
 

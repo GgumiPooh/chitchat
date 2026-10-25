@@ -4,7 +4,6 @@ import { ProfileSettingsRow } from "@/features/update-profile";
 import { IS_DEV } from "@/shared/config";
 import type { User } from "@/shared/db";
 import { cn } from "@/shared/lib";
-import { AppHeader } from "@/shared/ui";
 import {
   ChatSettingsRow,
   DevRefreshRow,
@@ -14,6 +13,7 @@ import {
   ThemeSettingsRow,
 } from "@/widgets/device-settings";
 import { ProfileCover } from "./profile-cover";
+import { SettingsHeader } from "./settings-header";
 
 export type SettingsPageProps = {
   className?: string;
@@ -27,11 +27,7 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
 
   return (
     <div className={cn("flex flex-1 flex-col", className)}>
-      {/* WARN: DESIGN.md § 7.16. `text-ink` over a cover photo is near-black on near-black — `on-scrim` matches the cover's own top scrim. */}
-      <AppHeader
-        titleClassName={user.profileBackgroundMediaId ? "text-on-scrim" : undefined}
-        title="설정"
-      />
+      <SettingsHeader hasCover={Boolean(user.profileBackgroundMediaId)} />
       {/* INFO: DESIGN.md § 7.16. Full-bleed from the top, deliberately not clearing the floating header — its scrim keeps the title legible over a photo. */}
       <ProfileCover
         userId={user.id}

@@ -1,7 +1,7 @@
 "use client";
 
 import { toMediaUrl } from "@/shared/config";
-import { cn, type MediaId, type Nullable } from "@/shared/lib";
+import { cn, useOfficeMode, type MediaId, type Nullable } from "@/shared/lib";
 import { PreloadImage } from "./preload-image";
 import { PreloadVideo } from "./preload-video";
 
@@ -44,6 +44,11 @@ export function BackgroundMedia({
   isVideo = false,
   blurhash,
 }: BackgroundMediaProps) {
+  const { isOfficeMode } = useOfficeMode();
+
+  if (isOfficeMode) {
+    return <div className={cn("size-full bg-scrim", className)} />;
+  }
   if (isVideo) {
     return (
       <PreloadVideo

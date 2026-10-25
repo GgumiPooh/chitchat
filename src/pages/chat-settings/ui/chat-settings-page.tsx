@@ -7,6 +7,7 @@ import { AppHeader, IconButton } from "@/shared/ui";
 import {
   EmoticonSettingsRow,
   LlmSystemPromptSettingsRow,
+  MessageSoundSettingsRow,
   MiniSettingsRow,
 } from "@/widgets/device-settings";
 import { ChevronLeft } from "lucide-react";
@@ -38,6 +39,8 @@ export function ChatSettingsPage({ className }: ChatSettingsPageProps) {
       <div className="flex flex-col pt-(--app-header-inset)">
         {/* INFO: REQUIREMENTS.md § 12.2. 채팅방 배경화면 */}
         <ChatBackgroundRow />
+        {/* INFO: REQUIREMENTS.md § 13.6. 채팅방 효과음 */}
+        <MessageSoundSettingsRow />
         {/* INFO: REQUIREMENTS.md § 8.15. AI 지침 */}
         <LlmSystemPromptSettingsRow />
         {/* INFO: REQUIREMENTS.md § 13. 이모티콘 묶음 관리 */}

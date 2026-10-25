@@ -4,7 +4,7 @@ import type { MediaDraft, MediaUpload } from "@/entities/media";
 import { useChatStream } from "@/features/chat-stream/@x/apply-photo";
 import { MediaEditor, uploadDraft, useMediaPicker } from "@/features/upload-media/@x/apply-photo";
 import { BACKGROUND_MAX_EDGE, toMediaUrl } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import { useOfficeMode, type Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { PreloadImage, SettingsRow, toast } from "@/shared/ui";
 import { Wallpaper } from "lucide-react";
@@ -33,6 +33,7 @@ export type ChatBackgroundRowProps = {
  * claiming the photo is up, and offer 기본 배경으로 for one that no longer exists.
  */
 export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
+  const { isOfficeMode } = useOfficeMode();
   const [isBusy, setIsBusy] = useState(false);
   const { isBlocked, guard } = useOfflineGate(OFFLINE_MESSAGES.change);
   const { chatBackgroundMediaId, setChatBackgroundMediaId } = useChatStream();
@@ -55,6 +56,7 @@ export function ChatBackgroundRow({ className }: ChatBackgroundRowProps) {
         // INFO: Both of the sheet's items write — one uploads, the other clears the shared row — so opening it offline is a sheet of two dead ends.
         isUnavailable={isBlocked}
         trailing={
+          !isOfficeMode &&
           chatBackgroundMediaId && (
             <PreloadImage
               className="size-11 overflow-hidden rounded-sm"

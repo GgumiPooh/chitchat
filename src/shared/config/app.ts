@@ -490,6 +490,15 @@ export const PUSH_INTENT_COOKIE_OPTIONS = {
 // INFO: AGENTS.md § 4.4. Collapsed vs open for the `lg` side panel, kept in a cookie so the layout can paint the collapsed width server-side instead of flashing open.
 export const SIDE_PANEL_COOKIE_NAME = "jandh:side-panel";
 
+// INFO: REQUIREMENTS.md § 12. Whether this device has Office Mode enabled, kept in a cookie so the server can suppress wallpaper preloads and render discreetly. Defaults to true (enabled).
+export const OFFICE_MODE_COOKIE_NAME = "jandh:office-mode";
+export const OFFICE_MODE_COOKIE_OPTIONS = {
+  secure: process.env.NODE_ENV === "production",
+  sameSite: "lax",
+  path: "/",
+  maxAge: (365 * A_DAY) / A_SECOND,
+} as const;
+
 // INFO: REQUIREMENTS.md § 16.4. Whether this installation has GeekNews 알림 on, kept in a cookie so the GeekNews page header switch renders server-side without hydration flicker.
 export const GEEKNEWS_SUBSCRIPTION_COOKIE_NAME = "jandh:geeknews-subscription";
 export const GEEKNEWS_SUBSCRIPTION_COOKIE_OPTIONS = {

@@ -1,7 +1,7 @@
 "use client";
 
 import { useProfileViewer } from "@/features/view-profile";
-import { cn, type MediaId, type Nullable, type UserId } from "@/shared/lib";
+import { cn, useOfficeMode, type MediaId, type Nullable, type UserId } from "@/shared/lib";
 import { Avatar, BackgroundMedia } from "@/shared/ui";
 
 export type ProfileCoverProps = {
@@ -30,8 +30,10 @@ export function ProfileCover({
   profileBackgroundMediaId,
   isProfileBackgroundVideo,
 }: ProfileCoverProps) {
+  const { isOfficeMode } = useOfficeMode();
   const { openProfile } = useProfileViewer();
-  const hasCover = profileBackgroundMediaId !== null;
+  const effectiveProfileBackgroundMediaId = isOfficeMode ? null : profileBackgroundMediaId;
+  const hasCover = effectiveProfileBackgroundMediaId !== null;
 
   return (
     <div
@@ -46,10 +48,10 @@ export function ProfileCover({
       )}
     >
       {/* INFO: Plain `inset-0` — the band above no longer moves under the keyboard, so the photo needs no stable height of its own to be held at. */}
-      {profileBackgroundMediaId && (
+      {effectiveProfileBackgroundMediaId && (
         <BackgroundMedia
           className="absolute inset-0"
-          mediaId={profileBackgroundMediaId}
+          mediaId={effectiveProfileBackgroundMediaId}
           isVideo={isProfileBackgroundVideo}
         />
       )}

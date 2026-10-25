@@ -5,7 +5,7 @@ import { useProfileViewer } from "@/features/view-profile";
 import { APP_NAME, ARCHIVE_ROUTE, CALENDAR_ROUTE, CHAT_ROUTE, isUnderRoute } from "@/shared/config";
 import { cn, useOfficeMode, usePendingTab, useRovingTabIndex, type UserId } from "@/shared/lib";
 import { Avatar, Badge, IconButton, Link, toast } from "@/shared/ui";
-import { Plus } from "lucide-react";
+import { MessageSquare, Plus } from "lucide-react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
 import { TABS } from "../model/tabs";
@@ -53,15 +53,20 @@ export function NavRail({ className, hasEventToday = false, currentUserId }: Nav
         href={CHAT_ROUTE}
         aria-label={APP_NAME}
       >
-        {/* INFO: `public/icons/icon.svg` — the same mark the manifest installs from. */}
-        <Image
-          className="size-10 rounded-full"
-          src="/icons/icon.svg"
-          alt=""
-          width={40}
-          height={40}
-          unoptimized
-        />
+        {isOfficeMode ? (
+          <span className="flex size-10 items-center justify-center rounded-full bg-surface-soft text-meta">
+            <MessageSquare className="size-5" strokeWidth={1.75} />
+          </span>
+        ) : (
+          <Image
+            className="size-10 rounded-full"
+            src="/icons/icon.svg"
+            alt=""
+            width={40}
+            height={40}
+            unoptimized
+          />
+        )}
       </Link>
 
       {/* INFO: DESIGN.md § 7.3. The travelling fill, turned vertical for the rail. */}

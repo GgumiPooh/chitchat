@@ -16,7 +16,7 @@ export function ChatSettingsRow({ className }: ChatSettingsRowProps) {
     <SettingsRow
       className={className}
       label="채팅방 설정"
-      description="채팅방 배경화면, AI 지침, 이모티콘 묶음"
+      description="채팅방 배경화면, 효과음, AI 지침, 이모티콘"
       Icon={MessageSquare}
       haptic
       onClick={() => router.push(CHAT_SETTINGS_ROUTE)}

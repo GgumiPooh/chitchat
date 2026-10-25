@@ -5,7 +5,14 @@ import type { Participant } from "@/entities/user";
 import { useChatStream } from "@/features/chat-stream";
 import { useProfileViewer } from "@/features/view-profile";
 import { toMediaUrl } from "@/shared/config";
-import { cn, formatDate, type Maybe, type Nullable, type UserId } from "@/shared/lib";
+import {
+  cn,
+  formatDate,
+  useOfficeMode,
+  type Maybe,
+  type Nullable,
+  type UserId,
+} from "@/shared/lib";
 import { Avatar, PreloadImage } from "@/shared/ui";
 import { Heart } from "lucide-react";
 
@@ -24,7 +31,9 @@ export type DDayHeroProps = {
  * a device with a skewed clock cannot show the two users different counts.
  */
 export function DDayHero({ className, backdropClassName, summary }: DDayHeroProps) {
+  const { isOfficeMode } = useOfficeMode();
   const { chatBackgroundMediaId, chatBackgroundBlurhash, participants } = useChatStream();
+  const effectiveChatBackgroundMediaId = isOfficeMode ? null : chatBackgroundMediaId;
   const first = resolveParticipant(participants, summary.firstUserId, 0);
   const second = resolveParticipant(participants, summary.secondUserId, 1);
 
@@ -33,12 +42,12 @@ export function DDayHero({ className, backdropClassName, summary }: DDayHeroProp
       className={cn("relative isolate flex flex-col overflow-hidden", className)}
       aria-label="함께한 날"
     >
-      {chatBackgroundMediaId ? (
+      {effectiveChatBackgroundMediaId ? (
         <PreloadImage
           className={cn("absolute inset-0 -z-10", backdropClassName)}
           imgClassName="size-full object-cover"
           placeholderClassName="bg-primary"
-          src={toMediaUrl(chatBackgroundMediaId, "original")}
+          src={toMediaUrl(effectiveChatBackgroundMediaId, "original")}
           blurhash={chatBackgroundBlurhash}
           hasSkeleton={false}
           alt=""

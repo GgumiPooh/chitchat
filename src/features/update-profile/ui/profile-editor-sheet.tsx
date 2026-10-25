@@ -17,7 +17,7 @@ import {
   isVideoMime,
   toMediaUrl,
 } from "@/shared/config";
-import type { Nullable, Optional } from "@/shared/lib";
+import { useOfficeMode, type Nullable, type Optional } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { Avatar, BottomSheet, Button, HapticTarget, Input, toast } from "@/shared/ui";
 import { useState } from "react";
@@ -63,6 +63,7 @@ export function ProfileEditorSheet({
   onClose,
   onSaved,
 }: ProfileEditorSheetProps) {
+  const { isOfficeMode } = useOfficeMode();
   const [name, setName] = useState(nickname);
   // INFO: The photo the crop is running on. It is not staged until the editor completes — backing out of a crop is backing out of the pick (§ 12.).
   const [cropping, setCropping] = useState<Nullable<MediaDraft>>(null);
@@ -241,7 +242,9 @@ export function ProfileEditorSheet({
       return avatar.staged.previewUrl ?? undefined;
     }
 
-    return avatar.isCleared || !avatarMediaId ? undefined : toMediaUrl(avatarMediaId);
+    return isOfficeMode || avatar.isCleared || !avatarMediaId
+      ? undefined
+      : toMediaUrl(avatarMediaId);
   }
 
   function toBackgroundUrl(): Optional<string> {
@@ -250,7 +253,7 @@ export function ProfileEditorSheet({
     }
 
     // WARN: The **thumb**, not the original. A stored cover may be a video (§ 12.1.), and its thumb is the poster frame this `<img>` can actually draw — the original would be a video URL in an image element. A still is also all this 3:2 box was ever showing.
-    return background.isCleared || !profileBackgroundMediaId
+    return isOfficeMode || background.isCleared || !profileBackgroundMediaId
       ? undefined
       : toMediaUrl(profileBackgroundMediaId);
   }
