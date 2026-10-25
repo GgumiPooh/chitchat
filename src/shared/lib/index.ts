@@ -256,13 +256,16 @@ export { randomId } from "./identity/random";
 export {
   ENCRYPTED_HEADER,
   clearClientSessionKey,
+  clearPinnedServerPublicKey,
   decryptClientText,
   encryptClientText,
   getClientSessionCryptoKey,
   getStoredSessionKeyString,
   hasStoredSessionKey,
+  pinServerPublicKey,
   setClientSessionKey,
   subscribeSessionKey,
+  verifyPinnedServerPublicKey,
 } from "./identity/session-key-store";
 export { useDecryptedServerPayload, useHasSessionKey } from "./identity/use-session-key";
 export { GESTURE_SLOP } from "./input/gesture";

@@ -91,7 +91,32 @@ export async function createClientEcdhHandshake(
     256,
   );
 
-  const keyMaterial = await crypto.subtle.digest("SHA-256", sharedBits);
+  const staticPubKeyB64 = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
+  let keyMaterial: ArrayBuffer;
+  if (staticPubKeyB64) {
+    // SEC: Dual-ECDH combining ephemeral session ECDH with build-time pinned static VAPID public key.
+    const staticKeyBytes = fromBase64Url(staticPubKeyB64);
+    const staticPublicKey = await crypto.subtle.importKey(
+      "raw",
+      staticKeyBytes as BufferSource,
+      { name: "ECDH", namedCurve: "P-256" },
+      false,
+      [],
+    );
+    const staticSharedBits = await crypto.subtle.deriveBits(
+      { name: "ECDH", public: staticPublicKey },
+      keyPair.privateKey,
+      256,
+    );
+
+    const combinedSecret = new Uint8Array(64);
+    combinedSecret.set(new Uint8Array(sharedBits), 0);
+    combinedSecret.set(new Uint8Array(staticSharedBits), 32);
+    keyMaterial = await crypto.subtle.digest("SHA-256", combinedSecret);
+  } else {
+    keyMaterial = await crypto.subtle.digest("SHA-256", sharedBits);
+  }
+
   const derivedKey = await importAesGcmKey(new Uint8Array(keyMaterial));
 
   const clientPubRaw = await crypto.subtle.exportKey("raw", keyPair.publicKey);

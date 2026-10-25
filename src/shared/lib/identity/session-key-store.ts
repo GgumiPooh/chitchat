@@ -4,10 +4,71 @@ import {
   encryptWithCryptoKey,
   fromBase64Url,
   importAesGcmKey,
+  toBase64Url,
 } from "./aes-gcm";
 
 const SESSION_KEY_STORAGE_KEY = "jandh:session-key";
+const PINNED_PUBKEY_HASH_STORAGE_KEY = "jandh:server-pubkey-hash";
 export const ENCRYPTED_HEADER = "x-jandh-enc";
+
+async function computePublicKeySha256(publicKeyB64: string): Promise<string> {
+  const encoded = new TextEncoder().encode(publicKeyB64);
+  const digest = await crypto.subtle.digest("SHA-256", encoded);
+
+  return toBase64Url(new Uint8Array(digest));
+}
+
+// SEC: TOFU pinning of build-time static P-256 public key (or session fallback) to detect active bundle/key tampering without breaking across session rotation.
+function resolvePinningTargetKey(serverPublicKeyB64: string): string {
+  const staticPubKeyB64 = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY ?? "";
+
+  return staticPubKeyB64.length > 0 ? staticPubKeyB64 : serverPublicKeyB64;
+}
+
+export async function verifyPinnedServerPublicKey(serverPublicKeyB64: string): Promise<boolean> {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  try {
+    const pinned = window.localStorage.getItem(PINNED_PUBKEY_HASH_STORAGE_KEY);
+    if (!pinned) {
+      return true;
+    }
+
+    const currentHash = await computePublicKeySha256(resolvePinningTargetKey(serverPublicKeyB64));
+
+    return pinned === currentHash;
+  } catch {
+    // INFO: Guard against localStorage access restrictions in private browsing.
+    return true;
+  }
+}
+
+export async function pinServerPublicKey(serverPublicKeyB64: string): Promise<void> {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    const hash = await computePublicKeySha256(resolvePinningTargetKey(serverPublicKeyB64));
+    window.localStorage.setItem(PINNED_PUBKEY_HASH_STORAGE_KEY, hash);
+  } catch {
+    // INFO: Guard against localStorage quota or security exceptions.
+  }
+}
+
+export function clearPinnedServerPublicKey(): void {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  try {
+    window.localStorage.removeItem(PINNED_PUBKEY_HASH_STORAGE_KEY);
+  } catch {
+    // INFO: Guard against localStorage quota or security exceptions.
+  }
+}
 
 const MAX_CACHE_ENTRIES = 100;
 let cachedCryptoKey: Nullable<CryptoKey> = null;

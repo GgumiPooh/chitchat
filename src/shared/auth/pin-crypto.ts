@@ -117,6 +117,22 @@ export function deriveServerEcdhKey(sessionKeyB64: string, clientPubB64: string)
     const clientPubBuf = Buffer.from(clientPubB64, "base64url");
     const sharedSecret = ecdh.computeSecret(clientPubBuf);
 
+    const staticPubKeyB64 = process.env.NEXT_PUBLIC_VAPID_PUBLIC_KEY?.trim() ?? "";
+    const staticPrivKeyB64 = process.env.VAPID_PRIVATE_KEY?.trim() ?? "";
+
+    if (staticPubKeyB64.length > 0 && staticPrivKeyB64.length > 0) {
+      // SEC: Dual-ECDH combining ephemeral session ECDH with server static VAPID private key.
+      const staticEcdh = createECDH("prime256v1");
+      staticEcdh.setPrivateKey(Buffer.from(staticPrivKeyB64, "base64url"));
+      const staticSecret = staticEcdh.computeSecret(clientPubBuf);
+
+      return createHash("sha256")
+        .update(sharedSecret)
+        .update(staticSecret)
+        .digest()
+        .toString("base64url");
+    }
+
     return createHash("sha256").update(sharedSecret).digest().toString("base64url");
   } catch {
     return null;

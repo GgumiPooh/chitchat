@@ -241,6 +241,9 @@ A 6-digit security PIN lock gate (`PinLockGate`, KakaoTalk-style custom touch ke
     - Archive (`app/(main)/archive/layout.tsx` -> `ArchiveMonthCountsProvider`, and shelf pages `ArchivePage`, `ArchiveFilesPage`, `ArchiveVoicePage`)
     - Time Letters (`app/(main)/playground/letters/page.tsx` -> `TimeLettersPage`)
   - No plaintext messages, calendar occurrences, archive filenames, or letters are ever serialized into unencrypted SSR HTML or RSC payloads.
+- **2-Layer Hybrid Public Key Pinning (MITM Defense):**
+  - **Layer 1 (Dual-ECDH with Build-Time Pinned P-256 Key):** During the PIN handshake (`submitPinHandshake` / `createClientEcdhHandshake` on client, `deriveServerEcdhKey` on server), both sides derive shared secrets from two ECDH key pairs: the ephemeral session keypair and the build-time pinned P-256 keypair (`NEXT_PUBLIC_VAPID_PUBLIC_KEY` client public key, `VAPID_PRIVATE_KEY` server private key). The two 32-byte shared secrets are concatenated into a 64-byte combined secret and digested with SHA-256. Even if an active MITM attacker intercepts and rewrites the ephemeral server public key, they cannot derive the combined secret or decrypt the PIN payload without `VAPID_PRIVATE_KEY`.
+  - **Layer 2 (TOFU SHA-256 Hash Verification):** The client verifies the SHA-256 hash of the presented `serverPublicKey` against `localStorage` (`jandh:server-pubkey-hash`, Trust On First Use via `verifyPinnedServerPublicKey`). If a pinned hash exists and does not match the server public key, `submitPinHandshake` rejects the handshake with status 400. Upon successful handshake completion, the public key hash is pinned via `pinServerPublicKey`. Logging out (`LogoutButton`), requesting PIN reset (`requestPinResetLogout`), or session expiry (`401` in `request()`) clears the pinned hash via `clearPinnedServerPublicKey()`.
 
 ---
 

@@ -2,6 +2,7 @@
 
 import { request } from "@/shared/api";
 import { LOGIN_ROUTE } from "@/shared/config";
+import { clearClientSessionKey, clearPinnedServerPublicKey } from "@/shared/lib";
 import { clearAll } from "@/shared/snapshot";
 import { Button, toast } from "@/shared/ui";
 import { useRouter } from "next/navigation";
@@ -31,6 +32,8 @@ export function LogoutButton({ className }: LogoutButtonProps) {
     }
 
     // INFO: REQUIREMENTS.md § 16. The cookie is what the server just cleared; the offline snapshots are the half only this browser can.
+    clearClientSessionKey();
+    clearPinnedServerPublicKey();
     await clearAll();
 
     router.replace(LOGIN_ROUTE);

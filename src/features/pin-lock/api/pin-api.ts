@@ -1,8 +1,11 @@
 import { request } from "@/shared/api";
 import {
   clearClientSessionKey,
+  clearPinnedServerPublicKey,
   createClientEcdhHandshake,
+  pinServerPublicKey,
   setClientSessionKey,
+  verifyPinnedServerPublicKey,
   type Nullable,
 } from "@/shared/lib";
 
@@ -41,6 +44,11 @@ export async function submitPinHandshake(
   serverPublicKey: string,
   payload: PinHandshakePayload,
 ): Promise<SubmitPinResult> {
+  const isKeyTrusted = await verifyPinnedServerPublicKey(serverPublicKey);
+  if (!isKeyTrusted) {
+    return { ok: false, status: 400, remainingAttempts: null, lockedUntil: null };
+  }
+
   const handshake = await createClientEcdhHandshake(serverPublicKey, payload);
   const response = await request("/api/auth/session/pin", {
     method: "POST",
@@ -69,7 +77,11 @@ export async function submitPinHandshake(
       if (!parsed.sessionKey) {
         return { ok: false, status: 500, remainingAttempts: null, lockedUntil: null };
       }
-      await setClientSessionKey(parsed.sessionKey);
+      const isStored = await setClientSessionKey(parsed.sessionKey);
+      if (!isStored) {
+        return { ok: false, status: 500, remainingAttempts: null, lockedUntil: null };
+      }
+      await pinServerPublicKey(serverPublicKey);
       return { ok: true };
     } catch {
       return { ok: false, status: 500, remainingAttempts: null, lockedUntil: null };
@@ -104,6 +116,7 @@ export async function requestPinResetLogout(): Promise<void> {
     await request("/api/auth/logout?resetPin=1", { method: "POST" });
   } finally {
     clearClientSessionKey();
+    clearPinnedServerPublicKey();
     if (typeof window !== "undefined") {
       // eslint-disable-next-line @next/next/no-location-assign-relative-destination
       window.location.href = "/login";

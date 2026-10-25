@@ -1,5 +1,7 @@
+import { SESSION_EXPIRE_ROUTE } from "@/shared/config";
 import {
   clearClientSessionKey,
+  clearPinnedServerPublicKey,
   decryptClientText,
   encryptClientText,
   isDormant,
@@ -118,6 +120,15 @@ export async function request(path: string, init?: RequestInit): Promise<Respons
   }
 
   if (isEncrypted) {
+    if (response.status === 401) {
+      clearClientSessionKey();
+      clearPinnedServerPublicKey();
+      if (typeof window !== "undefined") {
+        window.location.href = SESSION_EXPIRE_ROUTE;
+      }
+      return response;
+    }
+
     if (response.status === 428) {
       clearClientSessionKey();
       return response;
