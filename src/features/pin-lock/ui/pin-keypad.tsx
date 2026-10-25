@@ -3,7 +3,7 @@
 import { cn, type Nullable } from "@/shared/lib";
 import { HapticTarget } from "@/shared/ui";
 import { Delete } from "lucide-react";
-import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 export type PinKeypadProps = {
   className?: string;
@@ -20,7 +20,7 @@ export type PinKeypadProps = {
 const DIGIT_KEYS = ["1", "2", "3", "4", "5", "6", "7", "8", "9"] as const;
 
 const KEY_BASE_CLASS_NAME =
-  "flex h-16 w-full cursor-pointer press-bloom items-center justify-center rounded-xl outline-none select-none [--press-scale:0.94] group-hover:bg-surface-strong hover:bg-surface-strong group-active:bg-surface-pressed active:bg-surface-pressed data-[pressed]:bg-surface-pressed group-data-[pressed]:bg-surface-pressed focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:cursor-not-allowed disabled:text-meta-soft";
+  "flex h-16 w-full cursor-pointer press-bloom items-center justify-center rounded-xl outline-none select-none [--press-scale:0.94] group-hover:bg-surface-strong hover:bg-surface-strong group-active:bg-surface-pressed active:bg-surface-pressed group-data-[pressed]:bg-surface-pressed focus-visible:ring-2 focus-visible:ring-primary disabled:pointer-events-none disabled:cursor-not-allowed disabled:text-meta-soft";
 
 export function PinKeypad({
   className,
@@ -36,8 +36,6 @@ export function PinKeypad({
   const [digits, setDigits] = useState("");
   const [prevTitle, setPrevTitle] = useState(title);
   const [prevShakeKey, setPrevShakeKey] = useState(shakeKey);
-  const [pressedKey, setPressedKey] = useState<Nullable<string>>(null);
-  const pressedTimerRef = useRef<Nullable<ReturnType<typeof setTimeout>>>(null);
 
   // INFO: Reset digits during render when title or shakeKey changes (React adjusting state from props).
   if (title !== prevTitle || shakeKey !== prevShakeKey) {
@@ -45,26 +43,6 @@ export function PinKeypad({
     setPrevShakeKey(shakeKey);
     setDigits("");
   }
-
-  const triggerKeyFlash = useCallback((key: string) => {
-    if (pressedTimerRef.current) {
-      clearTimeout(pressedTimerRef.current);
-    }
-    setPressedKey(key);
-    pressedTimerRef.current = setTimeout(() => {
-      setPressedKey(null);
-      pressedTimerRef.current = null;
-    }, 140);
-  }, []);
-
-  useEffect(
-    () => () => {
-      if (pressedTimerRef.current) {
-        clearTimeout(pressedTimerRef.current);
-      }
-    },
-    [],
-  );
 
   const handleAddDigit = useCallback(
     (digit: string) => {
@@ -119,19 +97,16 @@ export function PinKeypad({
 
       if (event.key >= "0" && event.key <= "9") {
         event.preventDefault();
-        triggerKeyFlash(event.key);
         handleAddDigit(event.key);
         return;
       }
       if (event.key === "Backspace") {
         event.preventDefault();
-        triggerKeyFlash("backspace");
         handleBackspace();
         return;
       }
       if (event.key === "Escape") {
         event.preventDefault();
-        triggerKeyFlash("clear");
         handleClear();
       }
     };
@@ -140,7 +115,7 @@ export function PinKeypad({
     return () => {
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [handleAddDigit, handleBackspace, handleClear, isLocked, isSubmitting, triggerKeyFlash]);
+  }, [handleAddDigit, handleBackspace, handleClear, isLocked, isSubmitting]);
 
   const isActionDisabled = digits.length === 0 || isSubmitting || isLocked;
   const isDigitDisabled = digits.length >= 6 || isSubmitting || isLocked;
@@ -196,7 +171,6 @@ export function PinKeypad({
               className={cn(KEY_BASE_CLASS_NAME, "text-display-lg text-ink tabular-nums")}
               type="button"
               disabled={isDigitDisabled}
-              data-pressed={pressedKey === digit ? "" : undefined}
               onClick={() => handleAddDigit(digit)}
             >
               {digit}
@@ -209,11 +183,10 @@ export function PinKeypad({
           <button
             className={cn(
               KEY_BASE_CLASS_NAME,
-              "text-body-sm font-medium text-meta group-hover:text-ink group-active:text-ink group-data-[pressed]:text-ink hover:text-ink active:text-ink data-[pressed]:text-ink",
+              "text-body-sm font-medium text-meta group-hover:text-ink group-active:text-ink group-data-[pressed]:text-ink hover:text-ink active:text-ink",
             )}
             type="button"
             disabled={isActionDisabled}
-            data-pressed={pressedKey === "clear" ? "" : undefined}
             onClick={handleClear}
           >
             전체 삭제
@@ -225,7 +198,6 @@ export function PinKeypad({
             className={cn(KEY_BASE_CLASS_NAME, "text-display-lg text-ink tabular-nums")}
             type="button"
             disabled={isDigitDisabled}
-            data-pressed={pressedKey === "0" ? "" : undefined}
             onClick={() => handleAddDigit("0")}
           >
             0
@@ -237,7 +209,6 @@ export function PinKeypad({
             className={cn(KEY_BASE_CLASS_NAME, "text-ink")}
             type="button"
             disabled={isActionDisabled}
-            data-pressed={pressedKey === "backspace" ? "" : undefined}
             aria-label="한 글자 지우기"
             onClick={handleBackspace}
           >
