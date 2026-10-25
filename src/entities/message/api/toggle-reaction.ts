@@ -60,7 +60,7 @@ export async function toggleReaction(
     emoticonItemId: input.reactionType === "emoticon" ? (input.emoticonItemId ?? null) : null,
   };
 
-  await db.insert(messageReactions).values(newRow);
+  await db.insert(messageReactions).values(newRow).onConflictDoNothing();
 
   return {
     action: "set",

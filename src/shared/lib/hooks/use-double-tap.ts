@@ -25,6 +25,7 @@ export function useDoubleTap(options: DoubleTapOptions = {}) {
   const lastTapRef = useRef<Nullable<TapOrigin>>(null);
   const startPointerRef = useRef<Nullable<{ x: number; y: number }>>(null);
   const singleTapTimerRef = useRef<Optional<ReturnType<typeof setTimeout>>>(undefined);
+  const lastDoubleTapTimeRef = useRef(0);
 
   const handlePointerDown = useCallback((event: PointerEvent<HTMLElement>) => {
     if (!event.isPrimary) {
@@ -56,6 +57,10 @@ export function useDoubleTap(options: DoubleTapOptions = {}) {
       }
 
       const now = Date.now();
+      if (now - lastDoubleTapTimeRef.current <= DOUBLE_TAP_WINDOW) {
+        return;
+      }
+
       const lastTap = lastTapRef.current;
 
       if (
@@ -65,6 +70,7 @@ export function useDoubleTap(options: DoubleTapOptions = {}) {
       ) {
         // Double tap confirmed
         lastTapRef.current = null;
+        lastDoubleTapTimeRef.current = now;
         if (singleTapTimerRef.current !== undefined) {
           clearTimeout(singleTapTimerRef.current);
           singleTapTimerRef.current = undefined;
@@ -124,6 +130,12 @@ export function useDoubleTap(options: DoubleTapOptions = {}) {
             clearTimeout(singleTapTimerRef.current);
             singleTapTimerRef.current = undefined;
           }
+          const now = Date.now();
+          // WARN: WebKit on iOS synthesizes a native `dblclick` after touch `pointerup`. Skip duplicate invocations.
+          if (now - lastDoubleTapTimeRef.current <= DOUBLE_TAP_WINDOW) {
+            return;
+          }
+          lastDoubleTapTimeRef.current = now;
           onDoubleTap();
         }
       : undefined,
