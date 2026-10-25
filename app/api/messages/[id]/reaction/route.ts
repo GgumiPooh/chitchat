@@ -1,6 +1,6 @@
 import { toggleReaction } from "@/entities/message";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { snowflakeSchema } from "@/shared/config";
 import type { EmoticonItemId, MessageId } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -18,21 +18,23 @@ const bodySchema = z.discriminatedUnion("reactionType", [
   }),
 ]);
 
-export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser();
+export const PUT = withEncryptedRoute(
+  async (request: Request, { params }: { params: Promise<{ id: string }> }) => {
+    const user = await getCurrentUser();
 
-  if (!user) {
-    return apiError("unauthorized");
-  }
+    if (!user) {
+      return apiError("unauthorized");
+    }
 
-  const id = idSchema.safeParse((await params).id);
-  const body = bodySchema.safeParse(await request.json().catch(() => null));
+    const id = idSchema.safeParse((await params).id);
+    const body = bodySchema.safeParse(await request.json().catch(() => null));
 
-  if (!id.success || !body.success) {
-    return apiError("invalid_request");
-  }
+    if (!id.success || !body.success) {
+      return apiError("invalid_request");
+    }
 
-  const result = await toggleReaction(id.data, user.id, body.data);
+    const result = await toggleReaction(id.data, user.id, body.data);
 
-  return NextResponse.json(result);
-}
+    return NextResponse.json(result);
+  },
+);

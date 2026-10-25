@@ -4,7 +4,7 @@ import type { ArchiveMedia } from "@/entities/media";
 import { useWriteArchiveSnapshot } from "@/features/offline-snapshot";
 import { MediaPickerSheet } from "@/features/upload-media";
 import type { ArchiveModeFilter } from "@/shared/config";
-import { cn, stopVoice } from "@/shared/lib";
+import { cn, stopVoice, useDecryptedServerPayload } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import {
   downloadMedia,
@@ -32,10 +32,39 @@ import { LibrarySegments } from "./library-segments";
 
 export type ArchiveFilesPageProps = {
   className?: string;
-  initialMedia: ArchiveMedia[];
+  initialMedia?: ArchiveMedia[];
+  encryptedMedia?: string;
   /** REQUIREMENTS.md § 10. The 보기 옵션 mode `initialMedia` was drawn under — paging must ask with the same one. */
   modeFilter?: ArchiveModeFilter;
 };
+
+export type ArchiveFilesPageViewProps = {
+  className?: string;
+  initialMedia: ArchiveMedia[];
+  modeFilter?: ArchiveModeFilter;
+};
+
+export function ArchiveFilesPage({
+  className,
+  encryptedMedia,
+  initialMedia,
+  modeFilter = "all",
+}: ArchiveFilesPageProps) {
+  const decryptedMedia = useDecryptedServerPayload<ArchiveMedia[]>(encryptedMedia ?? "");
+  const mediaToRender = encryptedMedia ? decryptedMedia : initialMedia;
+
+  if (encryptedMedia && !decryptedMedia) {
+    return <div className={cn("min-h-dvh bg-canvas", className)} />;
+  }
+
+  return (
+    <ArchiveFilesPageView
+      className={className}
+      initialMedia={mediaToRender ?? []}
+      modeFilter={modeFilter}
+    />
+  );
+}
 
 /**
  * REQUIREMENTS.md § 10. 보관함's 파일 segment — every § 9.1. attachment the pair has
@@ -44,11 +73,11 @@ export type ArchiveFilesPageProps = {
  * attachment's only exception is a play control beside the card; the card itself
  * still saves.
  */
-export function ArchiveFilesPage({
+function ArchiveFilesPageView({
   className,
   initialMedia,
   modeFilter = "all",
-}: ArchiveFilesPageProps) {
+}: ArchiveFilesPageViewProps) {
   const [isPickerOpen, setIsPickerOpen] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useArchiveMedia(
     initialMedia,

@@ -6,7 +6,12 @@ import {
 } from "@/entities/message";
 import { listGenerationSnapshots, type GenerationSnapshot } from "@/features/ask-ai";
 import { apiError } from "@/shared/api";
-import { getSessionContext, isSessionLive } from "@/shared/auth";
+import {
+  encryptSseData,
+  ensureSessionEncryptionKey,
+  getSessionContext,
+  isSessionLive,
+} from "@/shared/auth";
 import {
   BACKFILL_EVENT,
   BUILD_ID,
@@ -78,6 +83,7 @@ export async function GET(request: Request) {
     return apiError("unauthorized");
   }
 
+  const sessionKey = ensureSessionEncryptionKey(context.session);
   const sessionId = context.session.id;
   const currentUserId = context.user.id;
   const cursor = parseCursor(request.headers.get("Last-Event-ID"));
@@ -115,7 +121,7 @@ export async function GET(request: Request) {
         // WARN: REQUIREMENTS.md § 16.1. 나에게만 보내기 — a run asked in that mode is withheld from every session but the asker's own, the same rule `handleNotification`'s own `LLM_STREAM_CHANNEL` branch applies live.
         for (const snapshot of listGenerationSnapshots()) {
           if (!snapshot.onlyMe || snapshot.userId === currentUserId) {
-            write(toLlmSnapshotEvent(snapshot));
+            write(toLlmSnapshotEvent(snapshot, sessionKey));
           }
         }
 
@@ -124,7 +130,14 @@ export async function GET(request: Request) {
         const replayEmoticons = await listMessageInlineEmoticons(replay);
 
         for (const message of replay) {
-          write(toMessageEvent(message, "backfill", pickEmoticons(replayEmoticons, message)));
+          write(
+            toMessageEvent(
+              message,
+              "backfill",
+              pickEmoticons(replayEmoticons, message),
+              sessionKey,
+            ),
+          );
         }
 
         await whenAborted(ended.signal);
@@ -177,7 +190,9 @@ export async function GET(request: Request) {
 
           if (readCursor.success) {
             // WARN: Written straight out, never queued behind the pipeline below — it carries no `messages` cursor to advance and must not wait on a chain of row reads (REQUIREMENTS.md § 8.8.).
-            write(`event: read_cursor\ndata: ${JSON.stringify(readCursor.data)}\n\n`);
+            write(
+              `event: read_cursor\ndata: ${encryptSseData(sessionKey, JSON.stringify(readCursor.data))}\n\n`,
+            );
           }
 
           return;
@@ -189,7 +204,9 @@ export async function GET(request: Request) {
 
           if (typing.success) {
             // WARN: No `id:`, and never queued behind the pipeline below. It carries no `messages` cursor to advance, and a signal that only means "right now" must not wait on a chain of row reads that would deliver it after it expired (REQUIREMENTS.md § 8.12.).
-            write(`event: typing\ndata: ${JSON.stringify(typing.data)}\n\n`);
+            write(
+              `event: typing\ndata: ${encryptSseData(sessionKey, JSON.stringify(typing.data))}\n\n`,
+            );
           }
 
           return;
@@ -201,7 +218,7 @@ export async function GET(request: Request) {
 
           // WARN: REQUIREMENTS.md § 16.1. 나에게만 보내기 — withheld from every session but the asker's own, matching the snapshot backfill above.
           if (llm.success && (!llm.data.onlyMe || llm.data.userId === currentUserId)) {
-            write(`event: llm\ndata: ${JSON.stringify(llm.data)}\n\n`);
+            write(`event: llm\ndata: ${encryptSseData(sessionKey, JSON.stringify(llm.data))}\n\n`);
           }
 
           return;
@@ -235,8 +252,8 @@ export async function GET(request: Request) {
 
               write(
                 isMutation
-                  ? toChangeEvent(message, emoticons)
-                  : toMessageEvent(message, "live", emoticons),
+                  ? toChangeEvent(message, emoticons, sessionKey)
+                  : toMessageEvent(message, "live", emoticons, sessionKey),
               );
             }
           })
@@ -262,11 +279,12 @@ function toMessageEvent(
   message: ChatMessage,
   arrival: MessageArrival,
   emoticons: InlineEmoticonMap,
+  sessionKey: string,
 ): string {
   const event = arrival === "live" ? "message" : BACKFILL_EVENT;
 
   // INFO: REQUIREMENTS.md § 13. The single-row form of the payload every other read path answers — the row, and what its text stands in.
-  return `event: ${event}\nid: ${message.id}\ndata: ${JSON.stringify({ message, emoticons })}\n\n`;
+  return `event: ${event}\nid: ${message.id}\ndata: ${encryptSseData(sessionKey, JSON.stringify({ message, emoticons }))}\n\n`;
 }
 
 // INFO: The entries one row names, out of a map resolved for a whole replay.
@@ -297,12 +315,19 @@ function pickEmoticons(emoticons: InlineEmoticonMap, message: ChatMessage): Inli
  * WARN: No `id:`. A change names a row of any age, and stamping the cursor with it
  * would walk `Last-Event-ID` backwards into a replay the client already has.
  */
-function toChangeEvent(message: ChatMessage, emoticons: InlineEmoticonMap): string {
-  return `event: ${CHANGE_EVENT}\ndata: ${JSON.stringify({ message, emoticons })}\n\n`;
+function toChangeEvent(
+  message: ChatMessage,
+  emoticons: InlineEmoticonMap,
+  sessionKey: string,
+): string {
+  return `event: ${CHANGE_EVENT}\ndata: ${encryptSseData(sessionKey, JSON.stringify({ message, emoticons }))}\n\n`;
 }
 
 /** The `snapshot` variant of `llmSseEventSchema`, built from the in-memory registry rather than parsed off the wire. */
-function toLlmSnapshotEvent(snapshot: GenerationSnapshot & { streamId: string }): string {
+function toLlmSnapshotEvent(
+  snapshot: GenerationSnapshot & { streamId: string },
+  sessionKey: string,
+): string {
   const data: LlmSseEvent = {
     type: "snapshot",
     streamId: snapshot.streamId,
@@ -317,7 +342,7 @@ function toLlmSnapshotEvent(snapshot: GenerationSnapshot & { streamId: string })
     seq: snapshot.nextSeq,
   };
 
-  return `event: llm\ndata: ${JSON.stringify(data)}\n\n`;
+  return `event: llm\ndata: ${encryptSseData(sessionKey, JSON.stringify(data))}\n\n`;
 }
 
 async function replayFrom(

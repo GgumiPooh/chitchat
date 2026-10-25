@@ -1,6 +1,6 @@
 import { listArchiveMonthCounts } from "@/entities/media";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { ARCHIVE_MODE_FILTERS, LIBRARY_SHELVES } from "@/shared/config";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -17,7 +17,7 @@ const querySchema = z.object({
  * layout can read no `searchParams` and does not re-render on a client mutation.
  */
 // INFO: AGENTS.md § 6.4. A Route Handler answers its own 401 — the App Router does not honour a thrown `Response`.
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -37,4 +37,4 @@ export async function GET(request: Request) {
   return NextResponse.json({
     months: await listArchiveMonthCounts(shelf ?? "gallery", user.id, modeFilter),
   });
-}
+});

@@ -1,6 +1,6 @@
 import type { MediaId, MessageId, UserId } from "@/shared/lib";
 import { sql } from "drizzle-orm";
-import { boolean, pgTable, text, type AnyPgColumn } from "drizzle-orm/pg-core";
+import { boolean, integer, pgTable, text, timestamp, type AnyPgColumn } from "drizzle-orm/pg-core";
 import { snowflake } from "../types";
 import { media } from "./media";
 
@@ -31,6 +31,9 @@ export const users = pgTable("users", {
     .notNull()
     .unique()
     .default(sql`gen_random_uuid()::text`),
+  pinHash: text("pin_hash"),
+  pinFailedAttempts: integer("pin_failed_attempts").notNull().default(0),
+  pinLockedUntil: timestamp("pin_locked_until", { withTimezone: true }),
 });
 
 export type User = typeof users.$inferSelect;

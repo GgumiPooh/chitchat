@@ -9,6 +9,7 @@ import {
   VocaInlineEditor,
 } from "@/features/voca-browser";
 import { VocaRecommendSheet } from "@/features/voca-recommend";
+import { request } from "@/shared/api";
 import { SIDE_PANEL_MEDIA_QUERY, VOCA_ROUTE } from "@/shared/config";
 import { cn, useSidePanel, type Nullable, type VocaCardId } from "@/shared/lib";
 import {
@@ -150,7 +151,7 @@ export function VocaCardsPage({
   const handleBatchSuspend = async (suspend: boolean) => {
     for (const id of selectedIds) {
       try {
-        await fetch(`/api/voca/cards/${id}`, {
+        await request(`/api/voca/cards/${id}`, {
           method: "PATCH",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ suspended: suspend }),
@@ -177,7 +178,7 @@ export function VocaCardsPage({
     try {
       for (const id of selectedIds) {
         try {
-          await fetch(`/api/voca/cards/${id}`, { method: "DELETE" });
+          await request(`/api/voca/cards/${id}`, { method: "DELETE" });
         } catch (err) {
           console.error(err);
         }

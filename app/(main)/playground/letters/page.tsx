@@ -1,7 +1,7 @@
 import { listTimeLetters } from "@/entities/time-letter";
 import { listUsers } from "@/entities/user";
 import { TimeLettersPage } from "@/pages/time-letters";
-import { requireUserOrRedirect } from "@/shared/auth";
+import { encryptServerPayload, requireUserOrRedirect } from "@/shared/auth";
 
 export type PageProps = {
   searchParams: Promise<{ action?: string; id?: string }>;
@@ -22,14 +22,18 @@ export default async function Page({ searchParams }: PageProps) {
   const currentUserName = participants.find((p) => p.id === user.id)?.name;
   const partnerName = participants.find((p) => p.id !== user.id)?.name ?? "상대방";
 
+  const encryptedPayload = await encryptServerPayload({
+    currentUserName,
+    partnerName,
+    initialLetters: result.items,
+    initialNextCursor: result.nextCursor,
+    initialHasMore: result.hasMore,
+  });
+
   return (
     <TimeLettersPage
       currentUserId={user.id}
-      currentUserName={currentUserName}
-      partnerName={partnerName}
-      initialLetters={result.items}
-      initialNextCursor={result.nextCursor}
-      initialHasMore={result.hasMore}
+      encryptedPayload={encryptedPayload}
       initialLetterId={id}
     />
   );

@@ -2,13 +2,13 @@ import { createEvent, listEventOccurrences } from "@/entities/event";
 import { createSystemMessage } from "@/entities/message";
 import { notifyMessageRecipients } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { composeEventNoticeBody, safelyRunAsync } from "@/shared/lib";
 import { NextResponse, after } from "next/server";
 import { eventBodySchema, rangeSchema } from "./schema";
 
 /** REQUIREMENTS.md § 11.3. One month's cells, with `yearly` rows projected onto the year in view. */
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -26,9 +26,9 @@ export async function GET(request: Request) {
   return NextResponse.json({
     occurrences: await listEventOccurrences(query.data.from, query.data.to),
   });
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -85,4 +85,4 @@ export async function POST(request: Request) {
   );
 
   return NextResponse.json({ event }, { status: 201 });
-}
+});

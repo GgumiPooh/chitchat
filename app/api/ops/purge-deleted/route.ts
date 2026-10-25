@@ -1,5 +1,5 @@
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import {
   dispatchOpsWorkflow,
   isOpsDispatchConfigured,
@@ -24,7 +24,7 @@ import { z } from "zod";
 // INFO: Bodyless is a preview, matching the sweep — the deleting call is explicit at both ends.
 const bodySchema = z.object({ dryRun: z.boolean() }).partial();
 
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   const requester = await getCurrentUser();
 
   if (!requester) {
@@ -58,4 +58,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return apiError(toDispatchErrorCode(error));
   }
-}
+});

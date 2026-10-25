@@ -1,6 +1,6 @@
 import { listArchiveMonthCounts } from "@/entities/media";
 import { ArchiveJumpProvider, ArchiveMonthCountsProvider, ArchiveShell } from "@/pages/archive";
-import { requireUserOrRedirect } from "@/shared/auth";
+import { encryptServerPayload, requireUserOrRedirect } from "@/shared/auth";
 import type { PropsWithChildren } from "react";
 
 /**
@@ -20,9 +20,11 @@ export default async function ArchiveLayout({ children }: PropsWithChildren) {
     listArchiveMonthCounts("voice", user.id),
   ]);
 
+  const encryptedSeed = await encryptServerPayload({ gallery, file, voice });
+
   return (
     <ArchiveJumpProvider>
-      <ArchiveMonthCountsProvider seed={{ gallery, file, voice }}>
+      <ArchiveMonthCountsProvider encryptedSeed={encryptedSeed}>
         <ArchiveShell>{children}</ArchiveShell>
       </ArchiveMonthCountsProvider>
     </ArchiveJumpProvider>

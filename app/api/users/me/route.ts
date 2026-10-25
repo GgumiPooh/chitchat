@@ -8,7 +8,7 @@ import {
 } from "@/entities/media";
 import { updateUserProfile, type ReplacedMedia } from "@/entities/user";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { MAX_NICKNAME_LENGTH } from "@/shared/config";
 import { getDb } from "@/shared/db";
 import {
@@ -44,7 +44,7 @@ const bodySchema = z
  * INFO: § 12.2. The chat wallpaper is not patched here. It stopped being a property
  * of a user when it became shared, and `PATCH /api/chat/background` owns it.
  */
-export async function PATCH(request: Request) {
+export const PATCH = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -97,7 +97,7 @@ export async function PATCH(request: Request) {
   discardReplaced(update.replaced, user.id);
 
   return NextResponse.json({ user: update.participant });
-}
+});
 
 /** `undefined` keeps the current photo; `null` is 기본 이미지로/없애기; a validated upload registers a fresh one. */
 type PhotoPatch = Optional<Nullable<ValidatedMedia>> | "unprocessable";

@@ -8,7 +8,7 @@ import {
   type ArchiveModeFilter,
   type LibraryShelf,
 } from "@/shared/config";
-import type { Nullable } from "@/shared/lib";
+import { useDecryptedServerPayload, type Nullable } from "@/shared/lib";
 import { usePathname, useSearchParams } from "next/navigation";
 import { createContext, useContext, useEffect, useState, type PropsWithChildren } from "react";
 import { fetchArchiveMonthCounts } from "../api/fetch-archive-month-counts";
@@ -23,7 +23,8 @@ const InvalidateArchiveMonthCountsContext = createContext<Nullable<() => void>>(
 
 export type ArchiveMonthCountsProviderProps = PropsWithChildren<{
   /** `archive/layout.tsx`'s server-rendered 전체보기 totals, so the panel's first paint costs no round trip. */
-  seed: Record<LibraryShelf, ArchiveMonthCount[]>;
+  seed?: Record<LibraryShelf, ArchiveMonthCount[]>;
+  encryptedSeed?: string;
 }>;
 
 /**
@@ -32,15 +33,30 @@ export type ArchiveMonthCountsProviderProps = PropsWithChildren<{
  * and never re-renders on a client mutation, so counts left as its prop ignored
  * the 보기 옵션 filter and went stale under every upload and 삭제.
  */
-export function ArchiveMonthCountsProvider({ seed, children }: ArchiveMonthCountsProviderProps) {
+export function ArchiveMonthCountsProvider({
+  seed,
+  encryptedSeed,
+  children,
+}: ArchiveMonthCountsProviderProps) {
+  const decryptedSeed = useDecryptedServerPayload<Record<LibraryShelf, ArchiveMonthCount[]>>(
+    encryptedSeed ?? "",
+  );
+  const effectiveSeed = encryptedSeed ? decryptedSeed : seed;
+
   const shelf = toActiveShelf(usePathname());
   const mode = toArchiveModeFilter(useSearchParams()?.get(ARCHIVE_MODE_PARAM));
   const [generation, setGeneration] = useState(0);
   const [cache, setCache] = useState<Record<string, CountsEntry>>(() =>
-    Object.fromEntries(
-      LIBRARY_SHELVES.map((each) => [toKey(each, "all"), { months: seed[each], generation: 0 }]),
-    ),
+    effectiveSeed
+      ? Object.fromEntries(
+          LIBRARY_SHELVES.map((each) => [
+            toKey(each, "all"),
+            { months: effectiveSeed[each] ?? [], generation: 0 },
+          ]),
+        )
+      : {},
   );
+
   const key = toKey(shelf, mode);
   const entry = cache[key] as CountsEntry | undefined;
   const isCurrent = entry !== undefined && entry.generation >= generation;
@@ -69,7 +85,8 @@ export function ArchiveMonthCountsProvider({ seed, children }: ArchiveMonthCount
   const invalidate = () => setGeneration((previous) => previous + 1);
 
   // INFO: The stale slice stands in while its refetch is in flight; a key never seen falls back to the shelf's 전체보기 seed rather than emptying the panel.
-  const months = entry?.months ?? cache[toKey(shelf, "all")]?.months ?? [];
+  const months =
+    entry?.months ?? cache[toKey(shelf, "all")]?.months ?? effectiveSeed?.[shelf] ?? [];
 
   return (
     <InvalidateArchiveMonthCountsContext value={invalidate}>

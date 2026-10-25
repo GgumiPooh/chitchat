@@ -1,7 +1,7 @@
 import "server-only";
 
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { snowflakeSchema } from "@/shared/config";
 import { geeknewsReads, getDb } from "@/shared/db";
 import type { NewsArticleId } from "@/shared/lib";
@@ -13,7 +13,7 @@ const readActionSchema = z.object({
   articleId: snowflakeSchema<NewsArticleId>(),
 });
 
-export async function GET() {
+export const GET = withEncryptedRoute(async () => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -26,9 +26,9 @@ export async function GET() {
     .where(eq(geeknewsReads.userId, user.id));
 
   return NextResponse.json({ readArticleIds: rows.map((r) => r.articleId) });
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -52,9 +52,9 @@ export async function POST(request: Request) {
     .onConflictDoNothing();
 
   return NextResponse.json({ ok: true });
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -85,4 +85,4 @@ export async function DELETE(request: Request) {
     .where(and(eq(geeknewsReads.userId, user.id), eq(geeknewsReads.articleId, targetArticleId)));
 
   return NextResponse.json({ ok: true });
-}
+});

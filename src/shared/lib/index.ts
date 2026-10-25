@@ -217,6 +217,15 @@ export {
   useViewportReplay,
 } from "./hooks/use-viewport-replay";
 export {
+  createClientEcdhHandshake,
+  decryptWithCryptoKey,
+  encryptWithCryptoKey,
+  fromBase64Url,
+  importAesGcmKey,
+  toBase64Url,
+  type ClientEcdhHandshake,
+} from "./identity/aes-gcm";
+export {
   SNOWFLAKE_EPOCH,
   SNOWFLAKE_PATTERN,
   SNOWFLAKE_TIME_SHIFT,
@@ -244,6 +253,18 @@ export {
   type VocaReviewId,
 } from "./identity/id";
 export { randomId } from "./identity/random";
+export {
+  ENCRYPTED_HEADER,
+  clearClientSessionKey,
+  decryptClientText,
+  encryptClientText,
+  getClientSessionCryptoKey,
+  getStoredSessionKeyString,
+  hasStoredSessionKey,
+  setClientSessionKey,
+  subscribeSessionKey,
+} from "./identity/session-key-store";
+export { useDecryptedServerPayload, useHasSessionKey } from "./identity/use-session-key";
 export { GESTURE_SLOP } from "./input/gesture";
 export {
   isAltKey,

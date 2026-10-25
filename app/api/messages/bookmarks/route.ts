@@ -4,7 +4,7 @@ import {
   removeAllMessageBookmarks,
 } from "@/entities/message";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { BOOKMARK_PAGE_SIZE, snowflakeSchema } from "@/shared/config";
 import type { MessageId } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -15,7 +15,7 @@ const querySchema = z.object({
   hideOthers: z.coerce.boolean().optional().default(false),
 });
 
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -47,9 +47,9 @@ export async function GET(request: Request) {
     allIds,
     hasMore: bookmarks.length >= BOOKMARK_PAGE_SIZE,
   });
-}
+});
 
-export async function DELETE() {
+export const DELETE = withEncryptedRoute(async () => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -59,4 +59,4 @@ export async function DELETE() {
   await removeAllMessageBookmarks(user.id);
 
   return new NextResponse(null, { status: 204 });
-}
+});

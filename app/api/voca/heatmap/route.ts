@@ -2,10 +2,10 @@ import "server-only";
 
 import { getVocaHeatmap } from "@/entities/voca";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { NextResponse } from "next/server";
 
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -17,4 +17,4 @@ export async function GET(request: Request) {
 
   const heatmap = await getVocaHeatmap(user.id, weeks);
   return NextResponse.json({ heatmap });
-}
+});

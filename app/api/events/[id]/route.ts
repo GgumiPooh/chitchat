@@ -2,7 +2,7 @@ import { deleteEvent, getEvent, updateEvent, type UpdateEventParams } from "@/en
 import { createSystemMessage } from "@/entities/message";
 import { notifyMessageRecipients } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { snowflakeSchema } from "@/shared/config";
 import type { SystemAction, User } from "@/shared/db";
 import { composeEventNoticeBody, safelyRunAsync, type EventId, type Nullable } from "@/shared/lib";
@@ -16,7 +16,7 @@ type RouteParams = { params: Promise<{ id: string }> };
 const paramsSchema = snowflakeSchema<EventId>();
 
 /** REQUIREMENTS.md § 11.5. What a chat notice opens its event from — a 404 is the row deleted since the notice was posted. */
-export async function GET(_request: Request, { params }: RouteParams) {
+export const GET = withEncryptedRoute(async (_request: Request, { params }: RouteParams) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -36,13 +36,13 @@ export async function GET(_request: Request, { params }: RouteParams) {
   }
 
   return NextResponse.json({ event });
-}
+});
 
 /**
  * REQUIREMENTS.md § 11.4. Both users may edit every event, so nothing here is
  * scoped to `created_by` — a missing row is the only 404.
  */
-export async function PATCH(request: Request, { params }: RouteParams) {
+export const PATCH = withEncryptedRoute(async (request: Request, { params }: RouteParams) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -86,9 +86,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 
   return NextResponse.json({ event });
-}
+});
 
-export async function DELETE(_request: Request, { params }: RouteParams) {
+export const DELETE = withEncryptedRoute(async (_request: Request, { params }: RouteParams) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -111,7 +111,7 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   await postNotice(user, "event_deleted", null, event.title, event.startsAt);
 
   return new NextResponse(null, { status: 204 });
-}
+});
 
 async function postNotice(
   user: User,

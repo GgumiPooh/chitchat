@@ -1,6 +1,6 @@
 import { listArchiveMedia } from "@/entities/media";
 import { ArchivePage } from "@/pages/archive";
-import { requireUserOrRedirect } from "@/shared/auth";
+import { encryptServerPayload, requireUserOrRedirect } from "@/shared/auth";
 import {
   ARCHIVE_MODE_PARAM,
   ARCHIVE_TARGET_PARAM,
@@ -19,17 +19,19 @@ export default async function Page({ searchParams }: PageProps) {
   // INFO: REQUIREMENTS.md § 10. 채팅's viewer taps through carrying the photo it was showing, and the window comes back centred on that tile rather than on the newest one.
   const targetId = toMediaId(params[ARCHIVE_TARGET_PARAM]);
   const modeFilter = toArchiveModeFilter(params[ARCHIVE_MODE_PARAM]);
+  const initialMedia = await listArchiveMedia({
+    around: targetId,
+    currentUserId: user.id,
+    modeFilter,
+  });
+  const encryptedMedia = await encryptServerPayload(initialMedia);
 
   return (
     <ArchivePage
       key={`${targetId ?? ""}-${modeFilter}`}
       targetId={targetId}
       modeFilter={modeFilter}
-      initialMedia={await listArchiveMedia({
-        around: targetId,
-        currentUserId: user.id,
-        modeFilter,
-      })}
+      encryptedMedia={encryptedMedia}
     />
   );
 }

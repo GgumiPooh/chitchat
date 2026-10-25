@@ -1,6 +1,6 @@
 import { publishTyping } from "@/entities/user";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { NOTIFY_MODE_COOKIE_NAME, toNotifyMode } from "@/shared/config";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -13,9 +13,9 @@ import { NextResponse } from "next/server";
  * 204. The session lookup already carries the § 12. preference, which is why the
  * check below costs no query of its own.
  */
-export async function POST() {
+export const POST = withEncryptedRoute(async () => {
   return publish(true);
-}
+});
 
 /**
  * REQUIREMENTS.md § 8.12. Composing ended — the field was emptied, the message
@@ -26,9 +26,9 @@ export async function POST() {
  * at all, so the indicator must still come down on silence; what this buys is the
  * common case coming down at once instead of `TYPING_TIMEOUT` later.
  */
-export async function DELETE() {
+export const DELETE = withEncryptedRoute(async () => {
   return publish(false);
-}
+});
 
 async function publish(isTyping: boolean) {
   const user = await getCurrentUser();

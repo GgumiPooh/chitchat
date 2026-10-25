@@ -1,6 +1,7 @@
 "use client";
 
 import type { VocaCard, VocaCardState } from "@/entities/voca";
+import { request } from "@/shared/api";
 import { useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import { Rating } from "./fsrs";
@@ -83,7 +84,7 @@ export function useReviewSession({ initialCards }: UseReviewSessionOptions) {
       };
 
       try {
-        const response = await fetch("/api/voca/review", {
+        const response = await request("/api/voca/review", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -126,7 +127,7 @@ export function useReviewSession({ initialCards }: UseReviewSessionOptions) {
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/voca/undo", {
+      const response = await request("/api/voca/undo", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ cardId: last.card.id }),

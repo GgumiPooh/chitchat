@@ -1,4 +1,11 @@
-import { isDormant, markNetworkReached, markNetworkUnreachable } from "@/shared/lib";
+import {
+  clearClientSessionKey,
+  decryptClientText,
+  encryptClientText,
+  isDormant,
+  markNetworkReached,
+  markNetworkUnreachable,
+} from "@/shared/lib";
 
 /**
  * REQUIREMENTS.md § 8.4.1. Thrown instead of reaching the network while the app is
@@ -10,6 +17,25 @@ export class DormantRequestError extends Error {
     super(`${path} was not sent — the app is dormant (REQUIREMENTS.md § 8.4.1.)`);
     this.name = "DormantRequestError";
   }
+}
+
+export function shouldEncryptApiPath(path: string): boolean {
+  if (!path.startsWith("/api/")) {
+    return false;
+  }
+  if (
+    path.startsWith("/api/auth/") ||
+    path.startsWith("/api/health") ||
+    path.startsWith("/api/emoticons/") ||
+    path.startsWith("/api/webhooks/")
+  ) {
+    return false;
+  }
+  if (path.startsWith("/api/media/")) {
+    return path.startsWith("/api/media/upload-url");
+  }
+
+  return true;
 }
 
 /**
@@ -35,27 +61,98 @@ export class DormantRequestError extends Error {
  * CORS cannot answer `Access-Control-Allow-Credentials`. `collectShareFiles` reads
  * exactly that redirect, so 보관함's 공유 would fail as an opaque network error.
  */
-export function request(path: string, init?: RequestInit): Promise<Response> {
+export async function request(path: string, init?: RequestInit): Promise<Response> {
   if (isDormant()) {
-    return Promise.reject(new DormantRequestError(path));
+    throw new DormantRequestError(path);
   }
 
-  // INFO: The one place the app learns first-hand whether the network works, which is what `useIsOffline` corroborates `navigator.onLine` against before anything refuses on it.
-  return fetch(path, isCrossOrigin(path) ? { credentials: "include", ...init } : init).then(
-    (response) => {
-      markNetworkReached();
+  let finalPath = path;
+  let finalInit = init;
+  const isEncrypted = shouldEncryptApiPath(path);
 
+  if (isEncrypted) {
+    const queryIndex = path.indexOf("?");
+    if (queryIndex !== -1) {
+      const basePath = path.slice(0, queryIndex);
+      const queryString = path.slice(queryIndex + 1);
+      if (queryString.length > 0) {
+        const encryptedQuery = await encryptClientText(queryString);
+        if (encryptedQuery) {
+          finalPath = `${basePath}?e=${encodeURIComponent(encryptedQuery)}`;
+        }
+      }
+    }
+
+    const headers = new Headers(init?.headers);
+    headers.set("x-jandh-enc", "1");
+
+    let body = init?.body;
+    if (typeof body === "string" && body.length > 0) {
+      const encryptedBody = await encryptClientText(body);
+      if (encryptedBody) {
+        body = JSON.stringify({ e: encryptedBody });
+        headers.set("content-type", "application/json; charset=utf-8");
+      }
+    }
+
+    finalInit = {
+      ...init,
+      headers,
+      body,
+    };
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(
+      finalPath,
+      isCrossOrigin(finalPath) ? { credentials: "include", ...finalInit } : finalInit,
+    );
+    markNetworkReached();
+  } catch (error: unknown) {
+    if (!isAborted(error)) {
+      markNetworkUnreachable();
+    }
+
+    throw error;
+  }
+
+  if (isEncrypted) {
+    if (response.status === 428) {
+      clearClientSessionKey();
       return response;
-    },
-    (error: unknown) => {
-      // WARN: An abort is the caller changing its mind, not the network — a search keystroke cancels the request before it, and filing those as outages would corroborate a stuck flag on every fast typist.
-      if (!isAborted(error)) {
-        markNetworkUnreachable();
+    }
+
+    if (response.headers.get("x-jandh-enc") === "1") {
+      const rawJson = await response.text();
+      let envelope: { e?: unknown } | null = null;
+      try {
+        envelope = JSON.parse(rawJson);
+      } catch {
+        clearClientSessionKey();
+        throw new Error("Invalid encrypted response envelope");
       }
 
-      throw error;
-    },
-  );
+      if (!envelope || typeof envelope.e !== "string") {
+        clearClientSessionKey();
+        throw new Error("Invalid encrypted payload");
+      }
+
+      const decryptedText = await decryptClientText(envelope.e);
+      if (decryptedText === null) {
+        clearClientSessionKey();
+        throw new Error("Failed to decrypt server response");
+      }
+
+      return new Response(decryptedText, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: response.headers,
+      });
+    }
+  }
+
+  return response;
 }
 
 function isAborted(error: unknown): boolean {

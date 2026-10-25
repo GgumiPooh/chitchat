@@ -30,6 +30,19 @@ function generateSessionToken(): string {
   return toHex(crypto.getRandomValues(new Uint8Array(32)));
 }
 
+function generateEncryptionKey(): string {
+  return Buffer.from(crypto.getRandomValues(new Uint8Array(32))).toString("base64url");
+}
+
+export function ensureSessionEncryptionKey(session: Session): string {
+  if (session.encryptionKey) {
+    return session.encryptionKey;
+  }
+  const key = generateEncryptionKey();
+  session.encryptionKey = key;
+  return key;
+}
+
 // INFO: REQUIREMENTS.md § 5.2. Only the hash is stored, so a database leak cannot be replayed as a login.
 async function hashSessionToken(token: string): Promise<string> {
   const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
@@ -42,6 +55,7 @@ export async function createSession(
   deviceLabel: Nullable<string>,
 ): Promise<string> {
   const token = generateSessionToken();
+  const encryptionKey = generateEncryptionKey();
 
   await getDb()
     .insert(sessions)
@@ -51,6 +65,7 @@ export async function createSession(
       tokenHash: await hashSessionToken(token),
       deviceLabel,
       expiresAt: new Date(Date.now() + SESSION_DURATION),
+      encryptionKey,
     });
 
   return token;
@@ -85,6 +100,12 @@ export const getSessionContext = cache(async (): Promise<Nullable<SessionContext
     await db.delete(sessions).where(eq(sessions.id, row.session.id));
 
     return null;
+  }
+
+  if (!row.session.encryptionKey) {
+    const encryptionKey = generateEncryptionKey();
+    await db.update(sessions).set({ encryptionKey }).where(eq(sessions.id, row.session.id));
+    row.session.encryptionKey = encryptionKey;
   }
 
   if (now - row.session.lastSeenAt.getTime() > SESSION_RENEWAL_INTERVAL) {

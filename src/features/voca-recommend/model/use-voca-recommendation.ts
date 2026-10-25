@@ -1,5 +1,6 @@
 "use client";
 
+import { request } from "@/shared/api";
 import type { Nullable, Optional } from "@/shared/lib";
 import { josa } from "es-hangul";
 import { useCallback, useEffect, useState } from "react";
@@ -65,7 +66,7 @@ export function useVocaRecommendation({
 
     async function hydrate() {
       try {
-        const res = await fetch("/api/voca/recommend");
+        const res = await request("/api/voca/recommend");
         if (!res.ok || !isMounted) {
           return;
         }
@@ -135,7 +136,7 @@ export function useVocaRecommendation({
       }
       isPolling = true;
       try {
-        const res = await fetch("/api/voca/recommend");
+        const res = await request("/api/voca/recommend");
         if (!res.ok || !isMounted) {
           return;
         }
@@ -182,7 +183,7 @@ export function useVocaRecommendation({
     setIsLoading(true);
     setItems([]);
     try {
-      const res = await fetch("/api/voca/recommend", {
+      const res = await request("/api/voca/recommend", {
         body: JSON.stringify({
           count: 8,
           customTopic: customTopic.trim() || undefined,
@@ -259,7 +260,7 @@ export function useVocaRecommendation({
     const tags = tagParts.length > 0 ? tagParts.join(",") : undefined;
 
     try {
-      const res = await fetch("/api/voca/ai-generate", {
+      const res = await request("/api/voca/ai-generate", {
         body: JSON.stringify({
           mode: "sync",
           word: item.targetWord,

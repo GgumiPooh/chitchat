@@ -1,6 +1,6 @@
 import { listChangedMessages, toMessagePayload } from "@/entities/message";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { snowflakeCursorSchema } from "@/shared/config";
 import type { MessageId } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -24,7 +24,7 @@ const querySchema = z
  * only ever pages *forward* from the newest id this client knows, so an edit or a
  * delete landing on a row it already holds is invisible to it.
  */
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -43,4 +43,4 @@ export async function GET(request: Request) {
   return NextResponse.json(
     await toMessagePayload(await listChangedMessages(query.data.from, query.data.to, user.id)),
   );
-}
+});

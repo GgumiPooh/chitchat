@@ -1,5 +1,6 @@
 import { getCalendarSummary } from "@/entities/event";
 import { listMessages, toMessagePayload } from "@/entities/message";
+import { encryptServerPayload } from "@/shared/auth";
 import {
   NOTIFY_MODE_COOKIE_NAME,
   SIDE_PANEL_UPCOMING_PAGE_SIZE,
@@ -9,7 +10,7 @@ import {
 import type { Maybe, MessageId, Nullable, UserId } from "@/shared/lib";
 import { cookies } from "next/headers";
 import { preload } from "react-dom";
-import { ChatScreen } from "./chat-screen";
+import { EncryptedChatScreen } from "./encrypted-chat-screen";
 
 export type ChatPageProps = {
   className?: string;
@@ -56,13 +57,13 @@ export async function ChatPage({
     getCalendarSummary(SIDE_PANEL_UPCOMING_PAGE_SIZE + 1),
   ]);
 
+  const encryptedPayload = await encryptServerPayload({ messages, emoticons, summary });
+
   return (
-    <ChatScreen
+    <EncryptedChatScreen
       className={className}
       currentUserId={currentUserId}
-      initialMessages={messages}
-      initialEmoticons={emoticons}
-      initialSummary={summary}
+      encryptedPayload={encryptedPayload}
       jumpMessageId={jumpMessageId}
       jumpOnlyMe={jumpOnlyMe}
       initialOnlyMeFilter={onlyMeFilter}

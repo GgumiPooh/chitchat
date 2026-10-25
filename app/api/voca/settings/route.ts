@@ -2,7 +2,7 @@ import "server-only";
 
 import { getVocaUserSettings, updateVocaUserSettings } from "@/entities/voca";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { VOCA_REMINDER_COOKIE_NAME, VOCA_REMINDER_COOKIE_OPTIONS } from "@/shared/config";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -15,7 +15,7 @@ const settingsPatchSchema = z.object({
   todayExtraNewCards: z.number().int().min(0).max(50).optional(),
 });
 
-export async function GET() {
+export const GET = withEncryptedRoute(async () => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -23,9 +23,9 @@ export async function GET() {
 
   const settings = await getVocaUserSettings(user.id);
   return NextResponse.json({ settings });
-}
+});
 
-export async function PATCH(request: Request) {
+export const PATCH = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -49,4 +49,4 @@ export async function PATCH(request: Request) {
   }
 
   return response;
-}
+});

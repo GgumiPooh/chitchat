@@ -1,6 +1,7 @@
 "use client";
 
 import type { VocaCard } from "@/entities/voca";
+import { request } from "@/shared/api";
 import type { VocaCardId } from "@/shared/lib";
 import { useCallback, useEffect, useRef, useState } from "react";
 
@@ -47,7 +48,7 @@ export function useVocaCards({
         }
         params.set("limit", "30");
 
-        const res = await fetch(`/api/voca/cards?${params.toString()}`);
+        const res = await request(`/api/voca/cards?${params.toString()}`);
         if (!res.ok) {
           throw new Error(`Failed to fetch cards: ${res.status}`);
         }

@@ -6,7 +6,7 @@ import {
   validateMediaUpload,
 } from "@/entities/media";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { isImageMime } from "@/shared/config";
 import { getDb } from "@/shared/db";
 import { safelyRunAsync, type Nullable } from "@/shared/lib";
@@ -24,7 +24,7 @@ const bodySchema = z.object({ media: mediaUploadSchema.nullable() });
  * participant may set it, either may clear it, and the object being replaced
  * generally belongs to the other one.
  */
-export async function PATCH(request: Request) {
+export const PATCH = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -68,7 +68,7 @@ export async function PATCH(request: Request) {
   discardReplaced(update.replaced);
 
   return NextResponse.json({ backgroundMediaId: update.backgroundMediaId });
-}
+});
 
 /**
  * WARN: Cleanup behind a write that already committed, so it runs after the response

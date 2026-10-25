@@ -17,6 +17,7 @@ import {
   isBareKey,
   isLetterKey,
   toDayKey,
+  useDecryptedServerPayload,
   useRovingTabIndex,
   useSidePanel,
   type Nullable,
@@ -53,7 +54,27 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useTimeLetters, type TimeLetterFilter } from "../model/use-time-letters";
 import { TimeLetterCard } from "./time-letter-card";
 
+export type TimeLettersSeed = {
+  currentUserName?: string;
+  partnerName?: string;
+  initialLetters: TimeLetter[];
+  initialNextCursor: Nullable<string>;
+  initialHasMore: boolean;
+};
+
 export type TimeLettersPageProps = {
+  className?: string;
+  currentUserId: UserId;
+  encryptedPayload?: string;
+  currentUserName?: string;
+  partnerName?: string;
+  initialLetters?: TimeLetter[];
+  initialNextCursor?: Nullable<string>;
+  initialHasMore?: boolean;
+  initialLetterId?: string;
+};
+
+export type TimeLettersPageViewProps = {
   className?: string;
   currentUserId: UserId;
   currentUserName?: string;
@@ -64,13 +85,48 @@ export type TimeLettersPageProps = {
   initialLetterId?: string;
 };
 
+export function TimeLettersPage({
+  className,
+  currentUserId,
+  encryptedPayload,
+  currentUserName,
+  partnerName,
+  initialLetters,
+  initialNextCursor,
+  initialHasMore,
+  initialLetterId,
+}: TimeLettersPageProps) {
+  const seed = useDecryptedServerPayload<TimeLettersSeed>(encryptedPayload ?? "");
+
+  if (encryptedPayload && !seed) {
+    return <div className={cn("min-h-dvh bg-canvas", className)} />;
+  }
+
+  return (
+    <TimeLettersPageView
+      className={className}
+      currentUserId={currentUserId}
+      currentUserName={encryptedPayload ? seed?.currentUserName : currentUserName}
+      partnerName={encryptedPayload ? seed?.partnerName : partnerName}
+      initialLetters={(encryptedPayload ? seed?.initialLetters : initialLetters) ?? []}
+      initialLetterId={initialLetterId}
+      initialNextCursor={
+        encryptedPayload ? (seed?.initialNextCursor ?? null) : (initialNextCursor ?? null)
+      }
+      initialHasMore={
+        encryptedPayload ? (seed?.initialHasMore ?? false) : (initialHasMore ?? false)
+      }
+    />
+  );
+}
+
 const FILTER_TABS: readonly { label: string; id: TimeLetterFilter }[] = [
   { id: "all", label: "전체" },
   { id: "received", label: "받은 편지" },
   { id: "sent", label: "보낸 편지" },
 ] as const;
 
-export function TimeLettersPage({
+function TimeLettersPageView({
   className,
   currentUserId,
   currentUserName,
@@ -79,7 +135,7 @@ export function TimeLettersPage({
   initialNextCursor = null,
   initialHasMore = false,
   initialLetterId,
-}: TimeLettersPageProps) {
+}: TimeLettersPageViewProps) {
   const router = useRouter();
   const { isOpen: isSidePanelOpen, open: openSidePanel } = useSidePanel();
   const sidePanelScrollerRef = useRef<Nullable<HTMLDivElement>>(null);

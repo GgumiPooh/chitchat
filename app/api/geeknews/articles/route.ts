@@ -2,7 +2,7 @@ import "server-only";
 
 import { listGeeknewsArticles } from "@/entities/geeknews";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { GEEKNEWS_PAGE_SIZE, MAX_GEEKNEWS_PAGE_SIZE, snowflakeSchema } from "@/shared/config";
 import type { NewsArticleId } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -13,7 +13,7 @@ const querySchema = z.object({
   limit: z.coerce.number().int().positive().optional(),
 });
 
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -37,4 +37,4 @@ export async function GET(request: Request) {
   });
 
   return NextResponse.json({ articles });
-}
+});

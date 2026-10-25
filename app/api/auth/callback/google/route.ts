@@ -2,6 +2,8 @@ import { upsertGoogleUser } from "@/entities/user";
 import { redirectTo } from "@/shared/api";
 import {
   clearOAuthCookies,
+  clearUserPin,
+  consumePinResetCookie,
   createSession,
   getGoogleClient,
   isAllowedEmail,
@@ -51,6 +53,10 @@ export async function GET(request: NextRequest) {
     }
 
     const user = await upsertGoogleUser(identity);
+
+    if (await consumePinResetCookie()) {
+      await clearUserPin(user.id);
+    }
 
     const token = await createSession(user.id, toDeviceLabel(request.headers.get("user-agent")));
 

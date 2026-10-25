@@ -13,6 +13,7 @@ export const sessions = pgTable("sessions", {
   deviceLabel: text("device_label"),
   lastSeenAt: timestamp("last_seen_at", { withTimezone: true }).notNull().defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  encryptionKey: text("encryption_key"),
 });
 
 export type Session = typeof sessions.$inferSelect;

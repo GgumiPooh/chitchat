@@ -1,6 +1,7 @@
 "use client";
 
 import type { VocaUserSettings } from "@/entities/voca";
+import { request } from "@/shared/api";
 import { VOCA_REMINDER_COOKIE_NAME, VOCA_ROUTE } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import {
@@ -57,7 +58,7 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
 
   const updateSetting = async (patch: Partial<VocaUserSettings>) => {
     try {
-      const res = await fetch("/api/voca/settings", {
+      const res = await request("/api/voca/settings", {
         body: JSON.stringify(patch),
         headers: { "Content-Type": "application/json" },
         method: "PATCH",
@@ -123,7 +124,7 @@ export function VocaSettingsPage({ className, initialSettings }: VocaSettingsPag
     }
 
     try {
-      const res = await fetch("/api/voca/settings", {
+      const res = await request("/api/voca/settings", {
         body: JSON.stringify({ reminderEnabled: checked }),
         headers: { "Content-Type": "application/json" },
         method: "PATCH",

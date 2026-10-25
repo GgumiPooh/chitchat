@@ -8,7 +8,7 @@ import {
   type TimeLetterStatus,
 } from "@/entities/time-letter";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { snowflakeSchema } from "@/shared/config";
 import type { MediaId, UserId } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -35,7 +35,7 @@ const createSchema = z.object({
   media: z.array(mediaUploadSchema).optional(),
 });
 
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -62,9 +62,9 @@ export async function GET(request: Request) {
     nextCursor: result.nextCursor,
     hasMore: result.hasMore,
   });
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -113,4 +113,4 @@ export async function POST(request: Request) {
     }
     return apiError("invalid_request");
   }
-}
+});

@@ -1,6 +1,6 @@
 import { getLinkPreview } from "@/entities/link-preview";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { MAX_LINK_PREVIEW_URL_LENGTH } from "@/shared/config";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -20,7 +20,7 @@ const querySchema = z.object({
  * INFO: `null` is a normal answer, not an error — most links describe themselves
  * with nothing, and the bubble renders unchanged when they do.
  */
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -36,4 +36,4 @@ export async function GET(request: Request) {
   }
 
   return NextResponse.json({ preview: await getLinkPreview(query.data.url) });
-}
+});

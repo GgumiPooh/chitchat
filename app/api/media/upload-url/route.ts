@@ -1,5 +1,5 @@
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import {
   ALLOWED_IMAGE_MIMES,
   ALLOWED_VIDEO_MIMES,
@@ -40,7 +40,7 @@ const bodySchema = z.object({
  * request — a signature the browser could aim would let it overwrite any object
  * in the bucket.
  */
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -87,4 +87,4 @@ export async function POST(request: Request) {
     thumbnailUploadUrl,
     thumbnailMime: isFile ? null : thumbnailMime,
   });
-}
+});

@@ -1,6 +1,6 @@
 import { getCalendarSummary } from "@/entities/event";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { MAX_UPCOMING_EVENTS } from "@/shared/config";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -16,7 +16,7 @@ const upcomingSchema = z.coerce.number().int().min(1).catch(MAX_UPCOMING_EVENTS)
  * the upcoming card all go stale at the same instant, so splitting them would be
  * three requests that always fire together.
  */
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -26,4 +26,4 @@ export async function GET(request: Request) {
   const upcoming = upcomingSchema.parse(new URL(request.url).searchParams.get("upcoming"));
 
   return NextResponse.json({ summary: await getCalendarSummary(upcoming) });
-}
+});

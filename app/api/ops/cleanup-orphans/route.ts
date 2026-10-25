@@ -1,5 +1,5 @@
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import {
   dispatchOpsWorkflow,
   isOpsDispatchConfigured,
@@ -19,7 +19,7 @@ const bodySchema = z.object({ dryRun: z.boolean() }).partial();
  * listing — so this starts the same workflow the 04:30 schedule does. It does not wait: the
  * screen says 요청했어요 and the run's push notification carries the count.
  */
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   const requester = await getCurrentUser();
 
   if (!requester) {
@@ -49,4 +49,4 @@ export async function POST(request: Request) {
   } catch (error) {
     return apiError(toDispatchErrorCode(error));
   }
-}
+});

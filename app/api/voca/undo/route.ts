@@ -2,7 +2,7 @@ import "server-only";
 
 import { revertVocaReview } from "@/entities/voca";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { snowflakeSchema } from "@/shared/config";
 import type { VocaCardId } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -12,7 +12,7 @@ const undoSchema = z.object({
   cardId: snowflakeSchema<VocaCardId>(),
 });
 
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -30,4 +30,4 @@ export async function POST(request: Request) {
   }
 
   return NextResponse.json({ card });
-}
+});

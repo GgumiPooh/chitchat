@@ -17,6 +17,9 @@ const ERROR_STATUS = {
   too_large: 413,
   unsupported_media: 415,
   unprocessable: 422,
+  key_required: 428,
+  key_mismatch: 428,
+  too_many_attempts: 429,
   /** REQUIREMENTS.md § 12.4. jandh-ops answered, and the answer was a failure. Its own push carries the reason; this side never repeats it. */
   upstream_failed: 502,
   /** REQUIREMENTS.md § 12.4. jandh-ops is unreachable or its address and tokens are not configured here. */

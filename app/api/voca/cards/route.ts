@@ -2,7 +2,7 @@ import "server-only";
 
 import { createVocaCard, listVocaCards } from "@/entities/voca";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { snowflakeSchema } from "@/shared/config";
 import type { MediaId, VocaCardId } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -38,7 +38,7 @@ const createCardSchema = z.object({
   tags: z.string().nullable().optional(),
 });
 
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -67,9 +67,9 @@ export async function GET(request: Request) {
     nextCursor: result.nextCursor,
     hasMore: result.hasMore,
   });
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -87,4 +87,4 @@ export async function POST(request: Request) {
   });
 
   return NextResponse.json({ card }, { status: 201 });
-}
+});

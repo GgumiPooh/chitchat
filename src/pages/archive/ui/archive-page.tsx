@@ -13,7 +13,13 @@ import {
   toMediaLabel,
   type ArchiveModeFilter,
 } from "@/shared/config";
-import { cn, startMediaMorph, type MediaId, type Nullable } from "@/shared/lib";
+import {
+  cn,
+  startMediaMorph,
+  useDecryptedServerPayload,
+  type MediaId,
+  type Nullable,
+} from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import {
   downloadMedia,
@@ -44,24 +50,56 @@ import { LibrarySegments } from "./library-segments";
 
 export type ArchivePageProps = {
   className?: string;
-  initialMedia: ArchiveMedia[];
+  initialMedia?: ArchiveMedia[];
+  encryptedMedia?: string;
   /** REQUIREMENTS.md § 10. The photo 채팅's viewer sent the reader here to see, from `?target=`; the window above already came back centred on it. */
   targetId?: MediaId;
   /** REQUIREMENTS.md § 10. The 보기 옵션 mode `initialMedia` was drawn under — paging must ask with the same one, or the pages beyond the first window ignore the filter. */
   modeFilter?: ArchiveModeFilter;
 };
 
+export type ArchivePageViewProps = {
+  className?: string;
+  initialMedia: ArchiveMedia[];
+  targetId?: MediaId;
+  modeFilter?: ArchiveModeFilter;
+};
+
+export function ArchivePage({
+  className,
+  encryptedMedia,
+  initialMedia,
+  targetId,
+  modeFilter = "all",
+}: ArchivePageProps) {
+  const decryptedMedia = useDecryptedServerPayload<ArchiveMedia[]>(encryptedMedia ?? "");
+  const mediaToRender = encryptedMedia ? decryptedMedia : initialMedia;
+
+  if (encryptedMedia && !decryptedMedia) {
+    return <div className={cn("min-h-dvh bg-canvas", className)} />;
+  }
+
+  return (
+    <ArchivePageView
+      className={className}
+      initialMedia={mediaToRender ?? []}
+      targetId={targetId}
+      modeFilter={modeFilter}
+    />
+  );
+}
+
 /**
  * REQUIREMENTS.md § 10. 보관함's 사진 segment — everything the conversation has ever
  * exchanged, newest first. `media` is the single source, so nothing here is a copy
  * of a chat row.
  */
-export function ArchivePage({
+function ArchivePageView({
   className,
   initialMedia,
   targetId,
   modeFilter = "all",
-}: ArchivePageProps) {
+}: ArchivePageViewProps) {
   const silentSend = useSilentSend();
   const router = useRouter();
   const [viewer, setViewer] = useState<Nullable<{ cells: MediaCell[]; index: number }>>(null);

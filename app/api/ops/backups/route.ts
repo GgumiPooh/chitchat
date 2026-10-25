@@ -1,5 +1,5 @@
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import {
   dispatchOpsWorkflow,
   isOpsDispatchConfigured,
@@ -15,7 +15,7 @@ import { NextResponse } from "next/server";
  * INFO: Read straight from the bucket. The dumps share the app's own bucket, so this needs
  * no credential that § 9. did not already have.
  */
-export async function GET() {
+export const GET = withEncryptedRoute(async () => {
   if (!(await getCurrentUser())) {
     return apiError("unauthorized");
   }
@@ -28,7 +28,7 @@ export async function GET() {
     // WARN: Never an empty list. A bucket that could not be read would otherwise draw 아직 백업이 없어요 over a shelf full of dumps.
     return apiError("upstream_failed");
   }
-}
+});
 
 /**
  * REQUIREMENTS.md § 12.4. Asks for a backup run and answers 202 once GitHub has queued it.
@@ -37,7 +37,7 @@ export async function GET() {
  * NOT wait for it. `pg_dump` runs for minutes and the dispatch answers immediately, so the
  * screen says 요청했어요 and the run's push notification is what reports the outcome.
  */
-export async function POST() {
+export const POST = withEncryptedRoute(async () => {
   const requester = await getCurrentUser();
 
   if (!requester) {
@@ -61,4 +61,4 @@ export async function POST() {
   } catch (error) {
     return apiError(toDispatchErrorCode(error));
   }
-}
+});

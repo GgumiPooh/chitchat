@@ -220,6 +220,27 @@ jandh-emoticons writes into this database (its `REQUIREMENTS.md § 3.`) and alwa
 - The redirect is **303**, not `redirectTo`'s default 307 — a 307 replays the POST against the target page
 - Auth Route Handlers redirect through `redirectTo` from `@/shared/api`, which emits a **relative** `Location`. `new URL(path, request.url)` cannot: `next dev` builds `request.url` from the bound `localhost:3000` and takes only the scheme from `X-Forwarded-Proto`, so behind an HTTPS tunnel it emits `https://localhost:3000`, which speaks no TLS. `proxy.ts` is exempt — Next already relativises middleware redirects
 
+### 5.5. PIN Lock & Session Transport Encryption ✅
+
+A 6-digit security PIN lock gate (`PinLockGate`, KakaoTalk-style custom touch keypad `PinKeypad`) protects app entry and gates session transport encryption keys.
+
+- **Initial PIN Setup:** If `user.pin_hash` is null, the user is presented with a 2-step PIN setup flow (enter 6 digits, then confirm; mismatch shakes the keypad and prompts re-entry). Upon completion, `POST /api/auth/session/pin` records the `scrypt` hash (`users.pin_hash`).
+- **Unlock Verification:** When entering the app or after browser session key loss, the 1-step verification keypad appears. Submitting the correct PIN issues the session encryption key to the client.
+- **Lockout Protection:** 5 consecutive failed attempts (`PIN_MAX_ATTEMPTS = 5`) trigger a 1-minute lockout (`PIN_LOCKOUT_MS = 60_000`, tracked in `users.pin_failed_attempts` and `users.pin_locked_until`). A live 1-second countdown displays on the keypad, during which inputs are disabled.
+- **Forgot PIN Reset:** The keypad footer offers "PIN 번호를 잊으셨나요?", opening a confirmation modal. Confirming calls `requestPinResetLogout()`, which terminates the active session, clears cookies, stages the `jandh_pin_reset` cookie, and logs out the device. On the next Google login, `consumePinResetCookie()` triggers `clearUserPin()` so the user can immediately set a fresh 6-digit PIN.
+- **ECDH + AES-256-GCM Session Transport Encryption:**
+  - `sessions.encryption_key` stores a 32-byte symmetric AES-GCM key per session row.
+  - During the PIN handshake (`submitPinHandshake`), the client generates an ephemeral ECDH (P-256) keypair, computes a shared secret with the server ECDH public key (`getServerEcdhPublicKey`), and imports the derived AES-256-GCM key into `sessionStorage` (`jandh:session-key`).
+  - Sensitive API routes wrapped with `withEncryptedRoute` transparently decrypt request payloads and encrypt response payloads. The client `request()` helper detects encryption, adds `x-jandh-enc` headers, and decrypts responses seamlessly.
+  - Live chat SSE stream data is encrypted via `encryptSseData(sessionKey, json)` (`{ e: ciphertext }`).
+  - **SSR Initial Props Encryption:** Server Components encrypt initial data via `encryptServerPayload` and client wrappers decrypt via `useDecryptedServerPayload` across:
+    - Main Shell (`app/(main)/layout.tsx` -> `MainShellSeed` in `MainShell`)
+    - Chat (`ChatPage` -> `EncryptedChatScreen`)
+    - Calendar (`app/(main)/calendar/page.tsx` -> `CalendarPage`)
+    - Archive (`app/(main)/archive/layout.tsx` -> `ArchiveMonthCountsProvider`, and shelf pages `ArchivePage`, `ArchiveFilesPage`, `ArchiveVoicePage`)
+    - Time Letters (`app/(main)/playground/letters/page.tsx` -> `TimeLettersPage`)
+  - No plaintext messages, calendar occurrences, archive filenames, or letters are ever serialized into unencrypted SSR HTML or RSC payloads.
+
 ---
 
 ## 6. Database Schema (Drizzle) ✅
@@ -267,6 +288,7 @@ Schema, migrations, and triggers have landed. **Columns are not listed here — 
 - **`last_read_at` is gone**, dropped by `0037`. It took three changes rather than one, and rule 3 below is why: `markUserRead` stopped writing it once the build whose badge the double write kept alive was gone; `0036` relaxed the `NOT NULL` **in a migration of its own**, because the column had no default and `upsert-google-user` still supplied it on INSERT; and only then could the declaration, that last write and the column go together. The split was not ceremony — § 5.4.'s dev login inserts a user, so the `23502` window rule 3 warns about was reachable rather than theoretical
 - `users` carries **three** nullable `media` references — `avatar_media_id`, `profile_background_media_id` (§ 12.1.) and `chat_background_media_id` — all `ON DELETE SET NULL`, all declared through `AnyPgColumn` to break the `users` ⇄ `media` type cycle. **The third is dead**: § 12.2. moved the wallpaper to `couple_settings` and nothing reads or writes that column any more. It stays declared until its own release drops it, for the reason the migration-ordering rules below give in full. `0019`'s warning governs both ends of its life and comes from one fact — `getSessionContext` selects `users` whole, so a column this table gains must exist **before** the code naming it deploys, and one it loses must stop being named **before** the migration removes it. Getting either backwards fails **every request that resolves a session** on `42703`
 - **`couple_settings` is the one table with exactly one row** (§ 12.2.), pinned by `id boolean PRIMARY KEY DEFAULT true` and `CHECK (id)`. It exists because a conversation-wide setting has no user row to live on — not because the conversation acquired an identity, which is the bullet immediately below and is unchanged. `start_date` (§ 11.1.) replaces the `RELATIONSHIP_START_DATE` env var as a row. `first_user_id` and `second_user_id` record the first two accounts to ever log in, in order, filled by an `AFTER INSERT` trigger on `users` rather than `upsertGoogleUser` itself — `ALLOWED_EMAILS` stays the allowlist
+- **PIN security & session encryption**: `users.pin_hash` (`varchar(255)`), `users.pin_failed_attempts` (`integer DEFAULT 0 NOT NULL`), and `users.pin_locked_until` (`timestamp with time zone`) secure app access with a 6-digit PIN and lockout tracking (§ 5.5.). `sessions.encryption_key` (`varchar(64)`) holds a 32-byte symmetric AES-256-GCM transport key established during the PIN handshake.
 
 **Media**
 
@@ -1501,13 +1523,15 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 
 ## 12. Settings Tab ✅
 
-**Landed:** the profile editor (nickname + avatar + cover), the tap-to-enlarge avatar, the 입력 중 표시 switch (§ 8.12.), the two backgrounds (§ 12.1., § 12.2.), the profile screen (§ 12.3.), 로그아웃, the device list and the ops console (§ 12.4.). App info remains.
+**Landed:** the profile editor (nickname + avatar + cover), the tap-to-enlarge avatar, the 입력 중 표시 switch (§ 8.12.), the two backgrounds (§ 12.1., § 12.2.), the profile screen (§ 12.3.), 보안 PIN 변경 (§ 5.5.), 로그아웃, the device list and the ops console (§ 12.4.). App info remains.
 
 The screen opens on a **fixed-height cover header** (`DESIGN.md § 7.16.`) rather than the old padded avatar block — the § 12.1. background is drawn behind the avatar and the name, and tapping the avatar opens § 12.3.
 
-**The rows run 나 → 대화 → 앱 → 계정**, with § 12.4.'s 서버 관리 last of the 계정 group, and that order is a decision rather than the sequence the features landed in: 프로필, then 이모티콘 and 채팅방 배경, then 화면 테마, then 알림, 전송음 and 입력 중 표시, then 로그인된 기기 and 로그아웃. What a user opens this screen for sits at the top and what they touch once sits at the bottom; the two switches end up adjacent and the account rows end up beside the exit, so the shapes group as the topics do. 입력 중 표시 must stay directly under 알림 — it is the per-account counterpart to a per-device row, and the code says so by pointing at "the row above."
+**The rows run 나 → 대화 → 앱 → 계정**, with § 12.4.'s 서버 관리 last of the 계정 group, and that order is a decision rather than the sequence the features landed in: 프로필, then 이모티콘 and 채팅방 배경, then 화면 테마, then 알림, 전송음 and 입력 중 표시, then 단축어 키, 보안 PIN 변경, 로그인된 기기 and 로그아웃. What a user opens this screen for sits at the top and what they touch once sits at the bottom; the two switches end up adjacent and the account rows end up beside the exit, so the shapes group as the topics do. 입력 중 표시 must stay directly under 알림 — it is the per-account counterpart to a per-device row, and the code says so by pointing at "the row above."
 
 **Every row on this screen is per-account or per-device except one.** 채팅방 배경 (§ 12.2.) writes what the _other_ participant sees, and it is the only control here that does — which is precisely why its copy has to say so out loud rather than rely on its position in the 대화 group. A reader who has learnt the rest of the screen has learnt the opposite rule.
+
+**보안 PIN 변경** — `PinSettingsRow`, rendered right above `DeviceSettingsRow` at the start of the 계정 section. Opens `PinSettingsSheet` (`POST /api/auth/session/pin`), allowing an authenticated user to verify their current 6-digit PIN and configure a new one without logging out (§ 5.5.). Mismatches or invalid PINs display clear error feedback.
 
 **Profile** — `PATCH /api/users/me`, reached from a 프로필 row or § 12.3.'s 프로필 편집; `features/update-profile` owns the sheet and reuses § 9.'s picker, editor and upload through `@x/update-profile`.
 

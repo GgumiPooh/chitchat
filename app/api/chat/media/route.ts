@@ -1,6 +1,6 @@
 import { listConversationMedia } from "@/entities/media";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { snowflakeSchema } from "@/shared/config";
 import type { MediaId } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -43,7 +43,7 @@ const querySchema = z
  * INFO: An anchor that resolves to nothing answers `200` with an empty track rather than a 404. It is not a missing id — it is a message withdrawn between the tap and this request (§ 8.13.), and the viewer is being closed by the stream anyway.
  * INFO: An empty page at an edge is the same `200`, and it is how the client learns that edge is exhausted — `useViewerTrack` latches on a page that did not fill.
  */
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -61,4 +61,4 @@ export async function GET(request: Request) {
   return NextResponse.json({
     media: await listConversationMedia({ ...query.data, currentUserId: user.id }),
   });
-}
+});

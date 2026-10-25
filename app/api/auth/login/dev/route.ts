@@ -1,6 +1,8 @@
 import { upsertGoogleUser } from "@/entities/user";
 import { redirectTo } from "@/shared/api";
 import {
+  clearUserPin,
+  consumePinResetCookie,
   createSession,
   isAllowedEmail,
   setSessionCookie,
@@ -34,6 +36,10 @@ export async function POST(request: NextRequest) {
   try {
     // WARN: A synthetic `google_sub` — signing in through Google afterwards relinks the same row back to the real subject id (`upsertGoogleUser`), so the two paths cannot fork into two users.
     const user = await upsertGoogleUser({ sub: `dev:${email}`, email });
+
+    if (await consumePinResetCookie()) {
+      await clearUserPin(user.id);
+    }
 
     await setSessionCookie(
       await createSession(user.id, toDeviceLabel(request.headers.get("user-agent"))),

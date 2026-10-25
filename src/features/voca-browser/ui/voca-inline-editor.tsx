@@ -1,6 +1,7 @@
 "use client";
 
 import type { VocaCard } from "@/entities/voca";
+import { request } from "@/shared/api";
 import {
   A_SECOND,
   cleanSentenceForSpeech,
@@ -162,7 +163,7 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
         .map((s) => s.trim())
         .filter((s) => s.length > 0);
 
-      const res = await fetch(`/api/voca/cards/${card.id}`, {
+      const res = await request(`/api/voca/cards/${card.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -388,7 +389,7 @@ function VocaInlineEditorForm({ className, card, onSave, onDelete }: VocaInlineE
     stopAllAudio();
     setIsDeleting(true);
     try {
-      const res = await fetch(`/api/voca/cards/${card.id}`, { method: "DELETE" });
+      const res = await request(`/api/voca/cards/${card.id}`, { method: "DELETE" });
       if (!res.ok) {
         throw new Error("Delete failed");
       }

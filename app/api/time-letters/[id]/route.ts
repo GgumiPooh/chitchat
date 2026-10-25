@@ -3,7 +3,7 @@ import "server-only";
 import { mediaUploadSchema, validateMediaUpload, type ValidatedMedia } from "@/entities/media";
 import { cancelTimeLetter, getTimeLetter, updateTimeLetter } from "@/entities/time-letter";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { snowflakeSchema } from "@/shared/config";
 import type { MediaId, TimeLetterId, UserId } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -15,7 +15,7 @@ type RouteParams = { params: Promise<{ id: string }> };
 
 const paramsSchema = snowflakeSchema<TimeLetterId>();
 
-export async function GET(_request: Request, { params }: RouteParams) {
+export const GET = withEncryptedRoute(async (_request: Request, { params }: RouteParams) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -36,9 +36,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
   }
 
   return NextResponse.json({ letter });
-}
+});
 
-export async function DELETE(_request: Request, { params }: RouteParams) {
+export const DELETE = withEncryptedRoute(async (_request: Request, { params }: RouteParams) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -63,7 +63,7 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   } catch {
     return apiError("invalid_request");
   }
-}
+});
 
 const updateSchema = z.object({
   recipientId: snowflakeSchema<UserId>().nullable().optional(),
@@ -77,7 +77,7 @@ const updateSchema = z.object({
   media: z.array(mediaUploadSchema).optional(),
 });
 
-export async function PATCH(request: Request, { params }: RouteParams) {
+export const PATCH = withEncryptedRoute(async (request: Request, { params }: RouteParams) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -135,4 +135,4 @@ export async function PATCH(request: Request, { params }: RouteParams) {
     }
     return apiError("invalid_request");
   }
-}
+});

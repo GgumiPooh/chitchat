@@ -4,7 +4,7 @@ import type { ArchiveMedia } from "@/entities/media";
 import { useWriteArchiveSnapshot } from "@/features/offline-snapshot";
 import { toVoiceDraft, VoiceRecorderBar, type VoiceRecording } from "@/features/upload-media";
 import type { ArchiveModeFilter } from "@/shared/config";
-import { cn, stopVoice } from "@/shared/lib";
+import { cn, stopVoice, useDecryptedServerPayload } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { downloadMedia } from "@/shared/share";
 import { AppHeader, EmptyState, IconButton, ShellOverlay, toast } from "@/shared/ui";
@@ -26,10 +26,39 @@ import { LibrarySegments } from "./library-segments";
 
 export type ArchiveVoicePageProps = {
   className?: string;
-  initialMedia: ArchiveMedia[];
+  initialMedia?: ArchiveMedia[];
+  encryptedMedia?: string;
   /** REQUIREMENTS.md § 10. The 보기 옵션 mode `initialMedia` was drawn under — paging must ask with the same one. */
   modeFilter?: ArchiveModeFilter;
 };
+
+export type ArchiveVoicePageViewProps = {
+  className?: string;
+  initialMedia: ArchiveMedia[];
+  modeFilter?: ArchiveModeFilter;
+};
+
+export function ArchiveVoicePage({
+  className,
+  encryptedMedia,
+  initialMedia,
+  modeFilter = "all",
+}: ArchiveVoicePageProps) {
+  const decryptedMedia = useDecryptedServerPayload<ArchiveMedia[]>(encryptedMedia ?? "");
+  const mediaToRender = encryptedMedia ? decryptedMedia : initialMedia;
+
+  if (encryptedMedia && !decryptedMedia) {
+    return <div className={cn("min-h-dvh bg-canvas", className)} />;
+  }
+
+  return (
+    <ArchiveVoicePageView
+      className={className}
+      initialMedia={mediaToRender ?? []}
+      modeFilter={modeFilter}
+    />
+  );
+}
 
 /**
  * REQUIREMENTS.md § 10. 보관함's 음성 segment — every § 9.3. recording the pair has
@@ -37,11 +66,11 @@ export type ArchiveVoicePageProps = {
  * sheet would be handed `{uuid}.bin` and a recording has no `media.filename` to name
  * it by. 저장 is unaffected, since the server names the download itself.
  */
-export function ArchiveVoicePage({
+function ArchiveVoicePageView({
   className,
   initialMedia,
   modeFilter = "all",
-}: ArchiveVoicePageProps) {
+}: ArchiveVoicePageViewProps) {
   const [isRecording, setIsRecording] = useState(false);
   const { media, isLoadingMore, loadMore, prepend, remove } = useArchiveMedia(
     initialMedia,

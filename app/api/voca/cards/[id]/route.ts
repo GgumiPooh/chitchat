@@ -2,7 +2,7 @@ import "server-only";
 
 import { deleteVocaCard, getVocaCard, updateVocaCard } from "@/entities/voca";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { snowflakeSchema } from "@/shared/config";
 import type { MediaId, VocaCardId } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -32,7 +32,7 @@ const patchCardSchema = z.object({
   state: z.enum(["new", "learning", "review", "relearning"]).optional(),
 });
 
-export async function GET(_request: Request, { params }: RouteParams) {
+export const GET = withEncryptedRoute(async (_request: Request, { params }: RouteParams) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -49,9 +49,9 @@ export async function GET(_request: Request, { params }: RouteParams) {
   }
 
   return NextResponse.json({ card });
-}
+});
 
-export async function PATCH(request: Request, { params }: RouteParams) {
+export const PATCH = withEncryptedRoute(async (request: Request, { params }: RouteParams) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -74,9 +74,9 @@ export async function PATCH(request: Request, { params }: RouteParams) {
   }
 
   return NextResponse.json({ card });
-}
+});
 
-export async function DELETE(_request: Request, { params }: RouteParams) {
+export const DELETE = withEncryptedRoute(async (_request: Request, { params }: RouteParams) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -93,4 +93,4 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   }
 
   return new NextResponse(null, { status: 204 });
-}
+});

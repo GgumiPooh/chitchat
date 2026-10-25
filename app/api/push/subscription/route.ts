@@ -4,7 +4,7 @@ import {
   updatePushSubscriptionSound,
 } from "@/entities/push-subscription";
 import { apiError } from "@/shared/api";
-import { getCurrentUser, getSessionContext } from "@/shared/auth";
+import { getCurrentUser, getSessionContext, withEncryptedRoute } from "@/shared/auth";
 import { PUSH_INTENT_COOKIE_NAME, PUSH_INTENT_COOKIE_OPTIONS } from "@/shared/config";
 import { cookies } from "next/headers";
 import { NextResponse } from "next/server";
@@ -29,7 +29,7 @@ const soundSchema = z.object({ endpoint: z.url(), soundEnabled: z.boolean() });
  * per installation, so the settings screen's server render cannot know it — the launch
  * re-registration is the one exchange that already identifies this device.
  */
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   // INFO: The session and not just the user (REQUIREMENTS.md § 12.) — the row is bound to the login it was registered under, and this is the exchange that knows both ends.
   const context = await getSessionContext();
 
@@ -54,10 +54,10 @@ export async function POST(request: Request) {
   (await cookies()).set(PUSH_INTENT_COOKIE_NAME, "1", PUSH_INTENT_COOKIE_OPTIONS);
 
   return NextResponse.json(saved);
-}
+});
 
 /** REQUIREMENTS.md § 16.1. 알림 소리 for this installation alone. */
-export async function PATCH(request: Request) {
+export const PATCH = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -78,9 +78,9 @@ export async function PATCH(request: Request) {
   }
 
   return new NextResponse(null, { status: 204 });
-}
+});
 
-export async function DELETE(request: Request) {
+export const DELETE = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -101,4 +101,4 @@ export async function DELETE(request: Request) {
   });
 
   return new NextResponse(null, { status: 204 });
-}
+});

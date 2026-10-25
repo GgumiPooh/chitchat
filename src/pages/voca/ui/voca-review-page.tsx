@@ -8,6 +8,7 @@ import {
   VocaStudyCounts,
   useReviewSession,
 } from "@/features/voca-review";
+import { request } from "@/shared/api";
 import { VOCA_ACTION_ADD, VOCA_ACTION_PARAM, VOCA_CARDS_ROUTE, VOCA_ROUTE } from "@/shared/config";
 import { cn, warmSpeechVoices } from "@/shared/lib";
 import { Button, Container, IconButton } from "@/shared/ui";
@@ -78,7 +79,7 @@ export function VocaReviewPage({
     }
     hasNotifiedCompletionRef.current = true;
 
-    void fetch("/api/voca/complete", {
+    void request("/api/voca/complete", {
       body: JSON.stringify({ count: initialDueCards.length }),
       headers: { "Content-Type": "application/json" },
       method: "POST",
@@ -89,7 +90,7 @@ export function VocaReviewPage({
 
   const handleStudyMore = async () => {
     try {
-      const res = await fetch("/api/voca/settings", {
+      const res = await request("/api/voca/settings", {
         body: JSON.stringify({ todayExtraNewCards: extraStudyCount + 5 }),
         headers: { "Content-Type": "application/json" },
         method: "PATCH",

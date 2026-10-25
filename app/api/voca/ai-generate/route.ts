@@ -3,7 +3,7 @@ import "server-only";
 import { pushToUser } from "@/entities/push-subscription";
 import { createVocaCard, generateVocaCard, synthesizeVocaAudio } from "@/entities/voca";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { VOCA_CARDS_ROUTE } from "@/shared/config";
 import { safelyRunAsync, type UserId } from "@/shared/lib";
 import { josa } from "es-hangul";
@@ -74,7 +74,7 @@ async function processCardCreation(
   }
 }
 
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -110,4 +110,4 @@ export async function POST(request: Request) {
   );
 
   return NextResponse.json({ accepted: true });
-}
+});

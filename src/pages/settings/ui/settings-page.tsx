@@ -1,5 +1,6 @@
 import { resolveDisplayName } from "@/entities/user";
 import { ChatBackgroundRow } from "@/features/apply-photo";
+import { PinSettingsRow } from "@/features/pin-lock";
 import {
   PushNotificationRow,
   PushSettingsProvider,
@@ -74,6 +75,8 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
         {/* INFO: REQUIREMENTS.md § 8.12. Per account, not per device — governs what this user broadcasts. */}
         <TypingSettingsRow isEnabled={user.typingIndicatorEnabled} />
         <ShortcutSettingsRow shareKey={user.shareKey} />
+        {/* INFO: REQUIREMENTS.md § 5.5, § 12. 6-digit security PIN lock settings. */}
+        <PinSettingsRow />
         {/* INFO: REQUIREMENTS.md § 12. Reads `sessions` — a different, revocable set from the 알림 row's push subscriptions. */}
         <DeviceSettingsRow />
         {/* INFO: REQUIREMENTS.md § 12.4. Last of 계정 — acts on the deployment, not the account. */}

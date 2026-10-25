@@ -18,7 +18,13 @@ import {
   type ReadCursorEvent,
 } from "@/shared/config";
 import type { UserId } from "@/shared/lib";
-import { safelyGet, type Nullable, type Optional } from "@/shared/lib";
+import {
+  clearClientSessionKey,
+  decryptClientText,
+  safelyGet,
+  type Nullable,
+  type Optional,
+} from "@/shared/lib";
 import { useEffect, useRef } from "react";
 import { z } from "zod";
 
@@ -75,6 +81,30 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
     let retryTimer: Optional<ReturnType<typeof setTimeout>>;
     let lastSyncAt = 0;
     let lastActivityAt = 0;
+    let decodeChain = Promise.resolve();
+
+    function decodeAndRun(rawData: string, callback: (plainJson: string) => void) {
+      const env = safelyGet(() => JSON.parse(rawData) as { e?: string });
+
+      if (typeof env?.e === "string") {
+        decodeChain = decodeChain
+          .then(async () => {
+            const decrypted = await decryptClientText(env.e!);
+            if (decrypted === null) {
+              clearClientSessionKey();
+            } else {
+              callback(decrypted);
+            }
+          })
+          .catch(() => undefined);
+      } else {
+        decodeChain = decodeChain
+          .then(() => {
+            callback(rawData);
+          })
+          .catch(() => undefined);
+      }
+    }
 
     function open() {
       // WARN: `EventSource` retries a dropped transport on its own but gives up for good on a fatal one (a 401, a body that is not `text/event-stream`), so a `CLOSED` source is replaced rather than kept.
@@ -110,42 +140,52 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
       opened.addEventListener("typing", (event) => {
         markAlive();
 
-        const typing = typingEventSchema.safeParse(safelyGet(() => JSON.parse(event.data)));
+        decodeAndRun(event.data, (plainJson) => {
+          const typing = typingEventSchema.safeParse(safelyGet(() => JSON.parse(plainJson)));
 
-        if (typing.success) {
-          handlers.current.onTyping(typing.data.userId, typing.data.isTyping);
-        }
+          if (typing.success) {
+            handlers.current.onTyping(typing.data.userId, typing.data.isTyping);
+          }
+        });
       });
       // WARN: A named SSE event never reaches `onmessage`; the server tags this `event: read_cursor` for the same reason `user` and `typing` are (§ 8.4., § 8.8.).
       opened.addEventListener("read_cursor", (event) => {
         markAlive();
 
-        const readCursor = readCursorEventSchema.safeParse(safelyGet(() => JSON.parse(event.data)));
+        decodeAndRun(event.data, (plainJson) => {
+          const readCursor = readCursorEventSchema.safeParse(
+            safelyGet(() => JSON.parse(plainJson)),
+          );
 
-        if (readCursor.success) {
-          handlers.current.onReadCursor(readCursor.data);
-        }
+          if (readCursor.success) {
+            handlers.current.onReadCursor(readCursor.data);
+          }
+        });
       });
       // INFO: REQUIREMENTS.md § 8.13. Its own event name for the same reason `user` has one — none of an arrival's side effects may fire for a row that is already on screen.
       // INFO: § 8.13. The whole row, so the window replaces rather than patches: the quote and the emoticon are resolved server-side, and a deletion arrives with all three already stripped.
       opened.addEventListener(CHANGE_EVENT, (event) => {
         markAlive();
 
-        const data = safelyGet(() => JSON.parse(event.data) as MessageEventData);
+        decodeAndRun(event.data, (plainJson) => {
+          const data = safelyGet(() => JSON.parse(plainJson) as MessageEventData);
 
-        if (data?.message) {
-          handlers.current.onChange(data);
-        }
+          if (data?.message) {
+            handlers.current.onChange(data);
+          }
+        });
       });
       // INFO: An AI answer's queue/stream progress, or a mid-stream snapshot — same reasoning as `typing` above, no `id:` and never queued behind the message pipeline.
       opened.addEventListener("llm", (event) => {
         markAlive();
 
-        const llm = llmSseEventSchema.safeParse(safelyGet(() => JSON.parse(event.data)));
+        decodeAndRun(event.data, (plainJson) => {
+          const llm = llmSseEventSchema.safeParse(safelyGet(() => JSON.parse(plainJson)));
 
-        if (llm.success) {
-          handlers.current.onLlm(llm.data);
-        }
+          if (llm.success) {
+            handlers.current.onLlm(llm.data);
+          }
+        });
       });
       // INFO: REQUIREMENTS.md § 8.4. The heartbeat is a named event rather than a `:ping` comment so it lands here — this is the client's only evidence that the socket underneath is still real.
       opened.addEventListener("ping", markAlive);
@@ -171,11 +211,13 @@ export function useChatEventSource(events: ChatEventSourceHandlers, isDormant: b
     function deliver(event: MessageEvent<string>, arrival: MessageArrival) {
       markAlive();
 
-      const data = safelyGet(() => JSON.parse(event.data) as MessageEventData);
+      decodeAndRun(event.data, (plainJson) => {
+        const data = safelyGet(() => JSON.parse(plainJson) as MessageEventData);
 
-      if (data?.message) {
-        handlers.current.onMessage(data, arrival);
-      }
+        if (data?.message) {
+          handlers.current.onMessage(data, arrival);
+        }
+      });
     }
 
     /** REQUIREMENTS.md § 8.4. Coalesced, since one iOS resume fires several of the events below. */

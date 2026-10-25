@@ -15,12 +15,14 @@ import {
   UPCOMING_EVENTS_PAGE_SIZE,
 } from "@/shared/config";
 import {
+  cn,
   findHoliday,
   listMilestonesInRange,
   occursOnDay,
   shiftMonthKey,
   toMonthKey,
   toMonthStart,
+  useDecryptedServerPayload,
   useDocumentBackground,
   type HolidayTable,
   type Maybe,
@@ -35,7 +37,20 @@ import { DDayHero } from "./d-day-hero";
 import { DayAgenda } from "./day-agenda";
 import { UpcomingCard } from "./upcoming-card";
 
+export type CalendarSeed = {
+  initialSummary: CalendarSummary;
+  initialMonthKey: string;
+  initialOccurrences: EventOccurrence[];
+  holidays: HolidayTable;
+  initialDayKey: Maybe<string>;
+};
+
 export type CalendarPageProps = {
+  className?: string;
+  encryptedPayload: string;
+};
+
+export type CalendarPageViewProps = {
   className?: string;
   initialSummary: CalendarSummary;
   initialMonthKey: string;
@@ -46,6 +61,25 @@ export type CalendarPageProps = {
   initialDayKey: Maybe<string>;
 };
 
+export function CalendarPage({ className, encryptedPayload }: CalendarPageProps) {
+  const seed = useDecryptedServerPayload<CalendarSeed>(encryptedPayload);
+
+  if (!seed) {
+    return <div className={cn("min-h-dvh bg-canvas", className)} />;
+  }
+
+  return (
+    <CalendarPageView
+      className={className}
+      initialSummary={seed.initialSummary}
+      initialMonthKey={seed.initialMonthKey}
+      initialOccurrences={seed.initialOccurrences}
+      holidays={seed.holidays}
+      initialDayKey={seed.initialDayKey}
+    />
+  );
+}
+
 // INFO: REQUIREMENTS.md § 11.4. Creating only — an edit is opened from `EventDetailDialog`, which owns the occurrence it is editing.
 type FormState = {
   dayKey: string;
@@ -55,14 +89,14 @@ type FormState = {
   isOpen: boolean;
 };
 
-export function CalendarPage({
+function CalendarPageView({
   className,
   initialSummary,
   initialMonthKey,
   initialOccurrences,
   holidays,
   initialDayKey,
-}: CalendarPageProps) {
+}: CalendarPageViewProps) {
   const { participants, chatBackgroundBlurhash } = useChatStream();
   // INFO: DESIGN.md § 3.3. The room's own tint, since the hero wears the room's wash; `#app-shell` paints `canvas` over `body`, so this reaches the status bar and nothing the reader scrolls to.
   useDocumentBackground(toChromeTint(chatBackgroundBlurhash) ?? "var(--color-chat-canvas)");

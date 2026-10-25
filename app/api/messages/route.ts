@@ -20,7 +20,7 @@ import {
 import { pushToUser } from "@/entities/push-subscription";
 import { notifyMessageRecipients } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import {
   AI_ATTACHMENT_RETENTION,
   CHAT_ROUTE,
@@ -115,7 +115,7 @@ const bodySchema = z.union([
 ]);
 
 // INFO: AGENTS.md § 6.4. A Route Handler returns its own 401 — the App Router does not honour a thrown `Response`.
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -145,65 +145,71 @@ export async function GET(request: Request) {
       }),
     ),
   );
-}
+});
 
-export async function POST(request: Request) {
-  const isShortcutShare = Boolean(request.headers.get("x-share-key"));
-  const user = await getCurrentUser({ allowShareKey: true });
+export const POST = withEncryptedRoute(
+  async (request: Request) => {
+    const isShortcutShare = Boolean(request.headers.get("x-share-key"));
+    const user = await getCurrentUser({ allowShareKey: true });
 
-  if (!user) {
-    return apiError("unauthorized");
-  }
+    if (!user) {
+      return apiError("unauthorized");
+    }
 
-  // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 / 나에게만 보내기 — read once per request, not inside `after()`, since a cookie belongs to the request that carried it.
-  const cookieMode = toNotifyMode((await cookies()).get(NOTIFY_MODE_COOKIE_NAME)?.value);
+    // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 / 나에게만 보내기 — read once per request, not inside `after()`, since a cookie belongs to the request that carried it.
+    const cookieMode = toNotifyMode((await cookies()).get(NOTIFY_MODE_COOKIE_NAME)?.value);
 
-  const body = bodySchema.safeParse(await request.json().catch(() => null));
+    const body = bodySchema.safeParse(await request.json().catch(() => null));
 
-  if (!body.success) {
-    return apiError("invalid_request");
-  }
+    if (!body.success) {
+      return apiError("invalid_request");
+    }
 
-  const payload = body.data;
-  // WARN: The payload outranks the cookie on both counts — a queued onlyMe send landing after the cookie moved back to `notify` must neither post publicly nor push a banner for a row the recipient cannot see.
-  const notifyMode = payload.notifyMode ?? toCookieFallbackMode(cookieMode, payload.onlyMe);
-  const onlyMe = notifyMode === "onlyMe";
-  // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 is recorded on the row so both bubbles can mark it — onlyMe rows stay unmarked, since their recipient never sees them at all.
-  const silent = notifyMode === "silent";
+    const payload = body.data;
+    // WARN: The payload outranks the cookie on both counts — a queued onlyMe send landing after the cookie moved back to `notify` must neither post publicly nor push a banner for a row the recipient cannot see.
+    const notifyMode = payload.notifyMode ?? toCookieFallbackMode(cookieMode, payload.onlyMe);
+    const onlyMe = notifyMode === "onlyMe";
+    // INFO: REQUIREMENTS.md § 16.1. 조용히 보내기 is recorded on the row so both bubbles can mark it — onlyMe rows stay unmarked, since their recipient never sees them at all.
+    const silent = notifyMode === "silent";
 
-  // INFO: `messages.emoticon_item_id` is a foreign key — a picker holding a list the other participant has since deleted (§ 13.6.) would otherwise send its way into a 500.
-  if ("emoticonItemId" in payload && !(await getEmoticonItem(payload.emoticonItemId))) {
-    return apiError("invalid_request");
-  }
+    // INFO: `messages.emoticon_item_id` is a foreign key — a picker holding a list the other participant has since deleted (§ 13.6.) would otherwise send its way into a 500.
+    if ("emoticonItemId" in payload && !(await getEmoticonItem(payload.emoticonItemId))) {
+      return apiError("invalid_request");
+    }
 
-  // INFO: REQUIREMENTS.md § 13. The array carries no foreign key of its own, so a stale client naming an item that never existed would be stored rather than refused — this is what makes it the 400 the two checks above give.
-  if ("text" in payload && !(await areInlineEmoticonsKnown(payload.inlineEmoticonItemIds ?? []))) {
-    return apiError("invalid_request");
-  }
+    // INFO: REQUIREMENTS.md § 13. The array carries no foreign key of its own, so a stale client naming an item that never existed would be stored rather than refused — this is what makes it the 400 the two checks above give.
+    if (
+      "text" in payload &&
+      !(await areInlineEmoticonsKnown(payload.inlineEmoticonItemIds ?? []))
+    ) {
+      return apiError("invalid_request");
+    }
 
-  // INFO: REQUIREMENTS.md § 8.10. `reply_to_id` is a foreign key and a CHECK refuses a system parent, so either would surface as a 500 without this. A soft-deleted parent is refused here rather than at the database — the row is still there, so nothing but this stops a stale client quoting it.
-  if (!(await canReplyTo(payload.replyToId))) {
-    return apiError("invalid_request");
-  }
+    // INFO: REQUIREMENTS.md § 8.10. `reply_to_id` is a foreign key and a CHECK refuses a system parent, so either would surface as a 500 without this. A soft-deleted parent is refused here rather than at the database — the row is still there, so nothing but this stops a stale client quoting it.
+    if (!(await canReplyTo(payload.replyToId))) {
+      return apiError("invalid_request");
+    }
 
-  if ("media" in payload) {
-    return postMediaMessage(user, payload, isShortcutShare, notifyMode, onlyMe, silent);
-  }
+    if ("media" in payload) {
+      return postMediaMessage(user, payload, isShortcutShare, notifyMode, onlyMe, silent);
+    }
 
-  const message = await createMessage(user.id, payload, onlyMe, silent);
+    const message = await createMessage(user.id, payload, onlyMe, silent);
 
-  // INFO: The client id is already taken by a row this sender cannot claim, so echoing anything back would replace their optimistic bubble with a stranger's message.
-  if (!message) {
-    return apiError("conflict");
-  }
+    // INFO: The client id is already taken by a row this sender cannot claim, so echoing anything back would replace their optimistic bubble with a stranger's message.
+    if (!message) {
+      return apiError("conflict");
+    }
 
-  // INFO: REQUIREMENTS.md § 13. The echo carries the same map a page does, so the sender's own row draws from what the server resolved rather than from whatever the composer happened to hold.
-  const echo = await toSingleMessagePayload(message);
+    // INFO: REQUIREMENTS.md § 13. The echo carries the same map a page does, so the sender's own row draws from what the server resolved rather than from whatever the composer happened to hold.
+    const echo = await toSingleMessagePayload(message);
 
-  runAfterEffects(user, message, isShortcutShare, notifyMode);
+    runAfterEffects(user, message, isShortcutShare, notifyMode);
 
-  return NextResponse.json(echo, { status: 201 });
-}
+    return NextResponse.json(echo, { status: 201 });
+  },
+  { allowShareKey: true },
+);
 
 async function postMediaMessage(
   user: User,

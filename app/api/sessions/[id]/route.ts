@@ -1,6 +1,6 @@
 import { revokeUserSession } from "@/entities/session";
 import { apiError } from "@/shared/api";
-import { getSessionContext } from "@/shared/auth";
+import { getSessionContext, withEncryptedRoute } from "@/shared/auth";
 import { snowflakeSchema } from "@/shared/config";
 import type { SessionId } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -16,7 +16,7 @@ const sessionIdSchema = snowflakeSchema<SessionId>();
  * `uuid` column, so Postgres raises `22P02` on anything else — which would leave a
  * malformed path segment surfacing as a 500 instead of the 400 it is.
  */
-export async function DELETE(_request: Request, { params }: RouteParams) {
+export const DELETE = withEncryptedRoute(async (_request: Request, { params }: RouteParams) => {
   const context = await getSessionContext();
 
   if (!context) {
@@ -35,4 +35,4 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
   }
 
   return new NextResponse(null, { status: 204 });
-}
+});

@@ -2,7 +2,7 @@ import { readChatBackground } from "@/entities/chat-background";
 import { readLlmSystemPrompt } from "@/entities/llm-system-prompt";
 import { listUsers } from "@/entities/user";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { NextResponse } from "next/server";
 
 /**
@@ -21,7 +21,7 @@ import { NextResponse } from "next/server";
  * INFO: REQUIREMENTS.md § 8.15. The shared 쨈미니 system prompt rides along for the
  * same reason — another `couple_settings` field, invalidated by the same trigger.
  */
-export async function GET() {
+export const GET = withEncryptedRoute(async () => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -41,4 +41,4 @@ export async function GET() {
     chatBackgroundBlurhash: chatBackground?.blurhash ?? null,
     llmSystemPrompt,
   });
-}
+});

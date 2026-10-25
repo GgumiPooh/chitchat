@@ -1,7 +1,7 @@
 import "server-only";
 
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import {
   GEEKNEWS_SUBSCRIPTION_COOKIE_NAME,
   GEEKNEWS_SUBSCRIPTION_COOKIE_OPTIONS,
@@ -16,7 +16,7 @@ const patchSchema = z.object({
   enabled: z.boolean(),
 });
 
-export async function GET() {
+export const GET = withEncryptedRoute(async () => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -36,9 +36,9 @@ export async function GET() {
   );
 
   return NextResponse.json({ enabled });
-}
+});
 
-export async function PATCH(request: Request) {
+export const PATCH = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -71,4 +71,4 @@ export async function PATCH(request: Request) {
   );
 
   return NextResponse.json({ enabled });
-}
+});

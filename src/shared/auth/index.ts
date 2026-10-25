@@ -1,4 +1,5 @@
 export { toDeviceLabel } from "./device-label";
+export { withEncryptedRoute, type EncryptedRouteOptions } from "./encrypted-route";
 export {
   GOOGLE_CALLBACK_PATH,
   GOOGLE_SCOPES,
@@ -10,8 +11,24 @@ export {
 export { clearOAuthCookies, readOAuthCookies, setOAuthCookies } from "./oauth-cookies";
 export { takePostLoginRoute } from "./pending-share";
 export {
+  PIN_LOCKOUT_MS,
+  PIN_MAX_ATTEMPTS,
+  clearUserPin,
+  consumePinResetCookie,
+  decryptServerString,
+  deriveServerEcdhKey,
+  encryptServerPayload,
+  encryptServerString,
+  encryptSseData,
+  getServerEcdhPublicKey,
+  hashPin,
+  setPinResetCookie,
+  verifyPin,
+} from "./pin-crypto";
+export {
   clearSessionCookie,
   createSession,
+  ensureSessionEncryptionKey,
   getCurrentUser,
   getSessionContext,
   invalidateCurrentSession,

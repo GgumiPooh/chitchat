@@ -2,7 +2,7 @@ import "server-only";
 
 import { submitVocaReview, type Rating } from "@/entities/voca";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { snowflakeSchema } from "@/shared/config";
 import type { VocaCardId } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -14,7 +14,7 @@ const reviewSchema = z.object({
   timeSpentMs: z.number().int().nonnegative().optional(),
 });
 
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -41,4 +41,4 @@ export async function POST(request: Request) {
     console.error("[voca/review] Failed to submit review:", error);
     return apiError("not_found");
   }
-}
+});

@@ -7,7 +7,7 @@ import {
   saveVocaRecommendationState,
 } from "@/entities/voca";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { VOCA_ACTION_PARAM, VOCA_ACTION_RECOMMEND, VOCA_ROUTE } from "@/shared/config";
 import type { VocaRecommendationSession } from "@/shared/db";
 import { safelyRunAsync } from "@/shared/lib";
@@ -27,7 +27,7 @@ const recommendSchema = z.object({
   count: z.number().int().min(1).max(20).optional(),
 });
 
-export async function GET() {
+export const GET = withEncryptedRoute(async () => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -35,9 +35,9 @@ export async function GET() {
 
   const { state, addedWords } = await getVocaRecommendationState(user.id);
   return NextResponse.json({ state, addedWords });
-}
+});
 
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
   if (!user) {
     return apiError("unauthorized");
@@ -120,4 +120,4 @@ export async function POST(request: Request) {
   );
 
   return NextResponse.json({ accepted: true, state: pendingState }, { status: 202 });
-}
+});

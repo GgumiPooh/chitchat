@@ -3,7 +3,7 @@ import "server-only";
 import { createVocaCompletionMessage } from "@/entities/message";
 import { notifyMessageRecipients } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { safelyRunAsync } from "@/shared/lib";
 import { after, NextResponse } from "next/server";
 import { z } from "zod";
@@ -12,7 +12,7 @@ const completeSchema = z.object({
   count: z.number().int().positive(),
 });
 
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -38,4 +38,4 @@ export async function POST(request: Request) {
   );
 
   return NextResponse.json({ message: notice }, { status: 201 });
-}
+});

@@ -1,5 +1,6 @@
 "use client";
 
+import { request } from "@/shared/api";
 import { BottomSheet, Button } from "@/shared/ui";
 import { Sparkles } from "lucide-react";
 import { useState } from "react";
@@ -36,7 +37,7 @@ export function AiVocaInputDialog({ className, isOpen, onClose }: AiVocaInputDia
 
     // Fire individual independent background generation requests
     for (const word of rawTokens) {
-      void fetch("/api/voca/ai-generate", {
+      void request("/api/voca/ai-generate", {
         body: JSON.stringify({
           contextSentence: trimmedContext || undefined,
           word,

@@ -1,6 +1,6 @@
 import { countUnreadMessages } from "@/entities/message";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { NextResponse } from "next/server";
 
 /**
@@ -8,7 +8,7 @@ import { NextResponse } from "next/server";
  * a running total off the stream and replaces it with this on every resume, which
  * is the only thing that can know what arrived while the stream was closed.
  */
-export async function GET() {
+export const GET = withEncryptedRoute(async () => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -16,4 +16,4 @@ export async function GET() {
   }
 
   return NextResponse.json({ unreadCount: await countUnreadMessages(user.id) });
-}
+});

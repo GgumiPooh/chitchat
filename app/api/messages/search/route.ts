@@ -1,6 +1,6 @@
 import { countMatchingMessages, searchMessages } from "@/entities/message";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { MAX_SEARCH_QUERY_LENGTH, SEARCH_PAGE_SIZE, snowflakeSchema } from "@/shared/config";
 import type { MessageId } from "@/shared/lib";
 import { NextResponse } from "next/server";
@@ -14,7 +14,7 @@ const querySchema = z.object({
 });
 
 // INFO: AGENTS.md § 6.4. A Route Handler returns its own 401 — the App Router does not honour a thrown `Response`.
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -44,4 +44,4 @@ export async function GET(request: Request) {
   ]);
 
   return NextResponse.json({ results, total });
-}
+});

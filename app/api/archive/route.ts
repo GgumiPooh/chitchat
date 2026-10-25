@@ -1,6 +1,6 @@
 import { destroyArchiveMedia, listArchiveMedia } from "@/entities/media";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import {
   ARCHIVE_MODE_FILTERS,
   ARCHIVE_PAGE_SIZE,
@@ -73,7 +73,7 @@ const bodySchema = z.object({
 });
 
 // INFO: AGENTS.md § 6.4. A Route Handler answers its own 401 — the App Router does not honour a thrown `Response`.
-export async function GET(request: Request) {
+export const GET = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -104,7 +104,7 @@ export async function GET(request: Request) {
       modeFilter,
     }),
   });
-}
+});
 
 /**
  * REQUIREMENTS.md § 18. #1. Destroys the objects behind the ids it is given, which is
@@ -118,7 +118,7 @@ export async function GET(request: Request) {
  * INFO: An id the caller may not act on simply does nothing — no per-id 404 to report,
  * and no way to probe with one.
  */
-export async function DELETE(request: Request) {
+export const DELETE = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -136,4 +136,4 @@ export async function DELETE(request: Request) {
   // TODO: § 18. #1. Drop `hiddenIds` in the following cycle, with `mode` above.
   // WARN: The empty array is load-bearing for one cycle. A tab left open across the deploy destructures **both** names and spreads them, so answering without this one throws in the client *after* the objects are already destroyed — reporting a failure for a delete that happened, over tiles it then leaves on screen.
   return NextResponse.json({ hiddenIds: [], deletedIds });
-}
+});

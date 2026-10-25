@@ -2,7 +2,7 @@ import { toSingleMessagePayload } from "@/entities/message";
 import { markGenerationCancelled, runQueuedGeneration } from "@/features/ask-ai";
 import { notifyAssistantReply } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import {
   llmThinkingLevelSchema,
   MAX_AI_CONTEXT_MESSAGES,
@@ -37,7 +37,7 @@ const postBodySchema = z.object({
 });
 
 // INFO: AGENTS.md § 6.4. A Route Handler returns its own 401 — the App Router does not honour a thrown `Response`.
-export async function POST(request: Request) {
+export const POST = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -82,7 +82,7 @@ export async function POST(request: Request) {
   }
 
   return apiError("upstream_failed");
-}
+});
 
 const deleteBodySchema = z.object({ streamId: z.uuid() });
 
@@ -90,7 +90,7 @@ const deleteBodySchema = z.object({ streamId: z.uuid() });
  * Either participant may cancel — not only the one who asked, since the answer
  * is posted into a conversation both of them read.
  */
-export async function DELETE(request: Request) {
+export const DELETE = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -108,7 +108,7 @@ export async function DELETE(request: Request) {
   await notifyChannel(LLM_CANCEL_CHANNEL, JSON.stringify({ streamId }));
 
   return new NextResponse(null, { status: 204 });
-}
+});
 
 async function resolveCancelStreamId(request: Request): Promise<Optional<string>> {
   const fromQuery = new URL(request.url).searchParams.get("streamId");

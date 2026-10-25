@@ -1,6 +1,6 @@
 import { writeLlmSystemPrompt } from "@/entities/llm-system-prompt";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { MAX_LLM_SYSTEM_PROMPT_LENGTH } from "@/shared/config";
 import { NextResponse } from "next/server";
 import { z } from "zod";
@@ -24,7 +24,7 @@ const bodySchema = z.object({
  * write to this table, so `GET /api/users` carries the new prompt to the other
  * participant on the client's existing refetch — no second channel or route.
  */
-export async function PATCH(request: Request) {
+export const PATCH = withEncryptedRoute(async (request: Request) => {
   const user = await getCurrentUser();
 
   if (!user) {
@@ -40,4 +40,4 @@ export async function PATCH(request: Request) {
   await writeLlmSystemPrompt(body.data.llmSystemPrompt);
 
   return NextResponse.json({ llmSystemPrompt: body.data.llmSystemPrompt });
-}
+});

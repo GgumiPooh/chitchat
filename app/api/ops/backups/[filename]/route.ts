@@ -1,5 +1,5 @@
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { deleteBackup, isBackupFilename } from "@/shared/storage";
 import { NextResponse } from "next/server";
 
@@ -16,7 +16,7 @@ type RouteParams = { params: Promise<{ filename: string }> };
  * screen was drawn from a listing, and a row that is gone has to say so rather than
  * report a deletion that removed nothing.
  */
-export async function DELETE(_request: Request, { params }: RouteParams) {
+export const DELETE = withEncryptedRoute(async (_request: Request, { params }: RouteParams) => {
   if (!(await getCurrentUser())) {
     return apiError("unauthorized");
   }
@@ -40,4 +40,4 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
 
     return apiError("upstream_failed");
   }
-}
+});
