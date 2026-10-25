@@ -20,7 +20,6 @@ export const metadata: Metadata = {
   },
   appleWebApp: {
     capable: true,
-    statusBarStyle: "black-translucent",
     title: APP_NAME,
     // WARN: iOS has no manifest-driven splash the way Chromium does — without a `media` match here a home-screen launch shows a blank screen until the shell paints.
     startupImage: APPLE_SPLASH_LINKS.map(({ fileName, media }) => ({
