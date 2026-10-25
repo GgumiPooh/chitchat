@@ -1,5 +1,5 @@
 import type { SessionId, UserId } from "@/shared/lib";
-import { pgTable, text, timestamp } from "drizzle-orm/pg-core";
+import { index, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 import { snowflake } from "../types";
 import { users } from "./users";
 
@@ -17,3 +17,19 @@ export const sessions = pgTable("sessions", {
 });
 
 export type Session = typeof sessions.$inferSelect;
+
+// SEC: Multi-instance anti-replay store (created as UNLOGGED in 0079_request_nonces_unlogged.sql for memory-speed atomic inserts without WAL fsync overhead).
+export const requestNonces = pgTable(
+  "request_nonces",
+  {
+    sessionId: snowflake<SessionId>("session_id").notNull(),
+    nonce: text("nonce").notNull(),
+    expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
+  },
+  (table) => [
+    primaryKey({ columns: [table.sessionId, table.nonce] }),
+    index("request_nonces_expires_at_idx").on(table.expiresAt),
+  ],
+);
+
+export type RequestNonce = typeof requestNonces.$inferSelect;

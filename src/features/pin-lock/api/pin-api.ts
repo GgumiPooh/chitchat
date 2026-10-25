@@ -5,12 +5,14 @@ import {
   createClientEcdhHandshake,
   pinServerPublicKey,
   setClientSessionKey,
+  setServerTimeOffset,
   verifyPinnedServerPublicKey,
   type Nullable,
 } from "@/shared/lib";
 
 export type PinSessionState = {
   serverPublicKey: string;
+  serverTime?: number;
   hasPin: boolean;
   isLocked: boolean;
   lockedUntil: Nullable<string>;
@@ -36,7 +38,11 @@ export async function fetchPinSessionState(): Promise<PinSessionState> {
   if (!response.ok) {
     throw new Error(`GET /api/auth/session/pin responded with status ${response.status}`);
   }
-  return (await response.json()) as PinSessionState;
+  const state = (await response.json()) as PinSessionState;
+  if (typeof state.serverTime === "number") {
+    setServerTimeOffset(state.serverTime);
+  }
+  return state;
 }
 
 // INFO: Derives ephemeral ECDH secret, exchanges encrypted PIN payload, and stores session encryption key.
@@ -73,9 +79,12 @@ export async function submitPinHandshake(
     }
 
     try {
-      const parsed = JSON.parse(decrypted) as { sessionKey?: string };
+      const parsed = JSON.parse(decrypted) as { sessionKey?: string; serverTime?: number };
       if (!parsed.sessionKey) {
         return { ok: false, status: 500, remainingAttempts: null, lockedUntil: null };
+      }
+      if (typeof parsed.serverTime === "number") {
+        setServerTimeOffset(parsed.serverTime);
       }
       const isStored = await setClientSessionKey(parsed.sessionKey);
       if (!isStored) {

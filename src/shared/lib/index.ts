@@ -255,15 +255,19 @@ export {
 export { randomId } from "./identity/random";
 export {
   ENCRYPTED_HEADER,
+  ENCRYPTED_META_HEADER,
   clearClientSessionKey,
   clearPinnedServerPublicKey,
+  computeTextSha256,
   decryptClientText,
   encryptClientText,
+  getCalibratedNow,
   getClientSessionCryptoKey,
   getStoredSessionKeyString,
   hasStoredSessionKey,
   pinServerPublicKey,
   setClientSessionKey,
+  setServerTimeOffset,
   subscribeSessionKey,
   verifyPinnedServerPublicKey,
 } from "./identity/session-key-store";

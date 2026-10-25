@@ -8,14 +8,57 @@ import {
 } from "./aes-gcm";
 
 const SESSION_KEY_STORAGE_KEY = "jandh:session-key";
+const CLOCK_OFFSET_STORAGE_KEY = "jandh:clock-offset";
 const PINNED_PUBKEY_HASH_STORAGE_KEY = "jandh:server-pubkey-hash";
 export const ENCRYPTED_HEADER = "x-jandh-enc";
+export const ENCRYPTED_META_HEADER = "x-jandh-meta";
 
-async function computePublicKeySha256(publicKeyB64: string): Promise<string> {
-  const encoded = new TextEncoder().encode(publicKeyB64);
+let cachedClockOffsetMs: Nullable<number> = null;
+
+export function setServerTimeOffset(serverTimeMs: number): void {
+  if (!Number.isFinite(serverTimeMs) || serverTimeMs <= 0) {
+    return;
+  }
+
+  const offset = Math.round(serverTimeMs - Date.now());
+  cachedClockOffsetMs = offset;
+
+  if (typeof window !== "undefined") {
+    try {
+      window.sessionStorage.setItem(CLOCK_OFFSET_STORAGE_KEY, String(offset));
+    } catch {
+      // INFO: Guard against sessionStorage quota or security exceptions.
+    }
+  }
+}
+
+export function getCalibratedNow(): number {
+  if (cachedClockOffsetMs === null && typeof window !== "undefined") {
+    try {
+      const stored = window.sessionStorage.getItem(CLOCK_OFFSET_STORAGE_KEY);
+      if (stored !== null) {
+        const parsed = Number(stored);
+        cachedClockOffsetMs = Number.isFinite(parsed) ? parsed : 0;
+      } else {
+        cachedClockOffsetMs = 0;
+      }
+    } catch {
+      cachedClockOffsetMs = 0;
+    }
+  }
+
+  return Date.now() + (cachedClockOffsetMs ?? 0);
+}
+
+export async function computeTextSha256(text: string): Promise<string> {
+  const encoded = new TextEncoder().encode(text);
   const digest = await crypto.subtle.digest("SHA-256", encoded);
 
   return toBase64Url(new Uint8Array(digest));
+}
+
+async function computePublicKeySha256(publicKeyB64: string): Promise<string> {
+  return computeTextSha256(publicKeyB64);
 }
 
 // SEC: TOFU pinning of build-time static P-256 public key (or session fallback) to detect active bundle/key tampering without breaking across session rotation.

@@ -97,6 +97,7 @@ export async function GET() {
 
   return NextResponse.json({
     serverPublicKey,
+    serverTime: now,
     hasPin: context.user.pinHash !== null,
     isLocked,
     lockedUntil: context.user.pinLockedUntil?.toISOString() ?? null,
@@ -211,7 +212,10 @@ export async function POST(request: Request) {
       .where(eq(users.id, context.user.id));
   }
 
-  const encryptedResult = encryptServerString(ecdhKey, JSON.stringify({ sessionKey }));
+  const encryptedResult = encryptServerString(
+    ecdhKey,
+    JSON.stringify({ sessionKey, serverTime: Date.now() }),
+  );
 
   return NextResponse.json({ payload: encryptedResult });
 }

@@ -1,12 +1,19 @@
 import { SESSION_EXPIRE_ROUTE } from "@/shared/config";
 import {
+  ENCRYPTED_HEADER,
+  ENCRYPTED_META_HEADER,
   clearClientSessionKey,
   clearPinnedServerPublicKey,
+  computeTextSha256,
   decryptClientText,
   encryptClientText,
+  getCalibratedNow,
   isDormant,
   markNetworkReached,
   markNetworkUnreachable,
+  randomId,
+  setServerTimeOffset,
+  type Nullable,
 } from "@/shared/lib";
 
 /**
@@ -71,30 +78,54 @@ export async function request(path: string, init?: RequestInit): Promise<Respons
   let finalPath = path;
   let finalInit = init;
   const isEncrypted = shouldEncryptApiPath(path);
+  let requestNonce: Nullable<string> = null;
 
   if (isEncrypted) {
     const queryIndex = path.indexOf("?");
-    if (queryIndex !== -1) {
-      const basePath = path.slice(0, queryIndex);
-      const queryString = path.slice(queryIndex + 1);
-      if (queryString.length > 0) {
-        const encryptedQuery = await encryptClientText(queryString);
-        if (encryptedQuery) {
-          finalPath = `${basePath}?e=${encodeURIComponent(encryptedQuery)}`;
-        }
+    const basePath = queryIndex !== -1 ? path.slice(0, queryIndex) : path;
+    const queryString = queryIndex !== -1 ? path.slice(queryIndex + 1) : "";
+    let encryptedQuery: Nullable<string> = null;
+
+    if (queryString.length > 0) {
+      encryptedQuery = await encryptClientText(queryString);
+      if (encryptedQuery) {
+        finalPath = `${basePath}?e=${encodeURIComponent(encryptedQuery)}`;
       }
     }
 
     const headers = new Headers(init?.headers);
-    headers.set("x-jandh-enc", "1");
+    headers.set(ENCRYPTED_HEADER, "1");
 
     let body = init?.body;
+    let encryptedBody: Nullable<string> = null;
     if (typeof body === "string" && body.length > 0) {
-      const encryptedBody = await encryptClientText(body);
+      encryptedBody = await encryptClientText(body);
       if (encryptedBody) {
         body = JSON.stringify({ e: encryptedBody });
         headers.set("content-type", "application/json; charset=utf-8");
       }
+    }
+
+    // SEC: Anti-replay envelope binding calibrated timestamp, one-time nonce, HTTP method, pathname, and SHA-256 hashes of encrypted query/body.
+    requestNonce = randomId();
+    const method = (init?.method ?? "GET").toUpperCase();
+    const pathname = resolvePathname(basePath);
+    const [qHash, bHash] = await Promise.all([
+      encryptedQuery ? computeTextSha256(encryptedQuery) : Promise.resolve(""),
+      encryptedBody ? computeTextSha256(encryptedBody) : Promise.resolve(""),
+    ]);
+    const encryptedMeta = await encryptClientText(
+      JSON.stringify({
+        ts: getCalibratedNow(),
+        nonce: requestNonce,
+        method,
+        path: pathname,
+        q: qHash,
+        b: bHash,
+      }),
+    );
+    if (encryptedMeta) {
+      headers.set(ENCRYPTED_META_HEADER, encryptedMeta);
     }
 
     finalInit = {
@@ -134,7 +165,7 @@ export async function request(path: string, init?: RequestInit): Promise<Respons
       return response;
     }
 
-    if (response.headers.get("x-jandh-enc") === "1") {
+    if (response.headers.get(ENCRYPTED_HEADER) === "1") {
       const rawJson = await response.text();
       let envelope: { e?: unknown } | null = null;
       try {
@@ -149,6 +180,23 @@ export async function request(path: string, init?: RequestInit): Promise<Respons
         throw new Error("Invalid encrypted payload");
       }
 
+      const responseMetaHeader = response.headers.get(ENCRYPTED_META_HEADER);
+      if (!responseMetaHeader || !requestNonce) {
+        clearClientSessionKey();
+        throw new Error("Missing encrypted response metadata");
+      }
+
+      const isMetaValid = await verifyResponseMeta(
+        responseMetaHeader,
+        requestNonce,
+        response.status,
+        envelope.e,
+      );
+      if (!isMetaValid) {
+        clearClientSessionKey();
+        throw new Error("Encrypted response replay or tampering detected");
+      }
+
       const decryptedText = await decryptClientText(envelope.e);
       if (decryptedText === null) {
         clearClientSessionKey();
@@ -161,9 +209,76 @@ export async function request(path: string, init?: RequestInit): Promise<Respons
         headers: response.headers,
       });
     }
+
+    const responseMetaHeader = response.headers.get(ENCRYPTED_META_HEADER);
+    if (responseMetaHeader && requestNonce) {
+      const isMetaValid = await verifyResponseMeta(
+        responseMetaHeader,
+        requestNonce,
+        response.status,
+        "",
+      );
+      if (!isMetaValid) {
+        clearClientSessionKey();
+        throw new Error("Encrypted response replay or tampering detected");
+      }
+    }
   }
 
   return response;
+}
+
+async function verifyResponseMeta(
+  encryptedMetaHeader: string,
+  expectedNonce: string,
+  expectedStatus: number,
+  encryptedBodyToken: string,
+): Promise<boolean> {
+  const decryptedMeta = await decryptClientText(encryptedMetaHeader);
+  if (!decryptedMeta) {
+    return false;
+  }
+
+  try {
+    const parsed = JSON.parse(decryptedMeta) as {
+      nonce?: unknown;
+      ts?: unknown;
+      s?: unknown;
+      b?: unknown;
+    };
+    if (
+      parsed.nonce !== expectedNonce ||
+      parsed.s !== expectedStatus ||
+      typeof parsed.b !== "string"
+    ) {
+      return false;
+    }
+
+    const expectedBodyHash = encryptedBodyToken ? await computeTextSha256(encryptedBodyToken) : "";
+    if (parsed.b !== expectedBodyHash) {
+      return false;
+    }
+
+    if (typeof parsed.ts === "number") {
+      setServerTimeOffset(parsed.ts);
+    }
+
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function resolvePathname(path: string): string {
+  if (path.startsWith("/")) {
+    return path;
+  }
+
+  try {
+    return new URL(path, "http://localhost").pathname;
+  } catch {
+    return path;
+  }
 }
 
 function isAborted(error: unknown): boolean {
