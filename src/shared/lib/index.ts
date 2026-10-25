@@ -180,11 +180,6 @@ export {
 } from "./hooks/use-long-press";
 export { OPEN_OVERLAY_SELECTOR, useModalOverlay } from "./hooks/use-modal-overlay";
 export { OFFICE_MODE_STORAGE_KEY, getIsOfficeMode, useOfficeMode } from "./hooks/use-office-mode";
-export {
-  OFFICE_MODE_HIDDEN_PACKS_STORAGE_KEY,
-  getIsPackHiddenInOfficeMode,
-  useOfficeModeHiddenPacks,
-} from "./hooks/use-office-mode-hidden-packs";
 export { usePendingTab, type PendingTab } from "./hooks/use-pending-tab";
 export {
   DOUBLE_TAP_ZOOM_SCALE,

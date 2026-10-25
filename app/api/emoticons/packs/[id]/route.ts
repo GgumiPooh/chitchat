@@ -2,6 +2,7 @@ import {
   deleteEmoticonPack,
   getEmoticonPack,
   renameEmoticonPack,
+  setEmoticonPackHideInOffice,
   setEmoticonPackThumbnail,
 } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
@@ -28,11 +29,17 @@ const bodySchema = z
   .object({
     name: z.string().trim().min(1).max(MAX_EMOTICON_PACK_NAME_LENGTH).optional(),
     thumbnailItemId: snowflakeSchema<EmoticonItemId>().nullish(),
+    hideInOffice: z.boolean().optional(),
     // WARN: § 13. A pack's kind is fixed at creation, so a body carrying one is refused rather than ignored. Stripped silently instead, the caller would read a `200` as the change having been made, and the keyword index would be stranded if it ever were (`0045`).
     // WARN: `.optional()` is load-bearing — `z.undefined()` alone makes the key **required** in zod 4, which refuses every patch that correctly omits it.
     type: z.undefined().optional(),
   })
-  .refine((body) => body.name !== undefined || body.thumbnailItemId !== undefined);
+  .refine(
+    (body) =>
+      body.name !== undefined ||
+      body.thumbnailItemId !== undefined ||
+      body.hideInOffice !== undefined,
+  );
 
 type RouteContext = { params: Promise<{ id: string }> };
 
@@ -85,6 +92,13 @@ export async function PATCH(request: Request, context: RouteContext) {
   ) {
     // INFO: `setEmoticonPackThumbnail` refuses an item belonging to another pack, which is a bad request rather than a missing one.
     return apiError("invalid_request");
+  }
+
+  if (
+    body.data.hideInOffice !== undefined &&
+    !(await setEmoticonPackHideInOffice(params.data.id, body.data.hideInOffice))
+  ) {
+    return apiError("not_found");
   }
 
   const pack = await getEmoticonPack(params.data.id, user.id, query.data.type);

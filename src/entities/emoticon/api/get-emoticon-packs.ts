@@ -252,6 +252,7 @@ function selectPackPage(
       name: emoticonPacks.name,
       type: emoticonPacks.type,
       thumbnailItemId: emoticonPacks.thumbnailItemId,
+      hideInOffice: emoticonPacks.hideInOffice,
       enabled: userEmoticonPrefs.enabled,
       // INFO: Selected because the cursor is this value — the browser cannot compute it, and a page's last row is where the next one starts.
       position: sql<string>`${effectivePackPosition()}`.as("position"),
@@ -306,6 +307,7 @@ function selectPackRows(
         name: page.name,
         type: page.type,
         thumbnailItemId: page.thumbnailItemId,
+        hideInOffice: page.hideInOffice,
         thumbnailUpdatedAt: chosenThumbnails.updatedAt,
         firstItemId: firstItem.id,
         firstItemUpdatedAt: firstItem.updatedAt,
@@ -336,6 +338,7 @@ function toSummary(row: PackRow): EmoticonPackSummary {
     itemCount: row.itemCount,
     // INFO: REQUIREMENTS.md § 13.1. No row means hidden — a pack is in this user's picker only once they have said so.
     isEnabled: row.enabled ?? false,
+    hideInOffice: row.hideInOffice,
   };
 }
 

@@ -22,7 +22,6 @@ import {
   cn,
   getPreviousAppRoute,
   useOfficeMode,
-  useOfficeModeHiddenPacks,
   type EmoticonItemId,
   type Maybe,
   type Nullable,
@@ -89,9 +88,8 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   // INFO: § 13. A mini's one keyword is its name rather than something to search for, so neither the suggester nor the words-help line below belongs on it (§ 2.6.).
   const isSearchable = type === "emoticon";
   const { isOfficeMode } = useOfficeMode();
-  const { isPackHidden, togglePackHidden } = useOfficeModeHiddenPacks();
-  const isHiddenSettingOn = isPackHidden(pack.id);
-  const isAssetBlocked = isOfficeMode && isHiddenSettingOn;
+  const [hideInOffice, setHideInOffice] = useState(pack.hideInOffice);
+  const isAssetBlocked = isOfficeMode && hideInOffice;
   const [items, setItems] = useState(pack.items);
   const [thumbnailItemId, setThumbnailItemId] = useState(pack.thumbnailItemId);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
@@ -170,9 +168,9 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
           description="오피스 모드가 켜져 있을 때 이 팩의 이모티콘을 텍스트로 대신 보여줘요"
           trailing={
             <Switch
-              checked={isHiddenSettingOn}
+              checked={hideInOffice}
               aria-label="오피스 모드에서 가리기"
-              onCheckedChange={() => togglePackHidden(pack.id)}
+              onCheckedChange={handleToggleHideInOffice}
             />
           }
         />
@@ -426,6 +424,19 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   function handleFormSaved(emoticon: Emoticon) {
     handleSaved(emoticon);
     syncRouterCache();
+  }
+
+  async function handleToggleHideInOffice(next: boolean) {
+    const prev = hideInOffice;
+    setHideInOffice(next);
+
+    try {
+      await updateEmoticonPack(pack.id, type, { hideInOffice: next });
+      syncRouterCache();
+    } catch {
+      setHideInOffice(prev);
+      toast.error("오피스 모드 가리기 설정을 저장하지 못했어요");
+    }
   }
 
   async function setThumbnail(itemId: Nullable<EmoticonItemId>) {

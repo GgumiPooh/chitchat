@@ -2,7 +2,7 @@
 
 import type { EmoticonPackSummary } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn, useOfficeMode, useOfficeModeHiddenPacks, type EmoticonPackId } from "@/shared/lib";
+import { cn, useOfficeMode, type EmoticonPackId } from "@/shared/lib";
 import { HapticTarget, IconButton, PreloadImage, ReorderHandleIcon } from "@/shared/ui";
 import { useSortable } from "@dnd-kit/sortable";
 import { ChevronRight, MoreVertical, Smile } from "lucide-react";
@@ -50,8 +50,7 @@ export function EmoticonPackRow({
   } = useSortable({ id: pack.id });
 
   const { isOfficeMode } = useOfficeMode();
-  const { isPackHidden } = useOfficeModeHiddenPacks();
-  const isBlocked = isOfficeMode && isPackHidden(pack.id);
+  const isBlocked = isOfficeMode && pack.hideInOffice;
 
   return (
     <div

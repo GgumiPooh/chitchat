@@ -34,6 +34,7 @@ export type EmoticonPackSummary = {
   itemCount: number;
   // INFO: REQUIREMENTS.md § 13.1. This user's own view of the pack. An absent `user_emoticon_prefs` row reads as enabled.
   isEnabled: boolean;
+  hideInOffice: boolean;
   id: EmoticonPackId;
 };
 

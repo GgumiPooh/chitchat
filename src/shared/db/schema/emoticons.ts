@@ -43,6 +43,8 @@ export const emoticonPacks = pgTable("emoticon_packs", {
       onDelete: "set null",
     },
   ),
+  // INFO: Whether to hide this pack's images and render text in Office Mode. Stored per-pack in DB.
+  hideInOffice: boolean("hide_in_office").notNull().default(false),
   // INFO: REQUIREMENTS.md § 13.5. Soft, for the reason `emoticon_items.deleted_at` is — a hard `DELETE` cascades into items, and `messages.emoticon_item_id` has no cascade to survive it.
   deletedAt: timestamp("deleted_at", { withTimezone: true }),
 });

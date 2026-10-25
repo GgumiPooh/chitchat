@@ -124,12 +124,12 @@ import {
   useIsomorphicLayoutEffect,
   useMessageSound,
   useOfficeMode,
-  useOfficeModeHiddenPacks,
   useSettledCommit,
   useSoundUnlock,
   useUnsentWork,
   warmLineHeights,
   type EmoticonItemId,
+  type EmoticonPackId,
   type LongPressPoint,
   type Maybe,
   type MediaId,
@@ -934,7 +934,6 @@ export function ChatRoom({
   }, [isSearching]);
   // INFO: REQUIREMENTS.md § 12.2. The wallpaper comes from here rather than from a prop, because either participant can change it and the other one must see it without leaving the room.
   const { isOfficeMode } = useOfficeMode();
-  const { isPackHidden } = useOfficeModeHiddenPacks();
   const {
     participants,
     chatBackgroundMediaId,
@@ -1077,6 +1076,14 @@ export function ChatRoom({
   const { data: packs = [] } = useQuery(toEmoticonPacksQuery());
   const packTypes = useMemo(() => new Map(packs.map((p) => [p.id, p.type])), [packs]);
   const packNames = useMemo(() => new Map(packs.map((p) => [p.id, p.name])), [packs]);
+  const hiddenPackIds = useMemo(
+    () => new Set(packs.filter((p) => p.hideInOffice).map((p) => p.id)),
+    [packs],
+  );
+  const isPackHidden = useCallback(
+    (packId: EmoticonPackId) => hiddenPackIds.has(packId),
+    [hiddenPackIds],
+  );
   // INFO: REQUIREMENTS.md § 8.3. A cache read, never a subscription — this answers the row estimate below, which runs for rows that are nowhere near the DOM.
   const readPreview: PreviewReader = useCallback(
     (url) =>

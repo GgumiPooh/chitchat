@@ -47,6 +47,7 @@ export async function createEmoticonPack(
     thumbnailVersion: null,
     itemCount: 0,
     isEnabled: true,
+    hideInOffice: row.hideInOffice,
   };
 }
 
@@ -91,6 +92,19 @@ export async function setEmoticonPackThumbnail(
   const updated = await getDb()
     .update(emoticonPacks)
     .set({ thumbnailItemId: itemId })
+    .where(and(eq(emoticonPacks.id, packId), isNull(emoticonPacks.deletedAt)))
+    .returning({ id: emoticonPacks.id });
+
+  return updated.length > 0;
+}
+
+export async function setEmoticonPackHideInOffice(
+  packId: EmoticonPackId,
+  hideInOffice: boolean,
+): Promise<boolean> {
+  const updated = await getDb()
+    .update(emoticonPacks)
+    .set({ hideInOffice })
     .where(and(eq(emoticonPacks.id, packId), isNull(emoticonPacks.deletedAt)))
     .returning({ id: emoticonPacks.id });
 

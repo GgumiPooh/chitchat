@@ -134,7 +134,7 @@ export async function updateEmoticon(
 export async function updateEmoticonPack(
   packId: EmoticonPackId,
   type: EmoticonPackType,
-  body: { name?: string; thumbnailItemId?: Nullable<string> },
+  body: { hideInOffice?: boolean; name?: string; thumbnailItemId?: Nullable<string> },
 ): Promise<void> {
   await send(`${EMOTICON_PACKS_URL}/${packId}?type=${type}`, "PATCH", body);
 }

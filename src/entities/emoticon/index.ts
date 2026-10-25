@@ -38,6 +38,7 @@ export {
   createEmoticonPack,
   deleteEmoticonPack,
   renameEmoticonPack,
+  setEmoticonPackHideInOffice,
   setEmoticonPackThumbnail,
   type DeleteEmoticonPackResult,
 } from "./api/write-emoticon-pack";
