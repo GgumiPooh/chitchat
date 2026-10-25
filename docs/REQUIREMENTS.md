@@ -1544,7 +1544,7 @@ The screen opens on a **fixed-height cover header** (`DESIGN.md § 7.16.`) rathe
 **The main screen (`/settings`) organizes rows into profile, 4 subpage navigation links, theme, and account:**
 
 1. **프로필**: `ProfileSettingsRow` (닉네임 + 프로필 사진 + 커버 편집)
-2. **채팅방 설정 (`/settings/chat`)**: 채팅방 배경화면 (§ 12.2.), 채팅방 효과음 (§ 13.6.), AI 지침 (§ 8.15.), 이모티콘 묶음 관리 (§ 13.5.), 미니이모티콘 묶음 관리 (§ 13).
+2. **채팅방 설정 (`/settings/chat`)**: 채팅방 효과음 (§ 13.6.), 채팅방 배경화면 (§ 12.2.), AI 지침 (§ 8.15.), 이모티콘 묶음 관리 (§ 13.5.), 미니이모티콘 묶음 관리 (§ 13).
 3. **알림 설정 (`/settings/notifications`)**: 푸시 알림 (§ 16.1.), 알림 소리, 알림 내용 표시 (오피스 모드 연동).
 4. **보안 및 기기 관리 (`/settings/security`)**: 오피스 모드 (사내망 프라이버시 모드), 이 기기에서 화면 잠금 (6자리 PIN, § 5.5.), 입력 중 표시 (§ 8.12.), 비밀번호 변경, 공유 단축어 키, 로그인된 기기 목록 (`DeviceList`, `/settings/devices` redirects here).
 5. **서버 관리 (`/settings/server`)**: 서버 상태, 버전 정보, 캐시 초기화 (§ 12.4.).
