@@ -131,6 +131,8 @@ export type MessageRowProps = {
   isCollapsed?: boolean;
   reactions?: MessageReaction[];
   currentUserId?: UserId;
+  /** When true, disables media/voice loading/viewing. */
+  isOfficeMode?: boolean;
   /** AGENTS.md § 4.1. Carries the held or right-clicked element and the pointer's own position — the room anchors the desktop menu to the point, so a bubble taller than the visible area cannot carry it off screen. */
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
   /** REQUIREMENTS.md § 8.16. A tap anywhere on a cut bubble, which opens the § 6.2.2. sheet holding the whole message. */
@@ -190,6 +192,7 @@ export function MessageRow({
   status,
   isSelecting = false,
   awaitsArrivalSound,
+  isOfficeMode = false,
   reactions = [],
   currentUserId,
   onLongPress,
@@ -416,6 +419,7 @@ export function MessageRow({
                   isOnlyMe={isOnlyMe}
                   isSilent={isSilent}
                   isPending={status !== "sent"}
+                  isOfficeMode={isOfficeMode}
                 />
               )}
             </div>
@@ -431,6 +435,7 @@ export function MessageRow({
                 isSilent={isSilent}
                 encodingIndex={encodingIndex}
                 encodeProgress={encodeProgress}
+                isOfficeMode={isOfficeMode}
                 onOpen={onOpenMedia}
               />
             </div>

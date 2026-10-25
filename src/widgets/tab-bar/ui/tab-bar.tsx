@@ -2,6 +2,7 @@
 
 import { useChatStream } from "@/features/chat-stream";
 import {
+  ARCHIVE_ROUTE,
   CALENDAR_ROUTE,
   CHAT_ROUTE,
   GEEKNEWS_ROUTE,
@@ -9,8 +10,8 @@ import {
   TIME_LETTERS_ROUTE,
   VOCA_ROUTE,
 } from "@/shared/config";
-import { cn, usePendingTab } from "@/shared/lib";
-import { Badge, Link } from "@/shared/ui";
+import { cn, useOfficeMode, usePendingTab } from "@/shared/lib";
+import { Badge, Link, toast } from "@/shared/ui";
 import { usePathname } from "next/navigation";
 import { TABS } from "../model/tabs";
 
@@ -30,6 +31,7 @@ export type TabBarProps = {
 export function TabBar({ className, hasEventToday = false }: TabBarProps) {
   // INFO: REQUIREMENTS.md § 8.8. Live off the shell's stream rather than resolved once per page load — the badge has to move while the user is standing on another tab.
   const { unreadCount } = useChatStream();
+  const { isOfficeMode } = useOfficeMode();
   const pathname = usePathname();
   // INFO: DESIGN.md § 7.3. Every tab screen is dynamic, so the click is held for a server round trip; the fill moves on the tap instead of when the route commits.
   const { pendingTab, setPendingTab } = usePendingTab(pathname);
@@ -80,6 +82,7 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
           <ul className="relative z-10 flex flex-1 items-stretch">
             {TABS.map(({ route, href, label, Icon }) => {
               const isActive = isUnderRoute(activePath, route);
+              const isArchive = route === ARCHIVE_ROUTE;
               // INFO: DESIGN.md § 7.3. Crossed over the fill's own duration rather than swapped, so the pair lands with the fill instead of turning `primary` while it is still travelling.
               // WARN: `--duration-tab-travel`, and it MUST track whatever the fill above uses. Left on `--duration-state` the label lands before the fill is halfway across and sits `primary` on bare glass waiting for it — the exact snap this crossfade exists to prevent, and it widens every time the travel is slowed.
               // WARN: `motion-reduce:duration-0` has to track the fill's too, or the desync this crossfade prevents comes back inverted under reduced motion — the fill snapping instantly while the glyph and label take the full travel. DESIGN.md § 7.3.'s contract is that the travel drops to 0s for both.
@@ -98,10 +101,21 @@ export function TabBar({ className, hasEventToday = false }: TabBarProps) {
                     )}
                     href={href}
                     // INFO: Only off the tab the user is standing on — re-tapping the current tab switches nothing, so it has nothing to confirm.
-                    haptic={!isActive}
+                    haptic={!isActive && !(isArchive && isOfficeMode)}
                     aria-current={isActive ? "page" : undefined}
+                    onClick={(event) => {
+                      if (isArchive && isOfficeMode) {
+                        event.preventDefault();
+                        toast.info("오피스 모드가 켜져 있어 보관함에 진입할 수 없어요");
+                      }
+                    }}
                     // INFO: `onNavigate` and not `onClick` — a ⌘-click opens a tab in a new window and switches nothing here, and Next skips this handler for exactly those.
-                    onNavigate={() => setPendingTab(route)}
+                    onNavigate={() => {
+                      if (isArchive && isOfficeMode) {
+                        return;
+                      }
+                      setPendingTab(route);
+                    }}
                   >
                     {/* WARN: DESIGN.md § 4.7.2. The bloom is on the glyph stack and not the anchor. The anchor is a quarter of the pill wide, so at this dial its hover fill and focus ring would swell a third of a column past the pill and over the tabs beside it — and the fill it used to spring with now travels behind the items (§ 7.3.) rather than riding it. */}
                     {/* WARN: DESIGN.md § 4.7.2. It is reached through the anchor's `.group`, which is the descendant form of `[data-pressed]` — the only one that fires under a finger, since `HapticTap` marks the anchor and not this span. */}

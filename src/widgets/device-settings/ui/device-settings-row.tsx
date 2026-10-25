@@ -8,14 +8,19 @@ import { useRouter } from "next/navigation";
 
 const LABEL = "로그인된 기기";
 
+export type DeviceSettingsRowProps = {
+  className?: string;
+};
+
 // INFO: REQUIREMENTS.md § 12. The entry point to the device list.
-export function DeviceSettingsRow() {
+export function DeviceSettingsRow({ className }: DeviceSettingsRowProps) {
   const router = useRouter();
   // WARN: Left ungated the push fails its RSC fetch, falls back to a document navigation, and § 16.'s worker answers with `/offline` — whose one control leads to 채팅, so the reader is thrown off 설정 entirely.
   const { isBlocked, guard } = useOfflineGate(toOfflineOpenMessage(LABEL));
 
   return (
     <SettingsRow
+      className={className}
       label={LABEL}
       description="다른 기기에서 로그아웃할 수 있어요"
       Icon={MonitorSmartphone}

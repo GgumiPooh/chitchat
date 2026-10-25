@@ -16,12 +16,17 @@ const LABEL = "서버 관리";
  * two controls that are not on the screen the row opens — where the list and the per-backup
  * deletion read R2 directly and are there either way.
  */
-export function ServerSettingsRow() {
+export type ServerSettingsRowProps = {
+  className?: string;
+};
+
+export function ServerSettingsRow({ className }: ServerSettingsRowProps) {
   const router = useRouter();
   const { isBlocked, guard } = useOfflineGate(toOfflineOpenMessage(LABEL));
 
   return (
     <SettingsRow
+      className={className}
       label={LABEL}
       description="백업을 확인하고 관리할 수 있어요"
       Icon={HardDrive}

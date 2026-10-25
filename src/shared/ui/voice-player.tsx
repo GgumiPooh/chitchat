@@ -4,6 +4,7 @@ import { cn, formatDuration, useVoicePlayback, type Nullable } from "@/shared/li
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { Pause, Play } from "lucide-react";
 import { useMemo, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { toast } from "./sonner";
 
 export type VoicePlayerProps = {
   className?: string;
@@ -22,6 +23,8 @@ export type VoicePlayerProps = {
   isSilent?: boolean;
   /** Still uploading. Dims to 60% (`DESIGN.md § 6.5.`) but stays playable, since the local blob is already a source. */
   isPending?: boolean;
+  /** When true, disables audio loading/playback and toasts an explanation on click. */
+  isOfficeMode?: boolean;
 };
 
 // INFO: A silent sample still has to be a bar — at zero the row reads as a gap in the recording rather than as quiet.
@@ -45,20 +48,22 @@ export function VoicePlayer({
   isOnlyMe = false,
   isSilent = false,
   isPending = false,
+  isOfficeMode = false,
 }: VoicePlayerProps) {
+  const effectiveSrc = isOfficeMode ? null : src;
   const { isActive, isPlaying, positionMs, progress, toggle, seekToRatio } = useVoicePlayback(
-    src,
+    effectiveSrc,
     durationMs,
   );
   // INFO: Two copies of one bar row, the upper clipped to the playhead — the alternative recolours every bar on every frame, and a row inside the virtualizer cannot afford that.
   const bars = useMemo(() => renderBars(peaks), [peaks]);
   // INFO: A pending bubble is still playable — REQUIREMENTS.md § 9.3. hands a recording its local blob as `originalUrl`, so the one clip in the app that has a source before it has an object is this one. What is missing is a source, never a landed upload.
-  const isInert = src === null;
+  const isInert = effectiveSrc === null;
   // INFO: A stored clip is bytes behind § 9.'s expiring presigned redirect; the local blob the line above describes is already here, so it is one of the two sources this gate leaves alone.
   // WARN: `!isActive` is the other, and it is what keeps this a hint rather than a gate on a capability (`AGENTS.md § 4.2.`). Once the shared element is parked on this clip it holds the bytes, so pause, resume and scrub are local — a reader who walks into a tunnel mid-sentence has to be able to stop it. Only *starting* a clip nothing has fetched needs the network.
   const { isBlocked, blockedProps, guard } = useOfflineGate(
     OFFLINE_MESSAGES.play,
-    src !== null && !src.startsWith("blob:") && !isActive,
+    effectiveSrc !== null && !effectiveSrc.startsWith("blob:") && !isActive,
   );
 
   return (
@@ -86,6 +91,11 @@ export function VoicePlayer({
       role="group"
       // INFO: DESIGN.md § 6.5. dims an optimistic bubble, and a dim reaches nobody using a screen reader — this is the same fact said out loud.
       aria-label={isPending ? "음성 메시지, 전송 중이에요" : "음성 메시지"}
+      onClick={() => {
+        if (isOfficeMode) {
+          toast.info("오피스 모드가 켜져 있어 음성 메시지를 재생할 수 없어요");
+        }
+      }}
     >
       {/* INFO: DESIGN.md § 3.2., § 6.6. A 36 disc inside a 44 target, exactly as the composer's send button is — the glyph stays the size it should be drawn at and the hit area is padded around it. */}
       <button

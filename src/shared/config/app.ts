@@ -159,6 +159,9 @@ export const VOCA_ACTION_ADD = "add-word";
 export const VOCA_ACTION_RECOMMEND = "recommend";
 
 export const SETTINGS_ROUTE = "/settings";
+export const CHAT_SETTINGS_ROUTE = "/settings/chat";
+export const NOTIFICATIONS_SETTINGS_ROUTE = "/settings/notifications";
+export const SECURITY_SETTINGS_ROUTE = "/settings/security";
 
 // INFO: REQUIREMENTS.md § 13.5. Nested under settings, so the tab bar keeps 설정 active while the management screens are open.
 export const EMOTICON_SETTINGS_ROUTE = "/settings/emoticons";

@@ -13,7 +13,11 @@ import { useState } from "react";
  * `ChatBackgroundRow` (§ 12.2.) is: it belongs to the conversation, not to either
  * profile, and either participant may open and change it from here.
  */
-export function LlmSystemPromptSettingsRow() {
+export type LlmSystemPromptSettingsRowProps = {
+  className?: string;
+};
+
+export function LlmSystemPromptSettingsRow({ className }: LlmSystemPromptSettingsRowProps) {
   const { llmSystemPrompt, setLlmSystemPrompt } = useChatStream();
   // WARN: `EventFormSheet`'s pattern — bumped on every open so the sheet remounts and re-seeds its draft from whatever the prompt is *now*, rather than from a stale value this screen was rendered with.
   const [openToken, setOpenToken] = useState<Nullable<number>>(null);
@@ -22,6 +26,7 @@ export function LlmSystemPromptSettingsRow() {
   return (
     <>
       <SettingsRow
+        className={className}
         label="AI 지침"
         description={toDescription(llmSystemPrompt)}
         Icon={ScrollText}

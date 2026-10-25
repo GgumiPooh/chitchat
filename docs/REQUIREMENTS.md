@@ -1537,13 +1537,25 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 
 ## 12. Settings Tab ✅
 
-**Landed:** the profile editor (nickname + avatar + cover), the tap-to-enlarge avatar, the 입력 중 표시 switch (§ 8.12.), the two backgrounds (§ 12.1., § 12.2.), the profile screen (§ 12.3.), 보안 PIN 변경 (§ 5.5.), 로그아웃, the device list and the ops console (§ 12.4.). App info remains.
+**Landed:** the profile editor (nickname + avatar + cover), the tap-to-enlarge avatar, the IA reorganization into dedicated subpages (`/settings/chat`, `/settings/notifications`, `/settings/security`, `/settings/server`), 오피스 모드 (사내망 프라이버시 모드), the 6-digit 보안 PIN 화면 잠금 및 PIN 변경 (§ 5.5.), 입력 중 표시 switch (§ 8.12.), the two backgrounds (§ 12.1., § 12.2.), the profile screen (§ 12.3.), 로그아웃, the device list and the ops console (§ 12.4.).
 
 The screen opens on a **fixed-height cover header** (`DESIGN.md § 7.16.`) rather than the old padded avatar block — the § 12.1. background is drawn behind the avatar and the name, and tapping the avatar opens § 12.3.
 
-**The rows run 나 → 대화 → 앱 → 계정**, with § 12.4.'s 서버 관리 last of the 계정 group, and that order is a decision rather than the sequence the features landed in: 프로필, then 이모티콘 and 채팅방 배경, then 화면 테마, then 알림, 전송음 and 입력 중 표시, then 단축어 키, 보안 PIN 변경, 로그인된 기기 and 로그아웃. What a user opens this screen for sits at the top and what they touch once sits at the bottom; the two switches end up adjacent and the account rows end up beside the exit, so the shapes group as the topics do. 입력 중 표시 must stay directly under 알림 — it is the per-account counterpart to a per-device row, and the code says so by pointing at "the row above."
+**The main screen (`/settings`) organizes rows into profile, 4 subpage navigation links, theme, and account:**
 
-**Every row on this screen is per-account or per-device except one.** 채팅방 배경 (§ 12.2.) writes what the _other_ participant sees, and it is the only control here that does — which is precisely why its copy has to say so out loud rather than rely on its position in the 대화 group. A reader who has learnt the rest of the screen has learnt the opposite rule.
+1. **프로필**: `ProfileSettingsRow` (닉네임 + 프로필 사진 + 커버 편집)
+2. **채팅방 설정 (`/settings/chat`)**: 채팅방 배경화면 (§ 12.2.), AI 지침 (§ 8.15.), 이모티콘 묶음 관리 (§ 13.5.), 미니이모티콘 묶음 관리 (§ 13).
+3. **알림 설정 (`/settings/notifications`)**: 푸시 알림 (§ 16.1.), 알림 소리, 알림 내용 표시 (오피스 모드 연동), 메시지 전송음 (§ 13.6.).
+4. **보안 및 기기 관리 (`/settings/security`)**: 오피스 모드 (사내망 프라이버시 모드), 이 기기에서 화면 잠금 (6자리 PIN, § 5.5.), 비밀번호 변경, 입력 중 표시 (§ 8.12.), 공유 단축어 키, 로그인된 기기 목록 (`DeviceList`, `/settings/devices` redirects here).
+5. **서버 관리 (`/settings/server`)**: 서버 상태, 버전 정보, 캐시 초기화 (§ 12.4.).
+6. **앱 및 세션**: 화면 테마 (`ThemeSettingsRow`), 개발자 새로고침 (`DevRefreshRow` in dev), 로그아웃 (`LogoutButton`).
+
+**오피스 모드 (Office Mode)** — per-device toggle in `/settings/security` (`localStorage` key `jandh:office-mode`). Designed for corporate/office environments:
+
+- **Zero Media Network Traffic**: Blocks all photo, video, file, and voice network GET requests (no presigned R2 URLs or `/api/media/{id}` fetches). Renders accessible placeholders (`사진 (오피스 모드)`, `동영상 (오피스 모드)`, disabled file cards) and disables viewer/playback with toast (`오피스 모드가 켜져 있어 미디어를 열 수 없어요`).
+- **Default Canvas Wallpaper**: Forces chat background to flat `bg-chat-canvas`, skipping wallpaper fetch and blurhash tinting entirely.
+- **Archive Protection**: Intercepts `보관함` tab taps in `TabBar` and `NavRail` with an explanation toast. Direct URL navigations to `/archive/*` are halted in `ArchiveShell` (rendering `null` with no month counts or media queries) and redirected immediately to `/chat`.
+- **Master Preset for Push Notification Privacy**: Turning on Office Mode automatically disables push preview (`preview_enabled = false`) so incoming OS banners in an office never expose sender or message contents. Locks the `알림 내용 표시` row in `/settings/notifications` with subtext (`오피스 모드가 켜져 있어 알림 내용이 자동으로 숨겨져요`). Turning off Office Mode restores the user's previous preview preference.
 
 **보안 PIN 변경** — `PinSettingsRow`, rendered right above `DeviceSettingsRow` at the start of the 계정 section. Opens `PinSettingsSheet` (`POST /api/auth/session/pin`), allowing an authenticated user to verify their current 6-digit PIN and configure a new one without logging out (§ 5.5.). Mismatches or invalid PINs display clear error feedback.
 

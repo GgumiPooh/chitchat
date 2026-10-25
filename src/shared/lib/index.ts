@@ -179,6 +179,7 @@ export {
   type LongPressPoint,
 } from "./hooks/use-long-press";
 export { OPEN_OVERLAY_SELECTOR, useModalOverlay } from "./hooks/use-modal-overlay";
+export { OFFICE_MODE_STORAGE_KEY, getIsOfficeMode, useOfficeMode } from "./hooks/use-office-mode";
 export { usePendingTab, type PendingTab } from "./hooks/use-pending-tab";
 export {
   DOUBLE_TAP_ZOOM_SCALE,

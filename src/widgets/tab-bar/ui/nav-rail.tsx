@@ -2,9 +2,9 @@
 
 import { useChatStream } from "@/features/chat-stream";
 import { useProfileViewer } from "@/features/view-profile";
-import { APP_NAME, CALENDAR_ROUTE, CHAT_ROUTE, isUnderRoute } from "@/shared/config";
-import { cn, usePendingTab, useRovingTabIndex, type UserId } from "@/shared/lib";
-import { Avatar, Badge, IconButton, Link } from "@/shared/ui";
+import { APP_NAME, ARCHIVE_ROUTE, CALENDAR_ROUTE, CHAT_ROUTE, isUnderRoute } from "@/shared/config";
+import { cn, useOfficeMode, usePendingTab, useRovingTabIndex, type UserId } from "@/shared/lib";
+import { Avatar, Badge, IconButton, Link, toast } from "@/shared/ui";
 import { Plus } from "lucide-react";
 import Image from "next/image";
 import { usePathname, useRouter } from "next/navigation";
@@ -26,6 +26,7 @@ export type NavRailProps = {
  */
 export function NavRail({ className, hasEventToday = false, currentUserId }: NavRailProps) {
   const { unreadCount, participants, requestAttach } = useChatStream();
+  const { isOfficeMode } = useOfficeMode();
   const { openProfile } = useProfileViewer();
   const pathname = usePathname();
   const router = useRouter();
@@ -77,6 +78,7 @@ export function NavRail({ className, hasEventToday = false, currentUserId }: Nav
         )}
         {TABS.map(({ route, href, label, Icon }, index) => {
           const isActive = isUnderRoute(activePath, route);
+          const isArchive = route === ARCHIVE_ROUTE;
           const stateClassName = cn(
             "transition-colors duration-(--duration-tab-travel) motion-reduce:duration-0",
             isActive ? "text-primary" : "text-meta hover:text-ink",
@@ -88,11 +90,22 @@ export function NavRail({ className, hasEventToday = false, currentUserId }: Nav
                 className="group relative flex min-h-11 w-14 flex-col items-center justify-center gap-0.5 rounded-full outline-none select-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset"
                 href={href}
                 tabIndex={isActive || (activeIndex < 0 && index === 0) ? 0 : -1}
-                haptic={!isActive}
+                haptic={!isActive && !(isArchive && isOfficeMode)}
                 // WARN: Not a `ref` — `Link` wraps `next/link` with no `ref` in its props type, so roving tabindex reads the DOM through this attribute and `querySelectorAll` instead (§ 8.14.).
                 data-rail-item=""
                 aria-current={isActive ? "page" : undefined}
-                onNavigate={() => setPendingTab(route)}
+                onClick={(event) => {
+                  if (isArchive && isOfficeMode) {
+                    event.preventDefault();
+                    toast.info("오피스 모드가 켜져 있어 보관함에 진입할 수 없어요");
+                  }
+                }}
+                onNavigate={() => {
+                  if (isArchive && isOfficeMode) {
+                    return;
+                  }
+                  setPendingTab(route);
+                }}
               >
                 <span className="relative">
                   <Icon className={cn("size-5", stateClassName)} strokeWidth={1.75} />

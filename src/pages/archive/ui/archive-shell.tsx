@@ -1,8 +1,10 @@
 "use client";
 
-import { formatYearMonth } from "@/shared/lib";
-import { TwoPane } from "@/shared/ui";
-import type { PropsWithChildren } from "react";
+import { CHAT_ROUTE } from "@/shared/config";
+import { formatYearMonth, useOfficeMode } from "@/shared/lib";
+import { toast, TwoPane } from "@/shared/ui";
+import { useRouter } from "next/navigation";
+import { useEffect, type PropsWithChildren } from "react";
 import { useArchiveJump } from "../model/archive-jump-context";
 import { useArchiveMonthCounts } from "../model/archive-month-counts-context";
 import { LibrarySegments } from "./library-segments";
@@ -21,8 +23,21 @@ export type ArchiveShellProps = PropsWithChildren<{
  * mode and the shelf's own mutations where the layout's one-shot fetch cannot.
  */
 export function ArchiveShell({ className, children }: ArchiveShellProps) {
+  const router = useRouter();
+  const { isOfficeMode } = useOfficeMode();
   const months = useArchiveMonthCounts();
   const { jump } = useArchiveJump();
+
+  useEffect(() => {
+    if (isOfficeMode) {
+      toast.info("오피스 모드가 켜져 있어 보관함에 진입할 수 없어요");
+      router.replace(CHAT_ROUTE);
+    }
+  }, [isOfficeMode, router]);
+
+  if (isOfficeMode) {
+    return null;
+  }
 
   return (
     <TwoPane

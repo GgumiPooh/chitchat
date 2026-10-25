@@ -123,6 +123,7 @@ import {
   useIsVirtualKeyboardOpen,
   useIsomorphicLayoutEffect,
   useMessageSound,
+  useOfficeMode,
   useSettledCommit,
   useSoundUnlock,
   useUnsentWork,
@@ -931,6 +932,7 @@ export function ChatRoom({
     }
   }, [isSearching]);
   // INFO: REQUIREMENTS.md § 12.2. The wallpaper comes from here rather than from a prop, because either participant can change it and the other one must see it without leaving the room.
+  const { isOfficeMode } = useOfficeMode();
   const {
     participants,
     chatBackgroundMediaId,
@@ -943,6 +945,7 @@ export function ChatRoom({
     noteSeen,
     flushSeen,
   } = useChatStream();
+  const effectiveChatBackgroundMediaId = isOfficeMode ? null : chatBackgroundMediaId;
   // INFO: AGENTS.md § 4.1. The rail's 첨부 lives outside the room, so it leaves a request the room answers — on mount too, for a press made on another tab.
   useEffect(() => {
     if (attachRequest === 0) {
@@ -953,7 +956,9 @@ export function ChatRoom({
     clearAttachRequest();
   }, [attachRequest, clearAttachRequest]);
   // INFO: REQUIREMENTS.md § 8.1. The viewer's own floor, matching the room it opened over rather than the app's default `bg-canvas`.
-  const viewerBackgroundColor = toChromeTint(chatBackgroundBlurhash) ?? "var(--color-chat-canvas)";
+  const viewerBackgroundColor = isOfficeMode
+    ? "var(--color-chat-canvas)"
+    : (toChromeTint(chatBackgroundBlurhash) ?? "var(--color-chat-canvas)");
   // WARN: REQUIREMENTS.md § 8.12. Only the two *sustained* sources are passed; typing arrives as edit pulses through the returned callback, because a field holding a draft is not somebody typing. Sending is not a trigger either way — it clears both of these and produces no edit.
   // WARN: REQUIREMENTS.md § 8.12. Silent for the length of a search. A staged emoticon is state that outlives the hidden composer, so left connected it holds the signal up and re-POSTs every `TYPING_PING_INTERVAL` — the other participant reads 입력 중 from a composer that is not even on screen, which is exactly the parked-draft failure § 8.12. exists to have removed.
   const signalEdit = useTypingSignal(
@@ -2179,7 +2184,7 @@ export function ChatRoom({
       ref={containerRef}
       className={cn("relative min-h-0 flex-1 chat-clearance", className)}
       // INFO: DESIGN.md § 7.16. Scopes `on-wallpaper` to the sender name/timestamp text drawn on the photo — withheld with no wallpaper, where the room is flat `chat-canvas` and those colours must stay dark.
-      {...(chatBackgroundMediaId ? { "data-wallpaper": "" } : {})}
+      {...(effectiveChatBackgroundMediaId ? { "data-wallpaper": "" } : {})}
       // INFO: REQUIREMENTS.md § 13.6. The spacer half of `--chat-bottom-gap` (theme.css) — the composer's own spacer, the list's trailing one and the pills over it all read this one value.
       // WARN: § 13.6. Always `0s`. Easing this on the browser's own clock is what forced `useComposerClearance`'s `ResizeObserver` to re-measure and re-pin on every frame of the toggle with no keyboard up — the value now snaps in one layout pass, and `SHEET_FLIP_ATTRIBUTE` (above) hands the visible motion to that hook's FLIP instead, on `transform` alone.
       style={{
@@ -2190,8 +2195,8 @@ export function ChatRoom({
       }}
       {...fileDrop.handlers}
     >
-      {chatBackgroundMediaId && (
-        <ChatBackdrop mediaId={chatBackgroundMediaId} blurhash={chatBackgroundBlurhash} />
+      {effectiveChatBackgroundMediaId && (
+        <ChatBackdrop mediaId={effectiveChatBackgroundMediaId} blurhash={chatBackgroundBlurhash} />
       )}
       {rows.length === 0 && !isSwitchingMode && activeFilterMode === (notifyMode === "onlyMe") ? (
         <>
@@ -3739,6 +3744,7 @@ export function ChatRoom({
           <MessageRow
             text={row.pending.text}
             media={cells}
+            isOfficeMode={isOfficeMode}
             emoticon={row.pending.emoticon}
             inlineEmoticonItemIds={row.pending.inlineEmoticons.map(({ id }) => id)}
             // WARN: § 8.3. Drawn from what the send is carrying rather than from the room's map, which only fills once the echo lands — read from there the optimistic bubble would reserve nothing and re-measure the moment it arrives.
@@ -3815,6 +3821,7 @@ export function ChatRoom({
           <MessageRow
             text={row.message.text}
             media={cells}
+            isOfficeMode={isOfficeMode}
             emoticon={row.message.emoticon}
             inlineEmoticonItemIds={row.message.inlineEmoticonItemIds}
             // WARN: REQUIREMENTS.md § 8.3. The same map `readInlineEmoticon` reads. Two sources and the estimate and the bubble disagree about the box by construction.
@@ -4144,6 +4151,11 @@ export function ChatRoom({
     origin?: HTMLElement,
   ) {
     const cell = cells[index];
+
+    if (isOfficeMode) {
+      toast.info("오피스 모드가 켜져 있어 미디어를 열 수 없어요");
+      return;
+    }
 
     // INFO: § 4.3. Nothing to open and nothing to save — the object is gone, and the tombstone that says so is already on screen.
     if (!cell || cell.isDeleted) {

@@ -7,10 +7,11 @@ import {
   PreloadImage,
   PrivateRing,
   SilentRing,
+  toast,
   toCellRatio,
   type MediaCell,
 } from "@/shared/ui";
-import { Play } from "lucide-react";
+import { Camera, Play, Video } from "lucide-react";
 import { MEDIA_EDGE_REM, toMediaColumns } from "../model/to-media-box";
 
 const MAX_EDGE = `${MEDIA_EDGE_REM}rem`;
@@ -42,6 +43,8 @@ export type MediaGridProps = {
   encodingIndex?: Nullable<number>;
   /** `0`–`1` for the cell at `encodingIndex`. Ignored unless that index is set. */
   encodeProgress?: Nullable<number>;
+  /** When true, avoids fetching/rendering previews and blocks viewer/download with toast. */
+  isOfficeMode?: boolean;
   /**
    * INFO: DESIGN.md § 4.7.3. `origin` is the cell's own box, which the viewer's opening morph expands out of. A file card passes none — it saves rather than opening a viewer.
    */
@@ -58,6 +61,7 @@ export function MediaGrid({
   isSilent = false,
   encodingIndex = null,
   encodeProgress = null,
+  isOfficeMode = false,
   onOpen,
 }: MediaGridProps) {
   if (cells.length === 0) {
@@ -119,11 +123,17 @@ export function MediaGrid({
               filename={cell.filename ?? ""}
               sizeBytes={cell.sizeBytes}
               // INFO: A draft has no stored object yet, so the card is inert until the upload registers one.
-              disabled={cell.downloadUrl === null}
+              disabled={isOfficeMode || cell.downloadUrl === null}
               isOnlyMe={isOnlyMe}
               isSilent={isSilent}
-              aria-label={`${cell.filename} 저장`}
-              onClick={() => onOpen?.(index)}
+              aria-label={isOfficeMode ? `${cell.filename} (오피스 모드)` : `${cell.filename} 저장`}
+              onClick={() => {
+                if (isOfficeMode) {
+                  toast.info("오피스 모드가 켜져 있어 파일을 열 수 없어요");
+                  return;
+                }
+                onOpen?.(index);
+              }}
             />
           ),
         )}
@@ -138,6 +148,39 @@ export function MediaGrid({
         <span className="block w-full" style={{ aspectRatio: toCellRatio(cell) }}>
           <MediaTombstone cell={cell} />
         </span>
+      );
+    }
+
+    if (isOfficeMode) {
+      return (
+        <div
+          className={cn(
+            "relative flex w-full cursor-pointer flex-col items-center justify-center gap-xs rounded-md bg-surface-soft p-md outline-none select-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+            !isOnlyMe && "ring-1 ring-hairline ring-inset",
+          )}
+          style={{ aspectRatio: toCellRatio(cell) }}
+          role="button"
+          tabIndex={0}
+          aria-label={cell.isVideo ? "동영상 (오피스 모드)" : "사진 (오피스 모드)"}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              toast.info("오피스 모드가 켜져 있어 미디어를 열 수 없어요");
+            }
+          }}
+          onClick={() => toast.info("오피스 모드가 켜져 있어 미디어를 열 수 없어요")}
+        >
+          {cell.isVideo ? (
+            <Video className="size-8 text-meta" strokeWidth={1.5} />
+          ) : (
+            <Camera className="size-8 text-meta" strokeWidth={1.5} />
+          )}
+          <span className="text-caption font-medium text-meta">
+            {cell.isVideo ? "동영상 (오피스 모드)" : "사진 (오피스 모드)"}
+          </span>
+          {isOnlyMe && <PrivateRing className="rounded-md" />}
+          {isSilent && <SilentRing className="rounded-md" />}
+        </div>
       );
     }
 
@@ -192,6 +235,35 @@ export function MediaGrid({
                 textClassName="text-micro"
                 cell={cell}
               />
+            </div>
+          ) : isOfficeMode ? (
+            <div
+              key={cell.id}
+              className={cn(
+                "relative flex aspect-square cursor-pointer flex-col items-center justify-center gap-2xs overflow-hidden rounded-sm bg-surface-soft p-xs outline-none select-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-inset",
+                !isOnlyMe && "ring-1 ring-hairline ring-inset",
+              )}
+              role="button"
+              tabIndex={0}
+              aria-label={cell.isVideo ? "동영상 (오피스 모드)" : "사진 (오피스 모드)"}
+              onKeyDown={(event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  toast.info("오피스 모드가 켜져 있어 미디어를 열 수 없어요");
+                }
+              }}
+              onClick={() => toast.info("오피스 모드가 켜져 있어 미디어를 열 수 없어요")}
+            >
+              {cell.isVideo ? (
+                <Video className="size-5 text-meta" strokeWidth={1.5} />
+              ) : (
+                <Camera className="size-5 text-meta" strokeWidth={1.5} />
+              )}
+              <span className="text-micro font-medium text-meta">
+                {cell.isVideo ? "동영상" : "사진"}
+              </span>
+              {isOnlyMe && <PrivateRing className="rounded-sm" />}
+              {isSilent && <SilentRing className="rounded-sm" />}
             </div>
           ) : (
             <button

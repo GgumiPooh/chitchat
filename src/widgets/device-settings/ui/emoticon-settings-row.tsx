@@ -8,14 +8,19 @@ import { useRouter } from "next/navigation";
 
 const LABEL = "이모티콘";
 
+export type EmoticonSettingsRowProps = {
+  className?: string;
+};
+
 // INFO: REQUIREMENTS.md § 12. The entry point to the § 13.5. management screen.
-export function EmoticonSettingsRow() {
+export function EmoticonSettingsRow({ className }: EmoticonSettingsRowProps) {
   const router = useRouter();
   // INFO: § 13.7. The screen's own data and every asset on it come from a second deployment, so nothing about it survives the connection going.
   const { isBlocked, guard } = useOfflineGate(toOfflineOpenMessage(LABEL));
 
   return (
     <SettingsRow
+      className={className}
       label={LABEL}
       description="이모티콘을 만들고 순서를 바꾸거나 숨길 수 있어요"
       Icon={Smile}

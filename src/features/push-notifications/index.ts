@@ -1,4 +1,4 @@
-export { type PushState, type PushStatus } from "./model/push-registration";
+export { setPushPreviewEnabled, type PushState, type PushStatus } from "./model/push-registration";
 export {
   PushSettingsProvider,
   type PushSettingsProviderProps,
