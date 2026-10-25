@@ -171,7 +171,7 @@ export function PinSettingsSheet({ className, isOpen, onClose }: PinSettingsShee
   const footer =
     step === 2 ? (
       <button
-        className="text-body-sm text-meta underline underline-offset-4 transition-colors hover:text-ink"
+        className="cursor-pointer rounded-sm px-xs py-2xs text-body-sm text-meta underline underline-offset-4 transition-colors hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-pressed"
         type="button"
         onClick={() => {
           setStep(1);
@@ -183,7 +183,7 @@ export function PinSettingsSheet({ className, isOpen, onClose }: PinSettingsShee
       </button>
     ) : step === 3 ? (
       <button
-        className="text-body-sm text-meta underline underline-offset-4 transition-colors hover:text-ink"
+        className="cursor-pointer rounded-sm px-xs py-2xs text-body-sm text-meta underline underline-offset-4 transition-colors hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-pressed"
         type="button"
         onClick={() => {
           setStep(2);

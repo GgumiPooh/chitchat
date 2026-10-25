@@ -153,7 +153,7 @@ export function PinLockGate({
 
   const footer = isPinConfigured ? (
     <button
-      className="text-body-sm text-meta underline underline-offset-4 transition-colors hover:text-ink"
+      className="cursor-pointer rounded-sm px-xs py-2xs text-body-sm text-meta underline underline-offset-4 transition-colors hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-pressed"
       type="button"
       onClick={() => setIsResetModalOpen(true)}
     >
@@ -161,7 +161,7 @@ export function PinLockGate({
     </button>
   ) : setupStep === 2 ? (
     <button
-      className="text-body-sm text-meta underline underline-offset-4 transition-colors hover:text-ink"
+      className="cursor-pointer rounded-sm px-xs py-2xs text-body-sm text-meta underline underline-offset-4 transition-colors hover:bg-surface-soft hover:text-ink focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-pressed"
       type="button"
       onClick={() => {
         setSetupStep(1);
