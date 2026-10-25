@@ -8,6 +8,7 @@ import {
 } from "./aes-gcm";
 
 const SESSION_KEY_STORAGE_KEY = "jandh:session-key";
+const PERSISTENT_SESSION_KEY_STORAGE_KEY = "jandh:persistent-session-key";
 const CLOCK_OFFSET_STORAGE_KEY = "jandh:clock-offset";
 const PINNED_PUBKEY_HASH_STORAGE_KEY = "jandh:server-pubkey-hash";
 export const ENCRYPTED_HEADER = "x-jandh-enc";
@@ -179,7 +180,10 @@ export function hasStoredSessionKey(): boolean {
   }
 
   try {
-    return Boolean(window.sessionStorage.getItem(SESSION_KEY_STORAGE_KEY));
+    return Boolean(
+      window.sessionStorage.getItem(SESSION_KEY_STORAGE_KEY) ||
+      window.localStorage.getItem(PERSISTENT_SESSION_KEY_STORAGE_KEY),
+    );
   } catch {
     return false;
   }
@@ -191,9 +195,60 @@ export function getStoredSessionKeyString(): Nullable<string> {
   }
 
   try {
-    return window.sessionStorage.getItem(SESSION_KEY_STORAGE_KEY);
+    const sessionKey = window.sessionStorage.getItem(SESSION_KEY_STORAGE_KEY);
+    if (sessionKey) {
+      return sessionKey;
+    }
+
+    const persistentKey = window.localStorage.getItem(PERSISTENT_SESSION_KEY_STORAGE_KEY);
+    if (persistentKey) {
+      // INFO: Mirror to sessionStorage so current session maintains key in memory.
+      window.sessionStorage.setItem(SESSION_KEY_STORAGE_KEY, persistentKey);
+      return persistentKey;
+    }
+
+    return null;
   } catch {
     return null;
+  }
+}
+
+/**
+ * Whether PIN lock is active on this device. Defaults to `true` (locks on browser/tab close).
+ * When toggled to `false`, the session encryption key is saved in localStorage so the app auto-unlocks.
+ */
+export function isDevicePinLockEnabled(): boolean {
+  if (typeof window === "undefined") {
+    return true;
+  }
+
+  try {
+    return window.localStorage.getItem(PERSISTENT_SESSION_KEY_STORAGE_KEY) === null;
+  } catch {
+    return true;
+  }
+}
+
+export function setDevicePinLockEnabled(enabled: boolean): boolean {
+  if (typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    if (enabled) {
+      window.localStorage.removeItem(PERSISTENT_SESSION_KEY_STORAGE_KEY);
+    } else {
+      const key = getStoredSessionKeyString();
+      if (!key) {
+        return false;
+      }
+      window.localStorage.setItem(PERSISTENT_SESSION_KEY_STORAGE_KEY, key);
+    }
+
+    notifyListeners();
+    return true;
+  } catch {
+    return false;
   }
 }
 
@@ -237,6 +292,10 @@ export async function setClientSessionKey(keyB64: string): Promise<boolean> {
 
     if (typeof window !== "undefined") {
       window.sessionStorage.setItem(SESSION_KEY_STORAGE_KEY, keyB64);
+      // INFO: If persistent storage was enabled on this device, keep it in sync with the new key.
+      if (window.localStorage.getItem(PERSISTENT_SESSION_KEY_STORAGE_KEY) !== null) {
+        window.localStorage.setItem(PERSISTENT_SESSION_KEY_STORAGE_KEY, keyB64);
+      }
     }
 
     cachedCryptoKey = key;
@@ -253,8 +312,9 @@ export function clearClientSessionKey(): void {
   if (typeof window !== "undefined") {
     try {
       window.sessionStorage.removeItem(SESSION_KEY_STORAGE_KEY);
+      window.localStorage.removeItem(PERSISTENT_SESSION_KEY_STORAGE_KEY);
     } catch {
-      // INFO: Guard against sessionStorage quota or security exceptions.
+      // INFO: Guard against sessionStorage/localStorage quota or security exceptions.
     }
   }
 

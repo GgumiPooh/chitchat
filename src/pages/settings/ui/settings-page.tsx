@@ -1,6 +1,6 @@
 import { resolveDisplayName } from "@/entities/user";
 import { ChatBackgroundRow } from "@/features/apply-photo";
-import { PinSettingsRow } from "@/features/pin-lock";
+import { DevicePinLockRow, PinSettingsRow } from "@/features/pin-lock";
 import {
   PushNotificationRow,
   PushPreviewRow,
@@ -78,6 +78,7 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
         <TypingSettingsRow isEnabled={user.typingIndicatorEnabled} />
         <ShortcutSettingsRow shareKey={user.shareKey} />
         {/* INFO: REQUIREMENTS.md § 5.5, § 12. 6-digit security PIN lock settings. */}
+        <DevicePinLockRow />
         <PinSettingsRow />
         {/* INFO: REQUIREMENTS.md § 12. Reads `sessions` — a different, revocable set from the 알림 row's push subscriptions. */}
         <DeviceSettingsRow />
