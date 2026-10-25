@@ -4,5 +4,6 @@ export {
   type PushSettingsProviderProps,
 } from "./model/push-settings-provider";
 export { PushNotificationRow, type PushNotificationRowProps } from "./ui/push-notification-row";
+export { PushPreviewRow, type PushPreviewRowProps } from "./ui/push-preview-row";
 export { PushSoundRow, type PushSoundRowProps } from "./ui/push-sound-row";
 export { PushSync } from "./ui/push-sync";

@@ -17,8 +17,11 @@ export async function saveSubscription(
 
   const saved: unknown = await response.json().catch(() => null);
 
-  // INFO: REQUIREMENTS.md § 16.1. A body that cannot be read leaves the device sounding, which is the column default and the state every subscription starts in.
-  return { soundEnabled: readSoundEnabled(saved) };
+  // INFO: REQUIREMENTS.md § 16.1. A body that cannot be read leaves the device sounding with preview masked, which are the column defaults every subscription starts in.
+  return {
+    soundEnabled: readSoundEnabled(saved),
+    previewEnabled: readPreviewEnabled(saved),
+  };
 }
 
 function readSoundEnabled(saved: unknown): boolean {
@@ -27,4 +30,12 @@ function readSoundEnabled(saved: unknown): boolean {
   }
 
   return true;
+}
+
+function readPreviewEnabled(saved: unknown): boolean {
+  if (saved && typeof saved === "object" && "previewEnabled" in saved) {
+    return saved.previewEnabled === true;
+  }
+
+  return false;
 }

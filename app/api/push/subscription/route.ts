@@ -20,7 +20,13 @@ const subscriptionSchema = z.object({
 
 const removalSchema = z.object({ endpoint: z.url() });
 
-const soundSchema = z.object({ endpoint: z.url(), soundEnabled: z.boolean() });
+const soundSchema = z
+  .object({
+    endpoint: z.url(),
+    soundEnabled: z.boolean().optional(),
+    previewEnabled: z.boolean().optional(),
+  })
+  .refine((data) => data.soundEnabled !== undefined || data.previewEnabled !== undefined);
 
 /**
  * REQUIREMENTS.md § 16.1. Idempotent — the client re-registers on every launch.

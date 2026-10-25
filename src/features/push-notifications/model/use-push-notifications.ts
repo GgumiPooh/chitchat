@@ -3,6 +3,7 @@
 import { toast } from "@/shared/ui";
 import { useEffect, useRef, useState } from "react";
 import {
+  setPushPreviewEnabled,
   setPushSoundEnabled,
   subscribeToPush,
   syncPushSubscription,
@@ -21,19 +22,25 @@ export type PushNotificationsValue = {
   isBusy: boolean;
   soundEnabled: boolean;
   isSoundBusy: boolean;
+  previewEnabled: boolean;
+  isPreviewBusy: boolean;
   toggle: (isOn: boolean) => void;
   toggleSound: (isOn: boolean) => void;
+  togglePreview: (isOn: boolean) => void;
 };
 
 /** Drives the Settings toggles of REQUIREMENTS.md § 16.1. */
 export function usePushNotifications(): PushNotificationsValue {
   const [cached, setCached] = usePushStateCache();
   // INFO: REQUIREMENTS.md § 16.1. Seeded from the cookie so the switches paint where they were last seen; the launch sync below still runs and corrects a permission revoked or a row retired meanwhile.
-  const [state, setState] = useState<PushState>(
-    cached ?? { status: "unsupported", soundEnabled: true },
-  );
+  const [state, setState] = useState<PushState>(() => ({
+    status: cached?.status ?? "unsupported",
+    soundEnabled: cached?.soundEnabled ?? true,
+    previewEnabled: cached?.previewEnabled ?? false,
+  }));
   const [isBusy, setIsBusy] = useState(cached === null);
   const [isSoundBusy, setIsSoundBusy] = useState(false);
+  const [isPreviewBusy, setIsPreviewBusy] = useState(false);
   // WARN: The launch sync and a toggle both write `status`, and the first one started is not the first one to finish — `serviceWorker.register()` can take seconds on a first visit, long enough for the user to grant permission and subscribe meanwhile. Without a claim the stale `off` lands last and snaps the switch back over a subscription the server already stored.
   const latestRequestRef = useRef(0);
 
@@ -53,7 +60,15 @@ export function usePushNotifications(): PushNotificationsValue {
     };
   }, [setCached]);
 
-  return { ...state, isBusy, isSoundBusy, toggle, toggleSound };
+  return {
+    ...state,
+    isBusy,
+    isSoundBusy,
+    isPreviewBusy,
+    toggle,
+    toggleSound,
+    togglePreview,
+  };
 
   // WARN: Not `async` all the way up. The click handler must reach `Notification.requestPermission` inside the gesture that produced it, so nothing may be awaited before `subscribeToPush`.
   function toggle(isOn: boolean) {
@@ -96,6 +111,19 @@ export function usePushNotifications(): PushNotificationsValue {
         toast.error(FAILED_SAVE_MESSAGE);
       })
       .finally(() => setIsSoundBusy(false));
+  }
+
+  function togglePreview(isOn: boolean) {
+    setState((current) => ({ ...current, previewEnabled: isOn }));
+    setIsPreviewBusy(true);
+
+    void setPushPreviewEnabled(isOn)
+      .then(() => setCached((current) => current && { ...current, previewEnabled: isOn }))
+      .catch(() => {
+        setState((current) => ({ ...current, previewEnabled: !isOn }));
+        toast.error(FAILED_SAVE_MESSAGE);
+      })
+      .finally(() => setIsPreviewBusy(false));
   }
 
   function settle(next: PushState) {

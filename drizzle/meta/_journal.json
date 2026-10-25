@@ -547,6 +547,13 @@
       "when": 1792900000000,
       "tag": "0077_pin_and_session_encryption",
       "breakpoints": true
+    },
+    {
+      "idx": 78,
+      "version": "7",
+      "when": 1792986400000,
+      "tag": "0078_push_preview_enabled",
+      "breakpoints": true
     }
   ]
 }

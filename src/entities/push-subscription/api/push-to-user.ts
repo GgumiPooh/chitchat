@@ -10,6 +10,10 @@ import type { PushPayload } from "../model/types";
 // INFO: REQUIREMENTS.md § 16.1. Long on purpose — a device opened four times a year is exactly what push exists for, and the prune is self-healing anyway.
 const ABANDONED_AFTER = 90 * A_DAY;
 
+// SEC: REQUIREMENTS.md § 16.1. Generic banner copy sent to installations where `preview_enabled` is false so neither the network push payload nor the OS lock-screen banner reveals sender names or message contents on shared/corporate machines.
+const MASKED_PUSH_TITLE = "새 메시지";
+const MASKED_PUSH_BODY = "새로운 메시지가 도착했어요";
+
 /**
  * Fans one payload out to every device a user has registered, then prunes the
  * ones the push service has retired and the ones nobody opens any more
@@ -45,6 +49,7 @@ export async function pushToUser(
       p256dh: pushSubscriptions.p256dh,
       auth: pushSubscriptions.auth,
       soundEnabled: pushSubscriptions.soundEnabled,
+      previewEnabled: pushSubscriptions.previewEnabled,
       lastSeenAt: pushSubscriptions.lastSeenAt,
     })
     .from(pushSubscriptions)
@@ -61,12 +66,22 @@ export async function pushToUser(
     .filter((target) => target.lastSeenAt.getTime() <= abandonedBefore)
     .map((target) => target.endpoint);
 
-  // INFO: REQUIREMENTS.md § 16.1. Serialized per row rather than once, because 알림 소리 belongs to the installation — the same message can sound on the phone and land silently on the laptop.
-  // INFO: Two bodies at most however many devices answer, so they are built once and picked per row rather than serialized inside the fan-out.
-  const audible = JSON.stringify({ ...payload, silent: false });
-  const muted = JSON.stringify({ ...payload, silent: true });
+  // INFO: REQUIREMENTS.md § 16.1. Serialized per row rather than once, because 알림 소리 and 알림 내용 표시 belong to the installation — the same message can sound with full preview on the phone and land silently with a masked banner on the laptop.
+  const maskedPayload: PushPayload = {
+    ...payload,
+    title: MASKED_PUSH_TITLE,
+    body: MASKED_PUSH_BODY,
+  };
   const results = await Promise.all(
-    live.map((target) => sendPush(target, target.soundEnabled && !silent ? audible : muted)),
+    live.map((target) => {
+      const effectivePayload = target.previewEnabled ? payload : maskedPayload;
+      const body = JSON.stringify({
+        ...effectivePayload,
+        silent: !(target.soundEnabled && !silent),
+      });
+
+      return sendPush(target, body);
+    }),
   );
   const retired = live
     .filter((_, index) => results[index] === "gone")

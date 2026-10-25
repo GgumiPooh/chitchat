@@ -24,6 +24,8 @@ export const pushSubscriptions = pgTable(
     userAgent: text("user_agent"),
     // INFO: REQUIREMENTS.md § 16.1. 알림 소리 is a property of the installation, so it belongs on this row rather than on `users` — one person silences the laptop and keeps the phone audible.
     soundEnabled: boolean("sound_enabled").notNull().default(true),
+    // INFO: REQUIREMENTS.md § 16.1. 알림 내용 표시 is per installation and defaults to false so a shared/corporate desktop masks sender and message previews on its OS banner while a personal phone can opt in.
+    previewEnabled: boolean("preview_enabled").notNull().default(false),
     // INFO: Diagnostics only. It is NOT what retires an abandoned device — `REQUIREMENTS.md § 16.1.` explains why a send to one still succeeds.
     lastSuccessAt: timestamp("last_success_at", { withTimezone: true }),
     // INFO: REQUIREMENTS.md § 16.1. The launch upsert stamps this, so it dates the last time the app was OPENED on this installation — which is the only thing that distinguishes an abandoned device from a quiet one.

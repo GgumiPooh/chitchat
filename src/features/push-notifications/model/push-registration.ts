@@ -9,22 +9,27 @@ import {
 import { A_SECOND, safelyGetAsync, safelyRunAsync } from "@/shared/lib";
 import { deleteSubscription } from "../api/delete-subscription";
 import { saveSubscription } from "../api/save-subscription";
-import { updateSubscriptionSound } from "../api/update-subscription-sound";
+import {
+  updateSubscriptionPreview,
+  updateSubscriptionSound,
+} from "../api/update-subscription-sound";
 
 /** `blocked` is terminal from inside the page — only the browser's own site settings can undo it. */
 export type PushStatus = "unsupported" | "blocked" | "off" | "on";
 
 /**
  * What the Settings rows read: the toggle's state and this installation's 알림 소리
- * (`REQUIREMENTS.md § 16.1.`), which only the server holds.
+ * and 알림 내용 표시 (`REQUIREMENTS.md § 16.1.`), which only the server holds.
  */
 export type PushState = {
   status: PushStatus;
   soundEnabled: boolean;
+  previewEnabled: boolean;
 };
 
-// INFO: REQUIREMENTS.md § 16.1. The column default, and what a device with no row of its own reports — 알림 소리 is only actionable once one exists.
+// INFO: REQUIREMENTS.md § 16.1. The column defaults, and what a device with no row of its own reports — 알림 소리 and 알림 내용 표시 are only actionable once one exists.
 const DEFAULT_SOUND_ENABLED = true;
+const DEFAULT_PREVIEW_ENABLED = false;
 
 // INFO: REQUIREMENTS.md § 16.1. WebKit's silent-push window, and the minimum age it lets a persistent notification be closed at (bug 309940) — a younger banner is the platform's, not ours to clear.
 const BANNER_SETTLE_WINDOW = 30 * A_SECOND;
@@ -80,7 +85,13 @@ export async function syncPushSubscription(): Promise<PushState> {
   // INFO: A subscription the server does not hold delivers nothing, so a failed save reports `off` rather than a switch that lies — turning it back on re-saves the same subscription.
   const saved = await safelyGetAsync(() => saveSubscription(toSubscriptionInput(subscription)));
 
-  return saved ? { status: "on", soundEnabled: saved.soundEnabled } : offState("off");
+  return saved
+    ? {
+        status: "on",
+        soundEnabled: saved.soundEnabled,
+        previewEnabled: saved.previewEnabled,
+      }
+    : offState("off");
 }
 
 /**
@@ -136,8 +147,12 @@ export async function subscribeToPush(): Promise<PushState> {
 
   const saved = await saveSubscription(toSubscriptionInput(subscription));
 
-  // WARN: REQUIREMENTS.md § 16.1. The launch upsert preserves 알림 소리, but 알림 off deletes the row and mints a new endpoint — so off-then-on lands on the `true` default, and this reports it rather than the value the deleted row held.
-  return { status: "on", soundEnabled: saved.soundEnabled };
+  // WARN: REQUIREMENTS.md § 16.1. The launch upsert preserves 알림 소리 and 알림 내용 표시, but 알림 off deletes the row and mints a new endpoint — so off-then-on lands on the column defaults, and this reports them rather than the values the deleted row held.
+  return {
+    status: "on",
+    soundEnabled: saved.soundEnabled,
+    previewEnabled: saved.previewEnabled,
+  };
 }
 
 export async function unsubscribeFromPush(): Promise<PushState> {
@@ -169,6 +184,20 @@ export async function setPushSoundEnabled(soundEnabled: boolean): Promise<void> 
   }
 
   await updateSubscriptionSound(subscription.endpoint, soundEnabled);
+}
+
+/**
+ * Stores 알림 내용 표시 for this installation (`REQUIREMENTS.md § 16.1.`).
+ */
+export async function setPushPreviewEnabled(previewEnabled: boolean): Promise<void> {
+  const registration = await registerPushWorker();
+  const subscription = await registration.pushManager.getSubscription();
+
+  if (!subscription) {
+    throw new Error("no push subscription on this device to store the preference on");
+  }
+
+  await updateSubscriptionPreview(subscription.endpoint, previewEnabled);
 }
 
 /**
@@ -206,7 +235,11 @@ function hasPushIntent(): boolean {
 }
 
 function offState(status: PushStatus): PushState {
-  return { status, soundEnabled: DEFAULT_SOUND_ENABLED };
+  return {
+    status,
+    soundEnabled: DEFAULT_SOUND_ENABLED,
+    previewEnabled: DEFAULT_PREVIEW_ENABLED,
+  };
 }
 
 function toSubscriptionInput(subscription: PushSubscription): PushSubscriptionInput {

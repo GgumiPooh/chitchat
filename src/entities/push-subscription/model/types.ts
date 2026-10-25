@@ -13,10 +13,11 @@ export type PushSubscriptionInput = {
 
 /**
  * What `POST /api/push/subscription` answers with — this installation's stored
- * 알림 소리 preference (`REQUIREMENTS.md § 16.1.`), which no server render can know.
+ * 알림 소리 and 알림 내용 표시 preferences (`REQUIREMENTS.md § 16.1.`), which no server render can know.
  */
 export type SavedPushSubscription = {
   soundEnabled: boolean;
+  previewEnabled: boolean;
 };
 
 /**

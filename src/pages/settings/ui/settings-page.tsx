@@ -3,6 +3,7 @@ import { ChatBackgroundRow } from "@/features/apply-photo";
 import { PinSettingsRow } from "@/features/pin-lock";
 import {
   PushNotificationRow,
+  PushPreviewRow,
   PushSettingsProvider,
   PushSoundRow,
 } from "@/features/push-notifications";
@@ -65,10 +66,11 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
         <LlmSystemPromptSettingsRow />
         {/* INFO: DESIGN.md § 5.1. Per device, like 알림 — lives in `localStorage`. */}
         <ThemeSettingsRow />
-        {/* INFO: REQUIREMENTS.md § 16.1. One provider — both rows describe the same installation and settle from one launch sync. */}
+        {/* INFO: REQUIREMENTS.md § 16.1. One provider — all three rows describe the same installation and settle from one launch sync. */}
         <PushSettingsProvider>
           <PushNotificationRow />
           <PushSoundRow />
+          <PushPreviewRow />
         </PushSettingsProvider>
         {/* INFO: REQUIREMENTS.md § 13.6. Per device, beside 알림 소리 — both are this browser's sounds. */}
         <MessageSoundSettingsRow />
