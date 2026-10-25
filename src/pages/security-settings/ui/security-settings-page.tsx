@@ -44,9 +44,9 @@ export function SecuritySettingsPage({ className, user, sessions }: SecuritySett
         <OfficeModeSettingsRow />
         {/* INFO: REQUIREMENTS.md § 5.5, § 12. 6자리 보안 PIN 화면 잠금 */}
         <DevicePinLockRow />
-        <PinSettingsRow />
         {/* INFO: REQUIREMENTS.md § 8.12. 입력 중 표시 */}
         <TypingSettingsRow isEnabled={user.typingIndicatorEnabled} />
+        <PinSettingsRow />
         {/* INFO: 단축어 키 */}
         <ShortcutSettingsRow shareKey={user.shareKey} />
 
