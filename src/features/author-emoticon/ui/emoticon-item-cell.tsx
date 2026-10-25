@@ -18,6 +18,8 @@ export type EmoticonItemCellProps = {
   type: EmoticonPackType;
   item: Emoticon;
   isThumbnail: boolean;
+  /** When true in Office Mode, avoids requesting temporary URLs or downloading images. */
+  isAssetBlocked?: boolean;
   onSelect: (itemId: EmoticonItemId) => void;
 };
 
@@ -29,23 +31,22 @@ export function EmoticonItemCell({
   type,
   item,
   isThumbnail,
+  isAssetBlocked = false,
   onSelect,
 }: EmoticonItemCellProps) {
   const isMini = type === "mini";
   // WARN: § 13. Same fake-infinite loop as the send-message picker's mini grid — a GIF/WebP/APNG's own loop count is not always infinite, so this remounts on a timer while the cell is actually on screen. Not mini, the cell draws a still (below), which has nothing to replay — the hook is not wired to it at all.
   const { ref: replayRef, replayToken } = useViewportReplay(
-    isMini ? MINI_ANIMATION_LOOP_INTERVAL : undefined,
+    isMini && !isAssetBlocked ? MINI_ANIMATION_LOOP_INTERVAL : undefined,
   );
-  const emoticonAssetUrl = toEmoticonAssetUrl(
-    item.id,
-    isMini ? "animated-image" : "still-image",
-    item.version,
-  );
+  const emoticonAssetUrl = isAssetBlocked
+    ? ""
+    : toEmoticonAssetUrl(item.id, isMini ? "animated-image" : "still-image", item.version);
 
   return (
     <div className={cn("space-y-2xs", className)}>
       <button
-        ref={isMini ? replayRef : undefined}
+        ref={isMini && !isAssetBlocked ? replayRef : undefined}
         className={cn(
           "relative square-cell w-full rounded-sm border p-2xs transition-colors hover:bg-surface-soft focus-visible:ring-2 focus-visible:ring-primary focus-visible:outline-none active:bg-surface-strong",
           isThumbnail ? "border-primary bg-primary-tint" : "border-hairline bg-canvas",
@@ -54,22 +55,30 @@ export function EmoticonItemCell({
         aria-label={item.keywords[0] ?? "이모티콘"}
         onClick={() => onSelect(item.id)}
       >
-        <PreloadImage
-          // WARN: Keyed by the replay token, and the token also rides the URL (`toReplaySrc`) — a mini's own loop count is not always infinite, and a fresh element alone does not restart one on iOS Safari (`useViewportReplay`).
-          key={replayToken}
-          className="size-full"
-          imgClassName="size-full object-contain"
-          placeholderClassName="rounded-sm"
-          alt=""
-          draggable={false}
-          // WARN: The previous replay's own frame stands in while this one decodes (`toPreviousReplaySrc`), which is what keeps the remount from ever showing the skeleton. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
-          previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
-          hidesPreviewOnReveal
-          // WARN: § 13. `replayToken > 0` only happens while the cell is in view (`useViewportReplay`), so the element being remounted already painted once and sits in the browser's own cache — `lazy` there re-runs the viewport check on the fresh `<img>` and reads as a reload.
-          loading={replayToken > 0 ? "eager" : "lazy"}
-          // INFO: REQUIREMENTS.md § 13. A mini is only ever shown moving — the send-message picker's own rule — so this grid draws the same slot rather than the still an 이모티콘 pack's cell draws.
-          src={toReplaySrc(emoticonAssetUrl, replayToken)}
-        />
+        {isAssetBlocked ? (
+          <div className="flex size-full flex-col items-center justify-center p-2xs text-center select-none">
+            <span className="truncate text-caption font-medium text-meta">
+              {item.keywords[0] ?? "이모티콘"}
+            </span>
+          </div>
+        ) : (
+          <PreloadImage
+            // WARN: Keyed by the replay token, and the token also rides the URL (`toReplaySrc`) — a mini's own loop count is not always infinite, and a fresh element alone does not restart one on iOS Safari (`useViewportReplay`).
+            key={replayToken}
+            className="size-full"
+            imgClassName="size-full object-contain"
+            placeholderClassName="rounded-sm"
+            alt=""
+            draggable={false}
+            // WARN: The previous replay's own frame stands in while this one decodes (`toPreviousReplaySrc`), which is what keeps the remount from ever showing the skeleton. `hidesPreviewOnReveal`, since an emoticon's own background is transparent — two frames stacked past the reveal double-expose into a ghost.
+            previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
+            hidesPreviewOnReveal
+            // WARN: § 13. `replayToken > 0` only happens while the cell is in view (`useViewportReplay`), so the element being remounted already painted once and sits in the browser's own cache — `lazy` there re-runs the viewport check on the fresh `<img>` and reads as a reload.
+            loading={replayToken > 0 ? "eager" : "lazy"}
+            // INFO: REQUIREMENTS.md § 13. A mini is only ever shown moving — the send-message picker's own rule — so this grid draws the same slot rather than the still an 이모티콘 pack's cell draws.
+            src={toReplaySrc(emoticonAssetUrl, replayToken)}
+          />
+        )}
       </button>
       {/* INFO: § 13.8.1. One line, clamped. The grid is four columns wide, so a full chip row per cell would be taller than the emoticon it describes — and 키워드 없음 is what makes 자동으로 채우기's count legible on the grid rather than only in its label. */}
       {type !== "mini" && (

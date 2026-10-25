@@ -21,12 +21,24 @@ import {
 import {
   cn,
   getPreviousAppRoute,
+  useOfficeMode,
+  useOfficeModeHiddenPacks,
   type EmoticonItemId,
   type Maybe,
   type Nullable,
 } from "@/shared/lib";
 import { OFFLINE_MESSAGES, OfflineStaleNotice, useOfflineGate } from "@/shared/offline-ux";
-import { ActionSheet, AppHeader, Button, EmptyState, IconButton, Modal, toast } from "@/shared/ui";
+import {
+  ActionSheet,
+  AppHeader,
+  Button,
+  EmptyState,
+  IconButton,
+  Modal,
+  SettingsRow,
+  Switch,
+  toast,
+} from "@/shared/ui";
 import { josa } from "es-hangul";
 import {
   ChevronLeft,
@@ -76,6 +88,10 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
   const kindNoun = EMOTICON_KIND_NOUNS[type].kind;
   // INFO: § 13. A mini's one keyword is its name rather than something to search for, so neither the suggester nor the words-help line below belongs on it (§ 2.6.).
   const isSearchable = type === "emoticon";
+  const { isOfficeMode } = useOfficeMode();
+  const { isPackHidden, togglePackHidden } = useOfficeModeHiddenPacks();
+  const isHiddenSettingOn = isPackHidden(pack.id);
+  const isAssetBlocked = isOfficeMode && isHiddenSettingOn;
   const [items, setItems] = useState(pack.items);
   const [thumbnailItemId, setThumbnailItemId] = useState(pack.thumbnailItemId);
   const [isAddMenuOpen, setIsAddMenuOpen] = useState(false);
@@ -147,7 +163,19 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
         <OfflineStaleNotice />
       </div>
       {/* INFO: DESIGN.md § 7.12. The header floats over the content, so a screen that starts at the top clears it itself. */}
-      <div className="flex-1 p-md">
+      <div className="flex-1 space-y-md p-md">
+        <SettingsRow
+          className="rounded-lg border border-hairline bg-surface-soft"
+          label="오피스 모드에서 가리기"
+          description="오피스 모드가 켜져 있을 때 이 팩의 이모티콘을 텍스트로 대신 보여줘요"
+          trailing={
+            <Switch
+              checked={isHiddenSettingOn}
+              aria-label="오피스 모드에서 가리기"
+              onCheckedChange={() => togglePackHidden(pack.id)}
+            />
+          }
+        />
         {items.length === 0 && addingCount === 0 ? (
           <EmptyState Icon={Smile} description={`아직 ${josa(kindNoun, "이/가")} 없어요`} />
         ) : (
@@ -156,6 +184,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
               type={type}
               items={items}
               thumbnailItemId={thumbnailItemId}
+              isAssetBlocked={isAssetBlocked}
               onSelect={openItemActions}
             />
             {addingCount > 0 && (
@@ -219,6 +248,7 @@ export function EmoticonPackPage({ className, pack }: EmoticonPackPageProps) {
         isOpen={isFormOpen}
         emoticon={editing}
         initialFile={pendingFile}
+        isAssetBlocked={isAssetBlocked}
         onClose={closeForm}
         onSaved={handleFormSaved}
       />

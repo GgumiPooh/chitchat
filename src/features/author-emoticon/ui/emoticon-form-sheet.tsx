@@ -82,6 +82,8 @@ export type EmoticonFormSheetProps = {
    * form and every later cancel — a re-crop from the thumbnail — returns to it as usual.
    */
   closesOnCancel?: boolean;
+  /** When true in Office Mode, avoids requesting temporary URLs for existing assets. */
+  isAssetBlocked?: boolean;
   onClose: () => void;
   onSaved: (emoticon: Emoticon) => void;
 };
@@ -110,6 +112,7 @@ export function EmoticonFormSheet({
   initialFile,
   initialVideo,
   closesOnCancel = false,
+  isAssetBlocked = false,
   onClose,
   onSaved,
 }: EmoticonFormSheetProps) {
@@ -175,12 +178,14 @@ export function EmoticonFormSheet({
   const imageUrl =
     draft.image?.animated?.previewUrl ??
     draft.image?.still.previewUrl ??
-    toExistingImageUrl(emoticon);
-  const audioUrl = draft.audio?.previewUrl ?? toExistingAudioUrl(emoticon, draft.isAudioCleared);
+    (isAssetBlocked ? undefined : toExistingImageUrl(emoticon));
+  const audioUrl =
+    draft.audio?.previewUrl ??
+    (isAssetBlocked ? undefined : toExistingAudioUrl(emoticon, draft.isAudioCleared));
   const hasKeywordChange = !isSameKeywords(draft.keywords, emoticon?.keywords ?? []);
   const hasChange =
     draft.image !== null || draft.audio !== null || draft.isAudioCleared || hasKeywordChange;
-  const canSubmit = !isSubmitting && hasChange && imageUrl !== undefined;
+  const canSubmit = !isSubmitting && hasChange && (imageUrl !== undefined || isAssetBlocked);
   // INFO: § 13.4. The tile and the sound row show the stored object only until a pick replaces it, and a download is of what is shown.
   const storedImage = emoticon && draft.image === null ? emoticon : null;
   const storedAudio =

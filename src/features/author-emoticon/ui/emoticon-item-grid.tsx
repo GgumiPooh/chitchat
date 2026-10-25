@@ -17,6 +17,8 @@ export type EmoticonItemGridProps = {
   type: EmoticonPackType;
   items: Emoticon[];
   thumbnailItemId: Nullable<string>;
+  /** When true in Office Mode, avoids requesting temporary URLs or downloading images. */
+  isAssetBlocked?: boolean;
   onSelect: (itemId: EmoticonItemId) => void;
 };
 
@@ -29,6 +31,7 @@ export function EmoticonItemGrid({
   type,
   items,
   thumbnailItemId,
+  isAssetBlocked = false,
   onSelect,
 }: EmoticonItemGridProps) {
   return (
@@ -41,6 +44,7 @@ export function EmoticonItemGrid({
           type={type}
           item={item}
           isThumbnail={item.id === thumbnailItemId}
+          isAssetBlocked={isAssetBlocked}
           onSelect={onSelect}
         />
       ))}

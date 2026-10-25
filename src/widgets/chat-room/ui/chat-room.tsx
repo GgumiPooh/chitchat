@@ -124,6 +124,7 @@ import {
   useIsomorphicLayoutEffect,
   useMessageSound,
   useOfficeMode,
+  useOfficeModeHiddenPacks,
   useSettledCommit,
   useSoundUnlock,
   useUnsentWork,
@@ -933,6 +934,7 @@ export function ChatRoom({
   }, [isSearching]);
   // INFO: REQUIREMENTS.md § 12.2. The wallpaper comes from here rather than from a prop, because either participant can change it and the other one must see it without leaving the room.
   const { isOfficeMode } = useOfficeMode();
+  const { isPackHidden } = useOfficeModeHiddenPacks();
   const {
     participants,
     chatBackgroundMediaId,
@@ -1074,6 +1076,7 @@ export function ChatRoom({
   const queryClient = useQueryClient();
   const { data: packs = [] } = useQuery(toEmoticonPacksQuery());
   const packTypes = useMemo(() => new Map(packs.map((p) => [p.id, p.type])), [packs]);
+  const packNames = useMemo(() => new Map(packs.map((p) => [p.id, p.name])), [packs]);
   // INFO: REQUIREMENTS.md § 8.3. A cache read, never a subscription — this answers the row estimate below, which runs for rows that are nowhere near the DOM.
   const readPreview: PreviewReader = useCallback(
     (url) =>
@@ -1152,6 +1155,8 @@ export function ChatRoom({
       // WARN: The page's map first and the sends in flight second, never one of the two — the echoed row is the authority on a version bump or a deletion (§ 13.4.), and the optimistic row is the only place its own emoticons exist at all.
       readInlineEmoticon: (itemId: EmoticonItemId) =>
         inlineEmoticons[itemId] ?? pendingInlineEmoticonsRef.current[itemId],
+      isOfficeMode,
+      isPackHidden,
     }),
     [
       scroller,
@@ -1162,6 +1167,8 @@ export function ChatRoom({
       countUnreadReaders,
       bookmarkedIds,
       inlineEmoticons,
+      isOfficeMode,
+      isPackHidden,
     ],
   );
   // WARN: Written during render rather than in an effect, and read through a ref rather than closed over. `getItemKey` has to be one stable function: virtual-core memoizes the whole measurement pass on its identity, and a fresh closure per render re-runs `estimateSize` for every row that is not currently mounted — thousands of canvas text layouts on every SSE tick. It also has to see *this* render's rows, which `rowsRef` is deliberately one commit behind on.
@@ -3745,6 +3752,8 @@ export function ChatRoom({
             text={row.pending.text}
             media={cells}
             isOfficeMode={isOfficeMode}
+            isPackHidden={isPackHidden}
+            packName={row.pending.emoticon ? packNames.get(row.pending.emoticon.packId) : undefined}
             emoticon={row.pending.emoticon}
             inlineEmoticonItemIds={row.pending.inlineEmoticons.map(({ id }) => id)}
             // WARN: § 8.3. Drawn from what the send is carrying rather than from the room's map, which only fills once the echo lands — read from there the optimistic bubble would reserve nothing and re-measure the moment it arrives.
@@ -3822,6 +3831,8 @@ export function ChatRoom({
             text={row.message.text}
             media={cells}
             isOfficeMode={isOfficeMode}
+            isPackHidden={isPackHidden}
+            packName={row.message.emoticon ? packNames.get(row.message.emoticon.packId) : undefined}
             emoticon={row.message.emoticon}
             inlineEmoticonItemIds={row.message.inlineEmoticonItemIds}
             // WARN: REQUIREMENTS.md § 8.3. The same map `readInlineEmoticon` reads. Two sources and the estimate and the bubble disagree about the box by construction.

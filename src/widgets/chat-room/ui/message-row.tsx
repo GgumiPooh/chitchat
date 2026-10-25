@@ -18,6 +18,7 @@ import {
   useDoubleTap,
   useLongPress,
   type EmoticonItemId,
+  type EmoticonPackId,
   type LongPressPoint,
   type Nullable,
   type Optional,
@@ -133,6 +134,10 @@ export type MessageRowProps = {
   currentUserId?: UserId;
   /** When true, disables media/voice loading/viewing. */
   isOfficeMode?: boolean;
+  /** Whether a pack is hidden in Office Mode. */
+  isPackHidden?: (packId: EmoticonPackId) => boolean;
+  /** Name of the pack for text display when hidden in Office Mode. */
+  packName?: string;
   /** AGENTS.md § 4.1. Carries the held or right-clicked element and the pointer's own position — the room anchors the desktop menu to the point, so a bubble taller than the visible area cannot carry it off screen. */
   onLongPress?: (anchor: HTMLElement, point: LongPressPoint) => void;
   /** REQUIREMENTS.md § 8.16. A tap anywhere on a cut bubble, which opens the § 6.2.2. sheet holding the whole message. */
@@ -193,6 +198,8 @@ export function MessageRow({
   isSelecting = false,
   awaitsArrivalSound,
   isOfficeMode = false,
+  isPackHidden,
+  packName,
   reactions = [],
   currentUserId,
   onLongPress,
@@ -244,7 +251,9 @@ export function MessageRow({
   const soloBox = soloEmoticon ? toSoloEmoticonBox(soloEmoticon.info) : undefined;
   // WARN: § 8.3. The resolved box and not `inline.kind`. An id the page's map does not carry has nothing to draw large, so it falls through to the bubble below — and a row that still called itself bubble-less would quote twice and be priced at a picture it never draws.
   // WARN: REQUIREMENTS.md § 8.17. `estimateRowHeight`'s own rule — a folded row is the ordinary text bubble whatever its content would otherwise draw, so every art and link branch below is closed for one.
-  const hasArt = !isCollapsed && (Boolean(emoticon) || hasMedia || Boolean(soloEmoticon));
+  const isEmoticonHidden = Boolean(emoticon && isOfficeMode && isPackHidden?.(emoticon.packId));
+  const isEmoticonArt = Boolean(emoticon) && !isEmoticonHidden;
+  const hasArt = !isCollapsed && (isEmoticonArt || hasMedia || Boolean(soloEmoticon));
 
   const linkOnlyUrl = hasArt || isCollapsed ? null : toLinkOnlyUrl(text, inline);
   // WARN: § 8.3. A subscription where the estimate makes a cache read, and on purpose: a link-only row priced as a bubble before the scrape answered re-renders as the card the moment it does, which is a re-measure the virtualizer compensates — a row drawing one thing while the estimate prices another is not.
@@ -256,7 +265,7 @@ export function MessageRow({
   const linkOnlyCard = linkOnlyUrl !== null && linkOnlyPreview ? linkOnlyUrl : null;
   const isBubbleless = hasArt || linkOnlyCard !== null;
   // INFO: DESIGN.md § 6.10. An emoticon answering alone wears a badge beside itself under the card — the same predicate `estimateRowHeight` reads.
-  const hasReplyBadge = Boolean(replyTo) && (Boolean(emoticon) || Boolean(soloEmoticon));
+  const hasReplyBadge = Boolean(replyTo) && (isEmoticonArt || Boolean(soloEmoticon));
   // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
   // INFO: DESIGN.md § 6.5. A bubble-less message carries an attachment rather than text, so there is no link in it to preview.
   const previewUrl = isBubbleless || isCollapsed ? undefined : findFirstUrl(text);
@@ -337,7 +346,7 @@ export function MessageRow({
         )}
         {/* WARN: `max-w-full` is what holds the bubble inside the column's own wide cap. The column aligns rather than stretches, so this stack is sized `fit-content` — and that floors at min-content, which a quote's `truncate` makes the whole width of its line. Only a max-width clamps below that; a `min-w-0` here does nothing. */}
         <div className={cn("flex max-w-full items-end gap-2xs", isMine && "flex-row-reverse")}>
-          {emoticon ? (
+          {emoticon && !isEmoticonHidden ? (
             // INFO: DESIGN.md § 6.5. An emoticon renders without a bubble, border or background, for the same reason an attachment does.
             // WARN: REQUIREMENTS.md § 13.9. The marker the room's panel dismissal looks for. A tap on the history closes the emoticon panel (§ 13.6.), and this tap re-aims it — without the exclusion the `pointerup` closes it a frame before the `click` opens it again.
             <div
@@ -356,6 +365,50 @@ export function MessageRow({
                 onArrivalSoundReady={onArrivalSoundReady}
               />
               {isSilent && <SilentRing className="rounded-sm" />}
+            </div>
+          ) : emoticon && isEmoticonHidden ? (
+            <div
+              className={cn(
+                "min-w-0 cursor-pointer rounded-bubble px-sm py-xs text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap transition-colors select-text",
+                LONG_PRESS_TARGET_CLASS,
+                isOnlyMe ? "text-bubble-private-ink" : "text-bubble-ink",
+                isMine
+                  ? isOnlyMe
+                    ? "bg-bubble-mine-private active:bg-bubble-mine-private-pressed"
+                    : isSilent
+                      ? "bg-bubble-mine-silent outline-1 -outline-offset-1 outline-bubble-silent-line outline-dashed active:bg-bubble-mine-silent-pressed"
+                      : "bg-bubble-mine active:bg-bubble-mine-pressed"
+                  : isSilent
+                    ? "border border-dashed border-bubble-silent-line bg-bubble-theirs-silent active:bg-bubble-theirs-silent-pressed"
+                    : "border border-hairline bg-bubble-theirs active:bg-bubble-theirs-pressed",
+                hasNotch && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
+                status !== "sent" && "opacity-60",
+                bubbleClassName,
+              )}
+              data-emoticon-bubble
+              {...longPressHandlers}
+              onClick={() => onFollowEmoticon?.()}
+            >
+              {replyTo && (
+                <ReplyQuote
+                  className="mb-2xs border-b border-quote-divider pb-2xs"
+                  replyTo={replyTo}
+                  heading={replyToHeading ?? ""}
+                  onOpen={onOpenReply}
+                />
+              )}
+              <div className="flex flex-col gap-0.5">
+                {emoticon.keywords.length > 0 ? (
+                  <>
+                    <span className="text-caption font-medium text-meta select-none">
+                      {packName ?? "이모티콘"}
+                    </span>
+                    <span className="text-chat-body">{emoticon.keywords.join(" · ")}</span>
+                  </>
+                ) : (
+                  <span className="text-chat-body">{packName ?? "이모티콘"}</span>
+                )}
+              </div>
             </div>
           ) : soloEmoticon && soloBox ? (
             // INFO: § 13. One emoticon and no words, drawn at `toSoloEmoticonBox` — the same absence of a bubble an emoticon message takes, but a smaller ceiling than `toEmoticonBox`'s so the two kinds read apart. A mini never occupies `messages.emoticon_item_id`, so this is a rendering rule read off the content rather than a second kind of row.

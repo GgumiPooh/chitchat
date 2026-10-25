@@ -2,7 +2,7 @@
 
 import type { EmoticonPackSummary } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn, type EmoticonPackId } from "@/shared/lib";
+import { cn, useOfficeMode, useOfficeModeHiddenPacks, type EmoticonPackId } from "@/shared/lib";
 import { HapticTarget, IconButton, PreloadImage, ReorderHandleIcon } from "@/shared/ui";
 import { useSortable } from "@dnd-kit/sortable";
 import { ChevronRight, MoreVertical, Smile } from "lucide-react";
@@ -49,6 +49,10 @@ export function EmoticonPackRow({
     isDragging,
   } = useSortable({ id: pack.id });
 
+  const { isOfficeMode } = useOfficeMode();
+  const { isPackHidden } = useOfficeModeHiddenPacks();
+  const isBlocked = isOfficeMode && isPackHidden(pack.id);
+
   return (
     <div
       ref={setNodeRef}
@@ -82,7 +86,7 @@ export function EmoticonPackRow({
           )}
         >
           <div className="flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-sm bg-surface-soft ring-1 ring-hairline ring-inset">
-            {pack.thumbnailItemId ? (
+            {pack.thumbnailItemId && !isBlocked ? (
               <PreloadImage
                 className="size-full"
                 imgClassName="size-full object-contain"

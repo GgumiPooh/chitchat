@@ -12,6 +12,7 @@ import {
   findFirstUrl,
   measureLineHeight,
   type EmoticonItemId,
+  type EmoticonPackId,
   type InlineRun,
   type Maybe,
   type MessageId,
@@ -158,6 +159,10 @@ export type RowEstimateContext = {
   countUnreadReaders: (message: ChatMessage) => number;
   /** REQUIREMENTS.md § 8.19. The same test `renderRow` uses to pass `MessageRow`/`AssistantMessageRow` their own `isBookmarked` — a bookmarked row's marker line is priced exactly as the unread count's is. */
   isBookmarked: (id: MessageId) => boolean;
+  /** When true in Office Mode, hidden emoticons render as 2-line text bubbles rather than full images. */
+  isOfficeMode?: boolean;
+  /** Whether a pack is hidden in Office Mode. */
+  isPackHidden?: (packId: EmoticonPackId) => boolean;
 };
 
 /** @see RowEstimateContext.readNotice */
@@ -344,7 +349,11 @@ function estimateMessageRow(
   const inline = toInlineContent(payload.text, payload.inlineEmoticonItemIds);
   // WARN: § 8.3. The box decides this and not the kind, exactly as `MessageRow`'s does: an id the page's map does not carry has no picture to draw large, so that row is an ordinary bubble holding a one-line tombstone.
   const solo = inline.kind === "solo" ? context.readInlineEmoticon?.(inline.itemId) : undefined;
-  const hasArt = hasMedia || payload.emoticon !== null || solo !== undefined;
+  const isEmoticonHidden = Boolean(
+    payload.emoticon && context.isOfficeMode && context.isPackHidden?.(payload.emoticon.packId),
+  );
+  const isEmoticonArt = payload.emoticon !== null && !isEmoticonHidden;
+  const hasArt = hasMedia || isEmoticonArt || solo !== undefined;
   // INFO: DESIGN.md § 6.9. The card is a row of its own above the bubble, and § 8.9.'s scrape has normally already answered by the time this is asked — `useLinkPreviewPrefetch` sees to that, and it is the only reason a height is knowable here at all.
   const preview = hasArt ? undefined : context.readPreview(findFirstUrl(payload.text));
   // WARN: § 8.3. `MessageRow`'s own test, answered off the same cache: a link-only message is bubble-less once its card is there, so the card counts below in the bubble's row and nowhere above it.
@@ -434,10 +443,27 @@ function toPayloadHeight(
     );
   }
 
+  const isEmoticonHidden = Boolean(
+    payload.emoticon && context.isOfficeMode && context.isPackHidden?.(payload.emoticon.packId),
+  );
+  const hasEmoticonArt = payload.emoticon !== null && !isEmoticonHidden;
   // INFO: DESIGN.md § 6.10. The reply badge stands in the same row, so it floors the row exactly as the timestamp does.
-  const besideArt = payload.replyTo ? Math.max(beside, REPLY_BADGE) : beside;
-  if (payload.emoticon) {
+  const besideArt =
+    payload.replyTo && (hasEmoticonArt || solo) ? Math.max(beside, REPLY_BADGE) : beside;
+  if (payload.emoticon && !isEmoticonHidden) {
     return Math.max(toEmoticonBox(payload.emoticon).height, besideArt);
+  }
+
+  if (payload.emoticon && isEmoticonHidden) {
+    const hasKeywords = payload.emoticon.keywords.length > 0;
+    const contentHeight = hasKeywords ? LINE.caption() + 2 + LINE.body() : LINE.body();
+    const height =
+      SPACING_XS * 2 +
+      (isMine ? 0 : BUBBLE_BORDER) +
+      toQuoteBlockHeight(payload, isBubbleless, isMine) +
+      contentHeight;
+
+    return Math.max(height, beside);
   }
 
   // INFO: § 13. `toSoloEmoticonBox`, not `toEmoticonBox` — a solo mini draws smaller than an emoticon message. A deleted item keeps its stored box, so the tombstone standing in its place measures identically.

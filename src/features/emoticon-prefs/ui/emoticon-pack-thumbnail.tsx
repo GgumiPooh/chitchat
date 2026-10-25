@@ -1,6 +1,6 @@
 import type { EmoticonPackSummary } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
-import { cn } from "@/shared/lib";
+import { cn, useOfficeMode, useOfficeModeHiddenPacks } from "@/shared/lib";
 import { PreloadImage } from "@/shared/ui";
 import { Smile } from "lucide-react";
 
@@ -11,6 +11,10 @@ export type EmoticonPackThumbnailProps = {
 
 /** REQUIREMENTS.md § 13.2. The pack's resolved tab-icon item, shared by every row that lists packs. */
 export function EmoticonPackThumbnail({ className, pack }: EmoticonPackThumbnailProps) {
+  const { isOfficeMode } = useOfficeMode();
+  const { isPackHidden } = useOfficeModeHiddenPacks();
+  const isBlocked = isOfficeMode && isPackHidden(pack.id);
+
   return (
     <div
       className={cn(
@@ -18,7 +22,7 @@ export function EmoticonPackThumbnail({ className, pack }: EmoticonPackThumbnail
         className,
       )}
     >
-      {pack.thumbnailItemId ? (
+      {pack.thumbnailItemId && !isBlocked ? (
         <PreloadImage
           className="size-full"
           imgClassName="size-full object-contain"
