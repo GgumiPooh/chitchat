@@ -6,7 +6,7 @@ import {
   setEmoticonItemOrder,
 } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import {
   MAX_EMOTICON_KEYWORD_LENGTH,
   MAX_EMOTICON_KEYWORDS,
@@ -55,61 +55,67 @@ const bodySchema = z
  * to distinguish the two would be a second query on it for a case the strip cannot
  * reach.
  */
-export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser();
+export const GET = withEncryptedRoute(
+  async (_request: Request, context: { params: Promise<{ id: string }> }) => {
+    const user = await getCurrentUser();
 
-  if (!user) {
-    return apiError("unauthorized");
-  }
+    if (!user) {
+      return apiError("unauthorized");
+    }
 
-  const params = paramsSchema.safeParse(await context.params);
+    const params = paramsSchema.safeParse(await context.params);
 
-  if (!params.success) {
-    return apiError("invalid_request");
-  }
+    if (!params.success) {
+      return apiError("invalid_request");
+    }
 
-  return NextResponse.json({ items: await listEmoticonPackItems(params.data.id) });
-}
+    return NextResponse.json({ items: await listEmoticonPackItems(params.data.id) });
+  },
+  { allowPlaintextFallback: true },
+);
 
 /**
  * Registers an item whose objects the browser has already uploaded (§ 13.3.).
  * Until this succeeds they are unreachable — nothing in the app addresses R2 by
  * key, only through `GET /api/emoticons/items/{id}/asset`.
  */
-export async function POST(request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser();
+export const POST = withEncryptedRoute(
+  async (request: Request, context: { params: Promise<{ id: string }> }) => {
+    const user = await getCurrentUser();
 
-  if (!user) {
-    return apiError("unauthorized");
-  }
+    if (!user) {
+      return apiError("unauthorized");
+    }
 
-  const params = paramsSchema.safeParse(await context.params);
-  const body = bodySchema.safeParse(await request.json().catch(() => null));
+    const params = paramsSchema.safeParse(await context.params);
+    const body = bodySchema.safeParse(await request.json().catch(() => null));
 
-  if (!params.success || !body.success) {
-    return apiError("invalid_request");
-  }
+    if (!params.success || !body.success) {
+      return apiError("invalid_request");
+    }
 
-  const packType = await getEmoticonPackType(params.data.id);
+    const packType = await getEmoticonPackType(params.data.id);
 
-  if (!packType) {
-    return apiError("not_found");
-  }
+    if (!packType) {
+      return apiError("not_found");
+    }
 
-  const emoticon = await registerEmoticon({
-    packId: params.data.id,
-    packType,
-    uploaderId: user.id,
-    ...body.data,
-  });
+    const emoticon = await registerEmoticon({
+      packId: params.data.id,
+      packType,
+      uploaderId: user.id,
+      ...body.data,
+    });
 
-  // INFO: An object is missing, or its stored type or size failed § 14., or a key was not this uploader's to claim. Either way there is nothing to write a row for.
-  if (!emoticon) {
-    return apiError("unprocessable");
-  }
+    // INFO: An object is missing, or its stored type or size failed § 14., or a key was not this uploader's to claim. Either way there is nothing to write a row for.
+    if (!emoticon) {
+      return apiError("unprocessable");
+    }
 
-  return NextResponse.json({ emoticon }, { status: 201 });
-}
+    return NextResponse.json({ emoticon }, { status: 201 });
+  },
+  { allowPlaintextFallback: true },
+);
 
 /**
  * REQUIREMENTS.md § 13.1. The whole ordered list, because `sort_order` is
@@ -119,31 +125,34 @@ export async function POST(request: Request, context: { params: Promise<{ id: st
  * of § 13.5. The other user picks it up on their next load; nothing broadcasts,
  * for the same reason § 8.4.'s channel carries `users` changes only.
  */
-export async function PUT(request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser();
+export const PUT = withEncryptedRoute(
+  async (request: Request, context: { params: Promise<{ id: string }> }) => {
+    const user = await getCurrentUser();
 
-  if (!user) {
-    return apiError("unauthorized");
-  }
+    if (!user) {
+      return apiError("unauthorized");
+    }
 
-  const params = paramsSchema.safeParse(await context.params);
-  const body = orderSchema.safeParse(await request.json().catch(() => null));
+    const params = paramsSchema.safeParse(await context.params);
+    const body = orderSchema.safeParse(await request.json().catch(() => null));
 
-  if (!params.success || !body.success) {
-    return apiError("invalid_request");
-  }
+    if (!params.success || !body.success) {
+      return apiError("invalid_request");
+    }
 
-  if (!(await isKnownPack(params.data.id))) {
-    return apiError("not_found");
-  }
+    if (!(await isKnownPack(params.data.id))) {
+      return apiError("not_found");
+    }
 
-  // INFO: The list is stale — the other participant added or deleted an item since this screen loaded (§ 13.1.), so there is no order to write.
-  if (!(await setEmoticonItemOrder(params.data.id, body.data.itemIds))) {
-    return apiError("conflict");
-  }
+    // INFO: The list is stale — the other participant added or deleted an item since this screen loaded (§ 13.1.), so there is no order to write.
+    if (!(await setEmoticonItemOrder(params.data.id, body.data.itemIds))) {
+      return apiError("conflict");
+    }
 
-  return new NextResponse(null, { status: 204 });
-}
+    return new NextResponse(null, { status: 204 });
+  },
+  { allowPlaintextFallback: true },
+);
 
 /**
  * WARN: § 13.1. `findKnownPackIds` and deliberately not `getEmoticonPack`, which is

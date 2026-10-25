@@ -1,6 +1,6 @@
 import { deleteEmoticonItem, updateEmoticonItem } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import {
   MAX_EMOTICON_KEYWORD_LENGTH,
   MAX_EMOTICON_KEYWORDS,
@@ -48,40 +48,43 @@ const patchSchema = z
  * INFO: § 13.4. An item already sent in chat may be edited — the message references the
  * item rather than the object, so the corrected image appears in the history.
  */
-export async function PATCH(request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser();
+export const PATCH = withEncryptedRoute(
+  async (request: Request, context: { params: Promise<{ id: string }> }) => {
+    const user = await getCurrentUser();
 
-  if (!user) {
-    return apiError("unauthorized");
-  }
+    if (!user) {
+      return apiError("unauthorized");
+    }
 
-  const params = paramsSchema.safeParse(await context.params);
-  const body = patchSchema.safeParse(await request.json().catch(() => null));
+    const params = paramsSchema.safeParse(await context.params);
+    const body = patchSchema.safeParse(await request.json().catch(() => null));
 
-  if (!params.success || !body.success) {
-    return apiError("invalid_request");
-  }
+    if (!params.success || !body.success) {
+      return apiError("invalid_request");
+    }
 
-  const result = await updateEmoticonItem({
-    itemId: params.data.id,
-    uploaderId: user.id,
-    ...body.data,
-  });
+    const result = await updateEmoticonItem({
+      itemId: params.data.id,
+      uploaderId: user.id,
+      ...body.data,
+    });
 
-  if (result.status === "not_found") {
-    return apiError("not_found");
-  }
+    if (result.status === "not_found") {
+      return apiError("not_found");
+    }
 
-  // INFO: An object is missing, or its stored type or size failed § 14., or a key was not this uploader's to claim — the same answer registration gives.
-  if (result.status === "unprocessable") {
-    return apiError("unprocessable");
-  }
+    // INFO: An object is missing, or its stored type or size failed § 14., or a key was not this uploader's to claim — the same answer registration gives.
+    if (result.status === "unprocessable") {
+      return apiError("unprocessable");
+    }
 
-  // WARN: § 13.4. Immediate and inline, with no grace and no `after()`. A participant holding the pre-edit redirect does get a broken image for one load — `PreloadImage` retries past the cache — which is what pays for the multi-day asset cache no deferred delete could have outlived.
-  await purgeNow(result.orphanedKeys);
+    // WARN: § 13.4. Immediate and inline, with no grace and no `after()`. A participant holding the pre-edit redirect does get a broken image for one load — `PreloadImage` retries past the cache — which is what pays for the multi-day asset cache no deferred delete could have outlived.
+    await purgeNow(result.orphanedKeys);
 
-  return NextResponse.json({ emoticon: result.emoticon });
-}
+    return NextResponse.json({ emoticon: result.emoticon });
+  },
+  { allowPlaintextFallback: true },
+);
 
 /**
  * INFO: REQUIREMENTS.md § 13.2. A pack whose thumbnail was this item keeps
@@ -91,27 +94,30 @@ export async function PATCH(request: Request, context: { params: Promise<{ id: s
  * INFO: REQUIREMENTS.md § 13.4. Every item takes the same soft-delete, sent or not,
  * mini or not.
  */
-export async function DELETE(_request: Request, context: { params: Promise<{ id: string }> }) {
-  const user = await getCurrentUser();
+export const DELETE = withEncryptedRoute(
+  async (_request: Request, context: { params: Promise<{ id: string }> }) => {
+    const user = await getCurrentUser();
 
-  if (!user) {
-    return apiError("unauthorized");
-  }
+    if (!user) {
+      return apiError("unauthorized");
+    }
 
-  const params = paramsSchema.safeParse(await context.params);
+    const params = paramsSchema.safeParse(await context.params);
 
-  if (!params.success) {
-    return apiError("invalid_request");
-  }
+    if (!params.success) {
+      return apiError("invalid_request");
+    }
 
-  const result = await deleteEmoticonItem(params.data.id);
+    const result = await deleteEmoticonItem(params.data.id);
 
-  if (result.status === "not_found") {
-    return apiError("not_found");
-  }
+    if (result.status === "not_found") {
+      return apiError("not_found");
+    }
 
-  // INFO: REQUIREMENTS.md § 9. The `media` rows went with the item; `purgeNow` takes the bytes and never throws. § 13.4. gives emoticons no grace — the redirect is cached for days.
-  await purgeNow(result.orphanedKeys);
+    // INFO: REQUIREMENTS.md § 9. The `media` rows went with the item; `purgeNow` takes the bytes and never throws. § 13.4. gives emoticons no grace — the redirect is cached for days.
+    await purgeNow(result.orphanedKeys);
 
-  return new NextResponse(null, { status: 204 });
-}
+    return new NextResponse(null, { status: 204 });
+  },
+  { allowPlaintextFallback: true },
+);

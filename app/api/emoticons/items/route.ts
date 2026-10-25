@@ -1,6 +1,6 @@
 import { listEmoticonKeywords, listEmoticonsByIds, searchEmoticons } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import {
   EMOTICON_SEARCH_PAGE_SIZE,
   MAX_KEYWORD_QUERY_LENGTH,
@@ -25,49 +25,52 @@ const idSchema = snowflakeSchema<EmoticonItemId>();
  *
  * INFO: § 13.6. `?ids=` is how 최근 사용 resolves what it stored, which is ids alone.
  */
-export async function GET(request: Request) {
-  const user = await getCurrentUser();
+export const GET = withEncryptedRoute(
+  async (request: Request) => {
+    const user = await getCurrentUser();
 
-  if (!user) {
-    return apiError("unauthorized");
-  }
+    if (!user) {
+      return apiError("unauthorized");
+    }
 
-  const params = new URL(request.url).searchParams;
+    const params = new URL(request.url).searchParams;
 
-  if (params.get("keywords") === "1") {
-    return NextResponse.json({ keywords: await listEmoticonKeywords() });
-  }
+    if (params.get("keywords") === "1") {
+      return NextResponse.json({ keywords: await listEmoticonKeywords() });
+    }
 
-  const ids = params.get("ids");
+    const ids = params.get("ids");
 
-  if (ids !== null) {
-    return NextResponse.json({ emoticons: await listEmoticonsByIds(toIds(ids)) });
-  }
+    if (ids !== null) {
+      return NextResponse.json({ emoticons: await listEmoticonsByIds(toIds(ids)) });
+    }
 
-  const query = params.get("q");
+    const query = params.get("q");
 
-  if (query === null) {
-    return apiError("invalid_request");
-  }
+    if (query === null) {
+      return apiError("invalid_request");
+    }
 
-  // WARN: § 13.9. Truncated rather than refused, matching the field's own `maxLength` — a query past the cap is a paste, and answering it for the first `MAX_KEYWORD_QUERY_LENGTH` characters is what the user sees in the field anyway.
-  const terms = splitKeywordQuery(query.slice(0, MAX_KEYWORD_QUERY_LENGTH));
+    // WARN: § 13.9. Truncated rather than refused, matching the field's own `maxLength` — a query past the cap is a paste, and answering it for the first `MAX_KEYWORD_QUERY_LENGTH` characters is what the user sees in the field anyway.
+    const terms = splitKeywordQuery(query.slice(0, MAX_KEYWORD_QUERY_LENGTH));
 
-  // WARN: § 13.9. An empty field is answered with nothing, never with the library. Both directions of the match are containment, and every keyword contains the empty string.
-  if (terms.length === 0) {
-    return NextResponse.json({ emoticons: [], hasMore: false, nextOffset: null });
-  }
+    // WARN: § 13.9. An empty field is answered with nothing, never with the library. Both directions of the match are containment, and every keyword contains the empty string.
+    if (terms.length === 0) {
+      return NextResponse.json({ emoticons: [], hasMore: false, nextOffset: null });
+    }
 
-  const offsetParam = params.get("offset");
-  const limitParam = params.get("limit");
-  const offset = offsetParam !== null ? Math.max(0, parseInt(offsetParam, 10) || 0) : 0;
-  const limit =
-    limitParam !== null
-      ? Math.max(1, parseInt(limitParam, 10) || EMOTICON_SEARCH_PAGE_SIZE)
-      : EMOTICON_SEARCH_PAGE_SIZE;
+    const offsetParam = params.get("offset");
+    const limitParam = params.get("limit");
+    const offset = offsetParam !== null ? Math.max(0, parseInt(offsetParam, 10) || 0) : 0;
+    const limit =
+      limitParam !== null
+        ? Math.max(1, parseInt(limitParam, 10) || EMOTICON_SEARCH_PAGE_SIZE)
+        : EMOTICON_SEARCH_PAGE_SIZE;
 
-  return NextResponse.json(await searchEmoticons(terms, user.id, offset, limit));
-}
+    return NextResponse.json(await searchEmoticons(terms, user.id, offset, limit));
+  },
+  { allowPlaintextFallback: true },
+);
 
 /**
  * WARN: § 13.6. Anything that is not a uuid is dropped rather than refused. The list

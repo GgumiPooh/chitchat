@@ -1,5 +1,5 @@
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import {
   EMOTICON_SLOTS,
   allowedMimesForEmoticonSlot,
@@ -26,39 +26,42 @@ const discardSchema = z.object({ r2Keys: z.array(z.string().min(1)).min(1) });
  * `_thumb` sibling — it is rendered directly at 140px (DESIGN.md § 6.5.), so a
  * derivative would be larger than the thing it derives from.
  */
-export async function POST(request: Request) {
-  const user = await getCurrentUser();
+export const POST = withEncryptedRoute(
+  async (request: Request) => {
+    const user = await getCurrentUser();
 
-  if (!user) {
-    return apiError("unauthorized");
-  }
+    if (!user) {
+      return apiError("unauthorized");
+    }
 
-  const body = bodySchema.safeParse(await request.json().catch(() => null));
+    const body = bodySchema.safeParse(await request.json().catch(() => null));
 
-  if (!body.success) {
-    return apiError("invalid_request");
-  }
+    if (!body.success) {
+      return apiError("invalid_request");
+    }
 
-  const { slot, mime, size } = body.data;
+    const { slot, mime, size } = body.data;
 
-  if (!allowedMimesForEmoticonSlot(slot).includes(mime)) {
-    return apiError("unsupported_media");
-  }
+    if (!allowedMimesForEmoticonSlot(slot).includes(mime)) {
+      return apiError("unsupported_media");
+    }
 
-  // INFO: REQUIREMENTS.md § 14. A courtesy rejection on the client's own claim. R2 enforces neither the type nor the size of a presigned PUT, so `registerEmoticon` re-checks both against what actually landed.
-  if (size > maxSizeForEmoticonSlot(slot)) {
-    return apiError("too_large");
-  }
+    // INFO: REQUIREMENTS.md § 14. A courtesy rejection on the client's own claim. R2 enforces neither the type nor the size of a presigned PUT, so `registerEmoticon` re-checks both against what actually landed.
+    if (size > maxSizeForEmoticonSlot(slot)) {
+      return apiError("too_large");
+    }
 
-  // WARN: Built from the caller's own id and never read off the request — a signature the browser could aim would let it overwrite any object in the bucket (§ 9.).
-  const r2Key = buildStorageKey("emoticon", user.id);
+    // WARN: Built from the caller's own id and never read off the request — a signature the browser could aim would let it overwrite any object in the bucket (§ 9.).
+    const r2Key = buildStorageKey("emoticon", user.id);
 
-  // WARN: § 9. The claim is written before the ticket is signed, never after — a signature handed out first may be redeemed while this request is still in flight, landing an object no row ever named.
-  await reserveKey(r2Key, user.id);
+    // WARN: § 9. The claim is written before the ticket is signed, never after — a signature handed out first may be redeemed while this request is still in flight, landing an object no row ever named.
+    await reserveKey(r2Key, user.id);
 
-  // INFO: § 13.3. No `Cache-Control` here — the asset route signs one into the presigned GET instead, which asks nothing of the browser or of the bucket's CORS policy.
-  return NextResponse.json({ r2Key, uploadUrl: await presignUpload(r2Key, mime) });
-}
+    // INFO: § 13.3. No `Cache-Control` here — the asset route signs one into the presigned GET instead, which asks nothing of the browser or of the bucket's CORS policy.
+    return NextResponse.json({ r2Key, uploadUrl: await presignUpload(r2Key, mime) });
+  },
+  { allowPlaintextFallback: true },
+);
 
 /**
  * Drops objects that landed in R2 for a submit that never produced an item
@@ -75,22 +78,25 @@ export async function POST(request: Request) {
  * WARN: § 13.7.1. Same URL, same body, same 204 as before — jandh-emoticons mirrors
  * this handler and the client protocol did not move.
  */
-export async function DELETE(request: Request) {
-  const user = await getCurrentUser();
+export const DELETE = withEncryptedRoute(
+  async (request: Request) => {
+    const user = await getCurrentUser();
 
-  if (!user) {
-    return apiError("unauthorized");
-  }
+    if (!user) {
+      return apiError("unauthorized");
+    }
 
-  const body = discardSchema.safeParse(await request.json().catch(() => null));
+    const body = discardSchema.safeParse(await request.json().catch(() => null));
 
-  if (!body.success) {
-    return apiError("invalid_request");
-  }
+    if (!body.success) {
+      return apiError("invalid_request");
+    }
 
-  const own = body.data.r2Keys.filter((key) => key.startsWith(`emoticon/${user.id}/`));
+    const own = body.data.r2Keys.filter((key) => key.startsWith(`emoticon/${user.id}/`));
 
-  await releaseReservations(own, user.id);
+    await releaseReservations(own, user.id);
 
-  return new NextResponse(null, { status: 204 });
-}
+    return new NextResponse(null, { status: 204 });
+  },
+  { allowPlaintextFallback: true },
+);

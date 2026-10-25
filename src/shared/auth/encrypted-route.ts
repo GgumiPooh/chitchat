@@ -50,6 +50,7 @@ function pruneMemoryNonces(now: number): void {
 }
 
 export type EncryptedRouteOptions = {
+  allowPlaintextFallback?: boolean;
   allowShareKey?: boolean;
 };
 
@@ -76,6 +77,9 @@ export function withEncryptedRoute<
     }
 
     if (request.headers.get(ENCRYPTED_HEADER) !== "1") {
+      if (options?.allowPlaintextFallback) {
+        return handler(request, ...args);
+      }
       return apiError("key_required");
     }
 

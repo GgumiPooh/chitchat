@@ -5,7 +5,7 @@ import {
   parseEmoticonPackCursor,
 } from "@/entities/emoticon";
 import { apiError } from "@/shared/api";
-import { getCurrentUser } from "@/shared/auth";
+import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import {
   EMOTICON_PACK_PAGE_SIZE,
   MAX_EMOTICON_PACK_NAME_LENGTH,
@@ -65,63 +65,69 @@ const querySchema = z.object({
  * what the picker and 사용중 both read. `?enabled=1` alone is not paging — that tab
  * holds the user's thirty-odd packs and drags them.
  */
-export async function GET(request: Request) {
-  const user = await getCurrentUser();
+export const GET = withEncryptedRoute(
+  async (request: Request) => {
+    const user = await getCurrentUser();
 
-  if (!user) {
-    return apiError("unauthorized");
-  }
+    if (!user) {
+      return apiError("unauthorized");
+    }
 
-  const params = new URL(request.url).searchParams;
-  const query = querySchema.safeParse({
-    type: params.get("type"),
-    enabled: params.get("enabled"),
-    q: params.get("q"),
-    cursor: params.get("cursor"),
-    limit: params.get("limit"),
-  });
+    const params = new URL(request.url).searchParams;
+    const query = querySchema.safeParse({
+      type: params.get("type"),
+      enabled: params.get("enabled"),
+      q: params.get("q"),
+      cursor: params.get("cursor"),
+      limit: params.get("limit"),
+    });
 
-  if (!query.success) {
-    return apiError("invalid_request");
-  }
+    if (!query.success) {
+      return apiError("invalid_request");
+    }
 
-  const filter = {
-    type: query.data.type,
-    enabledOnly: query.data.enabled === "1",
-    query: query.data.q ?? undefined,
-  };
+    const filter = {
+      type: query.data.type,
+      enabledOnly: query.data.enabled === "1",
+      query: query.data.q ?? undefined,
+    };
 
-  if (!isPaged(params)) {
-    return NextResponse.json({ packs: await listEmoticonPacks(user.id, filter) });
-  }
+    if (!isPaged(params)) {
+      return NextResponse.json({ packs: await listEmoticonPacks(user.id, filter) });
+    }
 
-  return NextResponse.json(
-    await listEmoticonPacksPage(user.id, {
-      ...filter,
-      cursor: query.data.cursor,
-      limit: query.data.limit ?? EMOTICON_PACK_PAGE_SIZE,
-    }),
-  );
-}
+    return NextResponse.json(
+      await listEmoticonPacksPage(user.id, {
+        ...filter,
+        cursor: query.data.cursor,
+        limit: query.data.limit ?? EMOTICON_PACK_PAGE_SIZE,
+      }),
+    );
+  },
+  { allowPlaintextFallback: true },
+);
 
 /** REQUIREMENTS.md § 13.4. A title is the whole form — items and a thumbnail come later. */
-export async function POST(request: Request) {
-  const user = await getCurrentUser();
+export const POST = withEncryptedRoute(
+  async (request: Request) => {
+    const user = await getCurrentUser();
 
-  if (!user) {
-    return apiError("unauthorized");
-  }
+    if (!user) {
+      return apiError("unauthorized");
+    }
 
-  const body = bodySchema.safeParse(await request.json().catch(() => null));
+    const body = bodySchema.safeParse(await request.json().catch(() => null));
 
-  if (!body.success) {
-    return apiError("invalid_request");
-  }
+    if (!body.success) {
+      return apiError("invalid_request");
+    }
 
-  const pack = await createEmoticonPack(body.data.name, body.data.type, user.id);
+    const pack = await createEmoticonPack(body.data.name, body.data.type, user.id);
 
-  return NextResponse.json({ pack }, { status: 201 });
-}
+    return NextResponse.json({ pack }, { status: 201 });
+  },
+  { allowPlaintextFallback: true },
+);
 
 /**
  * WARN: § 13.5. Keyed on the parameter being **present**, not on it holding a filter.

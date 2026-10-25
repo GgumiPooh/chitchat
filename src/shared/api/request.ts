@@ -35,9 +35,11 @@ export function shouldEncryptApiPath(path: string): boolean {
   if (
     path.startsWith("/api/auth/") ||
     path.startsWith("/api/health") ||
-    path.startsWith("/api/emoticons/") ||
     path.startsWith("/api/webhooks/")
   ) {
+    return false;
+  }
+  if (path.startsWith("/api/emoticons/items/") && path.endsWith("/asset")) {
     return false;
   }
   if (path.startsWith("/api/media/")) {

@@ -237,7 +237,7 @@ A 6-digit security PIN lock gate (`PinLockGate`, KakaoTalk-style custom touch ke
 - **ECDH + AES-256-GCM Session Transport Encryption:**
   - `sessions.encryption_key` stores a 32-byte symmetric AES-GCM key per session row.
   - During the PIN handshake (`submitPinHandshake`), the client generates an ephemeral ECDH (P-256) keypair, computes a shared secret with the server ECDH public key (`getServerEcdhPublicKey`), and imports the derived AES-256-GCM key into `sessionStorage` (`jandh:session-key`).
-  - Sensitive API routes wrapped with `withEncryptedRoute` transparently decrypt request payloads and encrypt response payloads. The client `request()` helper detects encryption, adds `x-jandh-enc` headers, and decrypts responses seamlessly.
+  - Sensitive API routes wrapped with `withEncryptedRoute` transparently decrypt request payloads and encrypt response payloads. The client `request()` helper detects encryption, adds `x-jandh-enc` headers, and decrypts responses seamlessly. Emoticon metadata APIs across both `jandh` and `jandh-emoticons` are encrypted and protected by anti-replay nonces (with `/api/emoticons/items/[id]/asset` binary loads kept unencrypted).
   - Live chat SSE stream data is encrypted via `encryptSseData(sessionKey, json)` (`{ e: ciphertext }`).
   - **SSR Initial Props Encryption:** Server Components encrypt initial data via `encryptServerPayload` and client wrappers decrypt via `useDecryptedServerPayload` across:
     - Main Shell (`app/(main)/layout.tsx` -> `MainShellSeed` in `MainShell`)
