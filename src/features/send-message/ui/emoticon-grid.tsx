@@ -2,6 +2,7 @@
 
 import type { Emoticon } from "@/entities/emoticon";
 import { cn, type EmoticonItemId, type Nullable } from "@/shared/lib";
+import { useHiddenEmoticonPacks } from "../model/use-hidden-emoticon-packs";
 import { EmoticonCell } from "./emoticon-cell";
 
 export type EmoticonGridProps = {
@@ -40,6 +41,7 @@ export function EmoticonGrid({
   onSelect,
   onFocusCell,
 }: EmoticonGridProps) {
+  const { isOfficeMode, isPackHidden } = useHiddenEmoticonPacks();
   const cellClassName = isMini ? "square-cell" : "emoticon-cell";
 
   return (
@@ -50,6 +52,7 @@ export function EmoticonGrid({
     >
       {items.map((item, i) => {
         const cellIndex = offset + i;
+        const isAssetBlocked = isOfficeMode && isPackHidden(item.packId);
 
         return (
           <EmoticonCell
@@ -64,6 +67,7 @@ export function EmoticonGrid({
             isKeyboardDriven={isKeyboardDriven}
             isRevealed={revealedId === item.id}
             isMini={isMini}
+            isAssetBlocked={isAssetBlocked}
             onSelect={onSelect}
             onFocusCell={onFocusCell}
           />

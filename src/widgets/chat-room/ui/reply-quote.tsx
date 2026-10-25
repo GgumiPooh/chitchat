@@ -2,7 +2,7 @@
 
 import type { ReplyPreview } from "@/entities/message";
 import { toReplySummary } from "@/shared/config";
-import { cn } from "@/shared/lib";
+import { cn, type EmoticonPackId } from "@/shared/lib";
 import { QuoteThumbnailTile } from "@/shared/ui";
 
 export type ReplyQuoteProps = {
@@ -22,6 +22,8 @@ export type ReplyQuoteProps = {
   isMine?: boolean;
   /** DESIGN.md § 6.2. The notch corner, which the `card` variant carries because it stands where the run's first bubble would. */
   hasNotch?: boolean;
+  isOfficeMode?: boolean;
+  isPackHidden?: (packId: EmoticonPackId) => boolean;
   /** Absent while the quote is staged in the composer, where there is nothing to jump to yet. */
   onOpen?: () => void;
 };
@@ -43,6 +45,8 @@ export function ReplyQuote({
   variant = "rule",
   isMine = false,
   hasNotch = false,
+  isOfficeMode,
+  isPackHidden,
   onOpen,
 }: ReplyQuoteProps) {
   const shape = cn(
@@ -81,7 +85,13 @@ export function ReplyQuote({
   function renderContent() {
     return (
       <>
-        {replyTo.thumbnail && <QuoteThumbnailTile thumbnail={replyTo.thumbnail} />}
+        {replyTo.thumbnail && (
+          <QuoteThumbnailTile
+            thumbnail={replyTo.thumbnail}
+            isOfficeMode={isOfficeMode}
+            isPackHidden={isPackHidden}
+          />
+        )}
         <span className="flex min-w-0 flex-col">
           <span className={cn("truncate text-chat-time text-chat-meta", headingClassName)}>
             {heading}

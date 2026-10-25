@@ -37,6 +37,8 @@ export type EmoticonCellProps = {
   isRevealed?: boolean;
   /** REQUIREMENTS.md § 13. A mini draws its `animated-image` slot, not `still-image`. */
   isMini?: boolean;
+  /** When true in Office Mode, avoids requesting asset URLs or downloading images, rendering keyword text instead. */
+  isAssetBlocked?: boolean;
   onSelect: (item: Emoticon) => void;
   onFocusCell?: (index: number) => void;
 };
@@ -53,18 +55,17 @@ export function EmoticonCell({
   isKeyboardDriven,
   isRevealed = false,
   isMini = false,
+  isAssetBlocked = false,
   onSelect,
   onFocusCell,
 }: EmoticonCellProps) {
   // WARN: § 13. A GIF/WebP/APNG's own loop count is not always infinite, so a mini cell fakes forever by remounting on a timer while it is actually on screen — `MINI_ANIMATION_LOOP_INTERVAL`.
   const { ref: replayRef, replayToken } = useViewportReplay(
-    isMini ? MINI_ANIMATION_LOOP_INTERVAL : undefined,
+    isMini && !isAssetBlocked ? MINI_ANIMATION_LOOP_INTERVAL : undefined,
   );
-  const emoticonAssetUrl = toEmoticonAssetUrl(
-    item.id,
-    isMini ? "animated-image" : "still-image",
-    item.version,
-  );
+  const emoticonAssetUrl = isAssetBlocked
+    ? ""
+    : toEmoticonAssetUrl(item.id, isMini ? "animated-image" : "still-image", item.version);
 
   return (
     // WARN: `touch-pan-x touch-pan-y` is repeated on the overlay rather than inherited — `touch-action` applies to the element the gesture starts on, and a cell tiles its scroller. The two are intersected (`DESIGN.md § 7.15.1.`), so a pair that disagreed would resolve to `none` and the panel would not scroll at all. Both axes are enabled so horizontal swipes bubble to the CSS snap track while vertical swipes scroll the tab pane.
@@ -100,19 +101,27 @@ export function EmoticonCell({
           onSelect(item);
         }}
       >
-        <PreloadImage
-          key={replayToken}
-          className="size-full"
-          imgClassName="size-full object-contain"
-          placeholderClassName="rounded-sm"
-          alt=""
-          previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
-          hidesPreviewOnReveal
-          hasDeferredSkeleton={isWarmed}
-          loading={(isWarmed && index < eagerCount) || replayToken > 0 ? "eager" : "lazy"}
-          draggable={false}
-          src={toReplaySrc(emoticonAssetUrl, replayToken)}
-        />
+        {isAssetBlocked ? (
+          <div className="flex size-full flex-col items-center justify-center p-2xs text-center select-none">
+            <span className="truncate text-caption font-medium text-meta">
+              {item.keywords[0] ?? "이모티콘"}
+            </span>
+          </div>
+        ) : (
+          <PreloadImage
+            key={replayToken}
+            className="size-full"
+            imgClassName="size-full object-contain"
+            placeholderClassName="rounded-sm"
+            alt=""
+            previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
+            hidesPreviewOnReveal
+            hasDeferredSkeleton={isWarmed}
+            loading={(isWarmed && index < eagerCount) || replayToken > 0 ? "eager" : "lazy"}
+            draggable={false}
+            src={toReplaySrc(emoticonAssetUrl, replayToken)}
+          />
+        )}
       </button>
     </HapticTarget>
   );

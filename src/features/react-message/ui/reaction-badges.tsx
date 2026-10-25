@@ -1,6 +1,8 @@
 "use client";
 
 import type { MessageReaction } from "@/entities/message";
+import { useInlineEmoticons } from "@/features/chat-stream/@x/react-message";
+import { useHiddenEmoticonPacks } from "@/features/send-message/@x/react-message";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import {
   cn,
@@ -125,23 +127,39 @@ export function ReactionBadges({
 }
 
 function BadgeEmoticonImage({ itemId }: { itemId: EmoticonItemId }) {
-  const { ref: replayRef, replayToken } = useViewportReplay(MINI_ANIMATION_LOOP_INTERVAL);
-  const emoticonAssetUrl = toEmoticonAssetUrl(itemId, "animated-image");
+  const inlineEmoticons = useInlineEmoticons();
+  const { isOfficeMode, isPackHidden } = useHiddenEmoticonPacks();
+  const packId = inlineEmoticons[itemId]?.packId;
+  const isAssetBlocked = isOfficeMode && (packId ? isPackHidden(packId) : false);
+
+  const { ref: replayRef, replayToken } = useViewportReplay(
+    isAssetBlocked ? undefined : MINI_ANIMATION_LOOP_INTERVAL,
+  );
+  const emoticonAssetUrl = isAssetBlocked ? "" : toEmoticonAssetUrl(itemId, "animated-image");
 
   return (
-    <span ref={replayRef} className="inline-block size-5 shrink-0 overflow-hidden">
-      <PreloadImage
-        key={replayToken}
-        className="size-full"
-        imgClassName="size-full object-contain"
-        placeholderClassName="rounded-none"
-        alt=""
-        previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
-        hidesPreviewOnReveal
-        loading={replayToken > 0 ? "eager" : "lazy"}
-        draggable={false}
-        src={toReplaySrc(emoticonAssetUrl, replayToken)}
-      />
+    <span
+      ref={isAssetBlocked ? undefined : replayRef}
+      className="inline-block size-5 shrink-0 overflow-hidden"
+    >
+      {isAssetBlocked ? (
+        <span className="flex size-full items-center justify-center text-[10px] text-meta select-none">
+          미니
+        </span>
+      ) : (
+        <PreloadImage
+          key={replayToken}
+          className="size-full"
+          imgClassName="size-full object-contain"
+          placeholderClassName="rounded-none"
+          alt=""
+          previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
+          hidesPreviewOnReveal
+          loading={replayToken > 0 ? "eager" : "lazy"}
+          draggable={false}
+          src={toReplaySrc(emoticonAssetUrl, replayToken)}
+        />
+      )}
     </span>
   );
 }

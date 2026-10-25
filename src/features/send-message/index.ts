@@ -14,6 +14,7 @@ export { useRecentEmoticons } from "./model/use-recent-emoticons";
 export { toEmoticonPacksQuery } from "./model/packs-query";
 export { stageArchiveMedia } from "./model/staged-archive-media";
 export { useAttachmentPromotion, type AttachmentPromotion } from "./model/use-attachment-promotion";
+export { useHiddenEmoticonPacks } from "./model/use-hidden-emoticon-packs";
 export {
   useSendMessage,
   type PendingMessage,

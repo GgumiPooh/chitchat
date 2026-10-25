@@ -43,7 +43,7 @@ export function toQuoteHeading(
 export type QuoteThumbnail =
   | { kind: "media"; mediaId: string }
   // WARN: REQUIREMENTS.md § 13.4. The version travels with the id, because `toEmoticonAssetUrl` cannot address an edited item without it — the edit swaps the object behind an unchanged id and the redirect in front of it is cached.
-  | { kind: "emoticon"; itemId: string; version: number }
+  | { kind: "emoticon"; itemId: string; version: number; packId?: string }
   // INFO: REQUIREMENTS.md § 8.9. The scraped card's own image, which is a third-party URL rendered directly rather than an `/api/media` object (§ 9.).
   | { kind: "link"; imageUrl: string }
   // INFO: REQUIREMENTS.md § 10. The attachment was destroyed from 보관함 and there is no object left to draw; the tile is still there, and it is the same 32px box the other two fill (§ 8.3.).
@@ -74,7 +74,12 @@ export function toQuoteThumbnail(
     // INFO: § 13. A deleted item keeps its tile for the reason a destroyed attachment does below — the row survives its objects, so the id still resolves while the asset route 404s.
     return resolved.isDeleted
       ? { kind: "deleted" }
-      : { kind: "emoticon", itemId: resolved.id, version: resolved.version };
+      : {
+          kind: "emoticon",
+          itemId: resolved.id,
+          version: resolved.version,
+          ...(resolved.packId ? { packId: resolved.packId } : {}),
+        };
   }
 
   // INFO: § 8.9. Last, so a bubble that carries both draws its own art rather than the page it linked to.
@@ -118,7 +123,7 @@ type QuotedAttachment = {
 
 /** @see QuotedAttachment — the emoticon half, whose `version` is `emoticon_items.updated_at` in milliseconds (§ 13.4.). */
 // WARN: `isDeleted` is required for the reason `QuotedAttachment`'s is — an optional one would read `undefined` on a shape this is written to keep out, and the quote would draw a purged object.
-type QuotedEmoticon = { version: number; isDeleted: boolean; id: string };
+type QuotedEmoticon = { isDeleted: boolean; packId?: string; version: number; id: string };
 
 /** The fields of a `ReplyPreview` the summary line reads — structural, so this stays in `shared` and out of the entity's `server-only` barrel. */
 export type QuoteSummarySource = {

@@ -21,6 +21,7 @@ import {
   type Ref,
 } from "react";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
+import { useHiddenEmoticonPacks } from "../model/use-hidden-emoticon-packs";
 import { CELL_KEYBOARD_RING } from "./emoticon-cell";
 import { DOUBLE_TAP_WINDOW } from "./emoticon-picker";
 
@@ -118,6 +119,7 @@ export function EmoticonQuickBar({
     isOpen && query.trim() !== "",
     false,
   );
+  const { isOfficeMode, isPackHidden } = useHiddenEmoticonPacks();
   const containerRef = useRef<Nullable<HTMLDivElement>>(null);
   const scrollerRef = useRef<Nullable<HTMLDivElement>>(null);
   const itemRefs = useRef<Array<Nullable<HTMLButtonElement>>>([]);
@@ -560,11 +562,14 @@ export function EmoticonQuickBar({
             className="scrollbar-hidden flex flex-1 touch-pan-x items-center gap-xs overflow-x-auto overscroll-contain"
           >
             {displayResults.map((item, index) => {
-              const url = toEmoticonAssetUrl(
-                item.id,
-                item.hasStill ? "still-image" : "animated-image",
-                item.version,
-              );
+              const isAssetBlocked = isOfficeMode && isPackHidden(item.packId);
+              const url = isAssetBlocked
+                ? ""
+                : toEmoticonAssetUrl(
+                    item.id,
+                    item.hasStill ? "still-image" : "animated-image",
+                    item.version,
+                  );
               const isFocusable = focusIndex === index;
 
               return (
@@ -607,14 +612,22 @@ export function EmoticonQuickBar({
                       }
                     }}
                   >
-                    <PreloadImage
-                      className="pointer-events-none size-full overflow-hidden rounded-xs"
-                      imgClassName="pointer-events-none size-full object-contain select-none"
-                      placeholderClassName="rounded-xs"
-                      alt=""
-                      draggable={false}
-                      src={url}
-                    />
+                    {isAssetBlocked ? (
+                      <div className="flex size-full flex-col items-center justify-center p-1 text-center select-none">
+                        <span className="truncate text-caption font-medium text-meta">
+                          {item.keywords[0] ?? "이모티콘"}
+                        </span>
+                      </div>
+                    ) : (
+                      <PreloadImage
+                        className="pointer-events-none size-full overflow-hidden rounded-xs"
+                        imgClassName="pointer-events-none size-full object-contain select-none"
+                        placeholderClassName="rounded-xs"
+                        alt=""
+                        draggable={false}
+                        src={url}
+                      />
+                    )}
                   </button>
                 </HapticTarget>
               );

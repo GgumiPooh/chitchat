@@ -55,6 +55,8 @@ export type OutwardTabWarmOptions = {
   recents: Emoticon[];
   /** § 13.6. The strip's own thumbnails, one per pack. Warmed before the walk, since the whole row is on screen from the moment the panel is. */
   tabThumbnailUrls: string[];
+  isOfficeMode?: boolean;
+  isPackHidden?: (packId: string) => boolean;
 };
 
 /**
@@ -71,6 +73,8 @@ export function useOutwardTabWarm({
   recents,
   tabThumbnailUrls,
   kind,
+  isOfficeMode = false,
+  isPackHidden,
 }: OutwardTabWarmOptions): OutwardTabWarm {
   const queryClient = useQueryClient();
   const [warmedTabs, setWarmedTabs] = useState(NO_WARMED_TABS);
@@ -117,10 +121,20 @@ export function useOutwardTabWarm({
             return;
           }
 
-          const items = await fetchTabItems(tab);
+          if (isOfficeMode && isPackHidden?.(tab)) {
+            continue;
+          }
+
+          let items = await fetchTabItems(tab);
+          if (isOfficeMode && isPackHidden) {
+            items = items.filter((item) => !isPackHidden(item.packId));
+          }
+
           const decodes = distance <= MAX_DECODED_DISTANCE;
 
-          await warmEmoticonImages(items, () => isCancelled, decodes, kind);
+          if (items.length > 0) {
+            await warmEmoticonImages(items, () => isCancelled, decodes, kind);
+          }
 
           // INFO: § 13.6. Recorded after the await, so the grid only widens its `eager` window once this tab's pictures are actually decoded.
           // WARN: An empty list is never recorded — 최근 사용 with nothing in it warms nothing, and marking it would widen the grid's `eager` window over a tab this walk never touched.
@@ -129,7 +143,7 @@ export function useOutwardTabWarm({
           }
 
           // INFO: § 13.6. The tab the reader is on and no other — `warmEmoticonSounds` carries why.
-          if (distance === 0 && !isCancelled) {
+          if (distance === 0 && !isCancelled && items.length > 0) {
             warmEmoticonSounds(items);
           }
         }
@@ -179,7 +193,17 @@ export function useOutwardTabWarm({
         .fetchQuery({ ...toEmoticonPackItemsQuery(tab), staleTime: WARM_ITEMS_STALE_TIME })
         .catch(() => []);
     }
-  }, [activeIndex, isOpen, kind, queryClient, recentsCount, tabKey, thumbnailKey]);
+  }, [
+    activeIndex,
+    isOpen,
+    kind,
+    queryClient,
+    recentsCount,
+    tabKey,
+    thumbnailKey,
+    isOfficeMode,
+    isPackHidden,
+  ]);
 
   return { warmedTabs };
 }

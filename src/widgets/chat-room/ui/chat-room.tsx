@@ -1310,15 +1310,25 @@ export function ChatRoom({
         const solo = soloId ? inlineEmoticons[soloId] : undefined;
         const emoticon =
           message.emoticon ??
-          (soloId && solo ? { id: soloId, version: solo.version, hasAudio: solo.hasAudio } : null);
+          (soloId && solo
+            ? {
+                id: soloId,
+                version: solo.version,
+                hasAudio: solo.hasAudio,
+                packId: solo.packId,
+              }
+            : null);
 
         // INFO: § 13.6. An emoticon's own sound is the arrival's sound; the 전송음 covers the message that has none.
-        if (emoticon?.hasAudio) {
+        const isEmoticonBlocked = Boolean(
+          isOfficeMode && emoticon?.packId && isPackHidden(emoticon.packId),
+        );
+        if (emoticon?.hasAudio && !isEmoticonBlocked) {
           // WARN: § 8.6.1. The hold needs the arriving row to actually mount and report back, and only the live edge guarantees that — a reader scrolled up has it outside the virtualizer's range even with no newer page to fetch, and the sound would then wait out the whole cap instead of announcing the arrival.
           if (isAtBottom && !hasNewer) {
             announceArrivalSound(message.id, emoticon);
           } else {
-            playEmoticonSound(emoticon);
+            playEmoticonSound(emoticon, isPackHidden);
           }
         } else {
           playMessageSound("received");
@@ -2594,6 +2604,8 @@ export function ChatRoom({
       <ExpandedBodySheet
         body={expandedBody}
         searchQuery={searchQuery}
+        isOfficeMode={isOfficeMode}
+        isPackHidden={isPackHidden}
         onClose={() => setExpandedBody(null)}
       />
       <ShortcutHelp isOpen={isShortcutHelpOpen} onClose={() => setIsShortcutHelpOpen(false)} />
@@ -3099,14 +3111,18 @@ export function ChatRoom({
    * WARN: Only where the row certainly mounts, which is the live edge; anywhere else the sound plays alone, as the arrival's does.
    */
   function soundSend(clientMsgId: Nullable<string>, emoticon: Maybe<EmoticonSound>): boolean {
-    if (!clientMsgId || !emoticon?.hasAudio) {
+    if (
+      !clientMsgId ||
+      !emoticon?.hasAudio ||
+      Boolean(isOfficeMode && emoticon.packId && isPackHidden(emoticon.packId))
+    ) {
       return false;
     }
 
     if (isAtBottom && !hasNewer) {
       announceArrivalSound(clientMsgId, emoticon);
     } else {
-      playEmoticonSound(emoticon);
+      playEmoticonSound(emoticon, isPackHidden);
     }
 
     return true;
@@ -4697,7 +4713,7 @@ export function ChatRoom({
    */
   function toSoloInlineQuoteEmoticon(
     message: ChatMessage,
-  ): Nullable<{ version: number; isDeleted: boolean; id: EmoticonItemId }> {
+  ): Nullable<{ isDeleted: boolean; packId?: string; version: number; id: EmoticonItemId }> {
     if (message.type !== "text") {
       return null;
     }
@@ -4708,7 +4724,14 @@ export function ChatRoom({
     });
     const info = soloId ? inlineEmoticons[soloId] : undefined;
 
-    return soloId && info ? { id: soloId, version: info.version, isDeleted: info.isDeleted } : null;
+    return soloId && info
+      ? {
+          id: soloId,
+          version: info.version,
+          isDeleted: info.isDeleted,
+          packId: info.packId,
+        }
+      : null;
   }
 
   /**

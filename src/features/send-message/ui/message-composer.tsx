@@ -65,6 +65,7 @@ import {
 } from "../model/find-keyword-typo";
 import { toEmoticonKeywordsQuery } from "../model/keywords-query";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
+import { useHiddenEmoticonPacks } from "../model/use-hidden-emoticon-packs";
 import { warmEmoticonUrls } from "../model/warm-emoticon-images";
 
 /**
@@ -437,6 +438,8 @@ export function MessageComposer({
     onSuggestedSearchQueryChange?.(keywordQuery);
   }, [keywordQuery, onSuggestedSearchQueryChange]);
 
+  const { isOfficeMode, isPackHidden } = useHiddenEmoticonPacks();
+
   // INFO: § 13.8. The toggle's own preview — the underlined word's top hit, decoded before it is ever drawn (`warmEmoticonUrls(decodes: true)`), so the swap never shows a skeleton in the button's place.
   const { results: previewResults, isPending: isPreviewSearchPending } = useEmoticonSearch(
     keywordQuery,
@@ -458,7 +461,7 @@ export function MessageComposer({
     useState<Nullable<{ version: number; url: string; id: EmoticonItemId }>>(null);
 
   useEffect(() => {
-    if (!previewResult) {
+    if (!previewResult || (isOfficeMode && isPackHidden(previewResult.packId))) {
       return;
     }
 
@@ -476,10 +479,12 @@ export function MessageComposer({
     return () => {
       cancelled = true;
     };
-  }, [previewResult]);
+  }, [previewResult, isOfficeMode, isPackHidden]);
 
   // INFO: Derived rather than cleared from the effect above — a result that disappears (the field emptied, or the debounce moved on) must drop the button's preview on the very render it does, not a tick later through a second `setState`.
+  const isPreviewBlocked = isOfficeMode && isPackHidden(previewResult?.packId);
   const previewUrl =
+    !isPreviewBlocked &&
     previewResult &&
     decodedPreview?.id === previewResult.id &&
     decodedPreview.version === previewResult.version

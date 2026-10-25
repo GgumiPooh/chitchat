@@ -19,6 +19,7 @@ import {
 import { FOCUS_HEADING_ATTRIBUTE, FOCUS_INDEX_ATTRIBUTE } from "../model/emoticon-focus";
 import { isAllTabId, isPackTabId, isRecentsTabId } from "../model/emoticon-tabs";
 import { toEmoticonPackItemsQuery } from "../model/pack-items-query";
+import { useHiddenEmoticonPacks } from "../model/use-hidden-emoticon-packs";
 import { CELL_KEYBOARD_RING, EmoticonCell } from "./emoticon-cell";
 import { EmoticonGrid } from "./emoticon-grid";
 
@@ -96,6 +97,7 @@ export function EmoticonTabPane({
   onSelect,
 }: EmoticonTabPaneProps) {
   const router = useRouter();
+  const { isOfficeMode, isPackHidden } = useHiddenEmoticonPacks();
   const localScrollerRef = useRef<Nullable<HTMLDivElement>>(null);
   const targetScrollerRef = scrollerRef ?? localScrollerRef;
 
@@ -218,6 +220,7 @@ export function EmoticonTabPane({
                       eagerCount={eagerCount}
                       isKeyboardDriven={isKeyboardDriven}
                       isMini={false}
+                      isAssetBlocked={isOfficeMode && isPackHidden(item.packId)}
                       onSelect={onSelect}
                       onFocusCell={onFocusCell}
                     />

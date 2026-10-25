@@ -2,7 +2,7 @@
 
 import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import type { EmoticonPackType } from "@/shared/config";
-import { A_MINUTE, A_SECOND, runWhenIdle } from "@/shared/lib";
+import { A_MINUTE, A_SECOND, getIsOfficeMode, runWhenIdle } from "@/shared/lib";
 import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef } from "react";
 import { useStorageState } from "synced-storage/react";
@@ -82,16 +82,25 @@ export function useEmoticonPreload(): void {
         return;
       }
 
-      const { items, kind } = await fetchOpeningTabItems(packs);
+      const { items: initialItems, kind } = await fetchOpeningTabItems(packs);
 
       if (isCancelled) {
         return;
       }
 
-      await warmEmoticonImages(items, () => isCancelled, false, kind);
+      let items = initialItems;
+      const isOffice = getIsOfficeMode();
+      if (isOffice) {
+        const hiddenPackIds = new Set(packs.filter((p) => p.hideInOffice).map((p) => p.id));
+        items = items.filter((item) => !hiddenPackIds.has(item.packId));
+      }
 
-      if (!isCancelled) {
-        warmEmoticonSounds(items);
+      if (items.length > 0) {
+        await warmEmoticonImages(items, () => isCancelled, false, kind);
+
+        if (!isCancelled) {
+          warmEmoticonSounds(items);
+        }
       }
     }
 

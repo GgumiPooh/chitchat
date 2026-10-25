@@ -92,6 +92,7 @@ import { useAllPackSections } from "../model/use-all-pack-sections";
 import { useEmoticonFavorites } from "../model/use-emoticon-favorites";
 import { EMOTICON_MENU_HEIGHT, useEmoticonMenuCollapse } from "../model/use-emoticon-menu-collapse";
 import { useEmoticonSearch } from "../model/use-emoticon-search";
+import { useHiddenEmoticonPacks } from "../model/use-hidden-emoticon-packs";
 import { useHorizontalSwipe, type SwipeDirection } from "../model/use-horizontal-swipe";
 import { useOutwardTabWarm } from "../model/use-outward-tab-warm";
 import { useRecentEmoticons } from "../model/use-recent-emoticons";
@@ -470,6 +471,7 @@ export function EmoticonPicker({
     isPending,
     refetch: refetchPacks,
   } = useQuery({ ...toEmoticonPacksQuery(), staleTime: PACKS_MOUNT_STALE_TIME });
+  const { isOfficeMode, isPackHidden } = useHiddenEmoticonPacks();
   const visiblePacks = packs.filter((pack) => pack.isEnabled);
   // INFO: § 13.6. Every pack's kind, hidden ones included — a 따라하기 can name a pack this user has taken out of the strip, and the menu still has to be able to say which kind it was.
   const packTypes = new Map(packs.map((pack) => [pack.id, pack.type] as const));
@@ -648,7 +650,7 @@ export function EmoticonPicker({
     scrollerRef: cellScrollerRef,
   });
   const tabThumbnailUrls = menuPacks.flatMap((pack) =>
-    pack.thumbnailItemId
+    pack.thumbnailItemId && (!isOfficeMode || !pack.hideInOffice)
       ? [
           toEmoticonAssetUrl(
             pack.thumbnailItemId,
@@ -667,6 +669,8 @@ export function EmoticonPicker({
     recents,
     tabThumbnailUrls,
     kind: menuKind,
+    isOfficeMode,
+    isPackHidden,
   });
   /**
    * § 13.6. Three widths, and the middle one is the only guess.
@@ -1010,7 +1014,7 @@ export function EmoticonPicker({
                   onClick={() => selectTab(pack.id)}
                 >
                   {/* INFO: § 13.2. Already the item the pack is drawn with — the server resolves the fallback now, since this strip holds no items to look through. */}
-                  {pack.thumbnailItemId ? (
+                  {pack.thumbnailItemId && (!isOfficeMode || !pack.hideInOffice) ? (
                     <PreloadImage
                       className="size-full"
                       imgClassName="size-full object-contain"
@@ -2154,6 +2158,7 @@ function SearchPane({
   onCellFocus,
   onFocusCell,
 }: SearchPaneProps) {
+  const { isOfficeMode, isPackHidden } = useHiddenEmoticonPacks();
   const router = useRouter();
   const trimmed = query.trim();
   const emptyMessage = toEmptyMessage();
@@ -2270,6 +2275,7 @@ function SearchPane({
                         isKeyboardDriven={isKeyboardDriven}
                         isRevealed={item.id === revealedId}
                         isMini={packTypes.get(item.packId) === "mini"}
+                        isAssetBlocked={isOfficeMode && isPackHidden(item.packId)}
                         onSelect={onSelect}
                         onFocusCell={onFocusCell}
                       />
@@ -2383,6 +2389,7 @@ function SearchPane({
                               isKeyboardDriven={isKeyboardDriven}
                               isRevealed={false}
                               isMini={isMini}
+                              isAssetBlocked={isOfficeMode && isPackHidden(item.packId)}
                               onSelect={onSelect}
                               onFocusCell={onFocusCell}
                             />
@@ -2435,6 +2442,7 @@ function SearchPane({
                           isKeyboardDriven={isKeyboardDriven}
                           isRevealed={packIndex === 0 && item.id === revealedId}
                           isMini={isMini}
+                          isAssetBlocked={isOfficeMode && isPackHidden(item.packId)}
                           onSelect={onSelect}
                           onFocusCell={onFocusCell}
                         />
@@ -2481,6 +2489,7 @@ function SearchPane({
                   isKeyboardDriven={isKeyboardDriven}
                   isRevealed={item.id === revealedId}
                   isMini={packTypes.get(item.packId) === "mini"}
+                  isAssetBlocked={isOfficeMode && isPackHidden(item.packId)}
                   onSelect={onSelect}
                   onFocusCell={onFocusCell}
                 />

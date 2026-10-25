@@ -352,8 +352,10 @@ function estimateMessageRow(
   const isEmoticonHidden = Boolean(
     payload.emoticon && context.isOfficeMode && context.isPackHidden?.(payload.emoticon.packId),
   );
+  const isSoloHidden = Boolean(solo && context.isOfficeMode && context.isPackHidden?.(solo.packId));
   const isEmoticonArt = payload.emoticon !== null && !isEmoticonHidden;
-  const hasArt = hasMedia || isEmoticonArt || solo !== undefined;
+  const isSoloArt = solo !== undefined && !isSoloHidden;
+  const hasArt = hasMedia || isEmoticonArt || isSoloArt;
   // INFO: DESIGN.md § 6.9. The card is a row of its own above the bubble, and § 8.9.'s scrape has normally already answered by the time this is asked — `useLinkPreviewPrefetch` sees to that, and it is the only reason a height is knowable here at all.
   const preview = hasArt ? undefined : context.readPreview(findFirstUrl(payload.text));
   // WARN: § 8.3. `MessageRow`'s own test, answered off the same cache: a link-only message is bubble-less once its card is there, so the card counts below in the bubble's row and nowhere above it.
@@ -446,10 +448,12 @@ function toPayloadHeight(
   const isEmoticonHidden = Boolean(
     payload.emoticon && context.isOfficeMode && context.isPackHidden?.(payload.emoticon.packId),
   );
+  const isSoloHidden = Boolean(solo && context.isOfficeMode && context.isPackHidden?.(solo.packId));
   const hasEmoticonArt = payload.emoticon !== null && !isEmoticonHidden;
+  const hasSoloArt = solo !== undefined && !isSoloHidden;
   // INFO: DESIGN.md § 6.10. The reply badge stands in the same row, so it floors the row exactly as the timestamp does.
   const besideArt =
-    payload.replyTo && (hasEmoticonArt || solo) ? Math.max(beside, REPLY_BADGE) : beside;
+    payload.replyTo && (hasEmoticonArt || hasSoloArt) ? Math.max(beside, REPLY_BADGE) : beside;
   if (payload.emoticon && !isEmoticonHidden) {
     return Math.max(toEmoticonBox(payload.emoticon).height, besideArt);
   }
@@ -467,8 +471,18 @@ function toPayloadHeight(
   }
 
   // INFO: § 13. `toSoloEmoticonBox`, not `toEmoticonBox` — a solo mini draws smaller than an emoticon message. A deleted item keeps its stored box, so the tombstone standing in its place measures identically.
-  if (solo) {
+  if (solo && !isSoloHidden) {
     return Math.max(toSoloEmoticonBox(solo).height, besideArt);
+  }
+
+  if (solo && isSoloHidden) {
+    const height =
+      SPACING_XS * 2 +
+      (isMine ? 0 : BUBBLE_BORDER) +
+      toQuoteBlockHeight(payload, isBubbleless, isMine) +
+      LINE.body();
+
+    return Math.max(height, beside);
   }
 
   if (payload.media.length > 0) {

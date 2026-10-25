@@ -1,7 +1,11 @@
 "use client";
 
 import type { Emoticon } from "@/entities/emoticon";
-import { toEmoticonPacksQuery, useAllPackSections } from "@/features/send-message/@x/react-message";
+import {
+  toEmoticonPacksQuery,
+  useAllPackSections,
+  useHiddenEmoticonPacks,
+} from "@/features/send-message/@x/react-message";
 import { MINI_SETTINGS_ROUTE, toEmoticonAssetUrl } from "@/shared/config";
 import {
   cn,
@@ -92,6 +96,7 @@ export function MiniEmoticonSheet({
         : null;
 
   const { recentReactions, rememberReaction } = useRecentReactions();
+  const { isOfficeMode, isPackHidden } = useHiddenEmoticonPacks();
 
   const packsQuery = useQuery(toEmoticonPacksQuery());
   const miniPacks = (packsQuery.data ?? []).filter(
@@ -100,6 +105,16 @@ export function MiniEmoticonSheet({
 
   // INFO: § 13.6. The picker's 전체 tab, pack by pack as the reader scrolls — never every pack on open.
   const { sections, hasMore, loadMore } = useAllPackSections(miniPacks, isOpen);
+
+  const itemPackIdMap = useMemo(() => {
+    const map = new Map<string, EmoticonPackId>();
+    for (const section of sections) {
+      for (const item of section.items) {
+        map.set(item.id, item.packId);
+      }
+    }
+    return map;
+  }, [sections]);
 
   const handleSelectEmoji = (emoji: string) => {
     // WARN: DESIGN.md § 7.15.3. A task, never a microtask: the `keepsScroll` overlay's <label> must survive the click dispatch to trigger its default action (toggling the switch). Closed synchronously, the overlay detaches before activation and goes silent.
@@ -299,12 +314,16 @@ export function MiniEmoticonSheet({
                     }
 
                     const isSelected = activeItemSet?.has(recent.value) ?? false;
+                    const recentPackId = itemPackIdMap.get(recent.value);
+                    const isRecentAssetBlocked =
+                      isOfficeMode && (recentPackId ? isPackHidden(recentPackId) : false);
 
                     return (
                       <RecentMiniEmoticonButton
                         key={`recent-emoticon-${recent.value}-${itemIdx}`}
                         isSelected={isSelected}
                         itemId={recent.value}
+                        isAssetBlocked={isRecentAssetBlocked}
                         onSelect={() => handleSelectRecentEmoticon(recent.value)}
                       />
                     );
@@ -354,6 +373,7 @@ export function MiniEmoticonSheet({
                       key={item.id}
                       isSelected={activeItemSet?.has(item.id) ?? false}
                       item={item}
+                      isAssetBlocked={isOfficeMode && isPackHidden(item.packId)}
                       onSelect={() => handleSelectEmoticon(item)}
                     />
                   ))}
@@ -381,20 +401,26 @@ export function MiniEmoticonSheet({
 function MiniEmoticonCellButton({
   item,
   isSelected = false,
+  isAssetBlocked = false,
   onSelect,
 }: {
   item: Emoticon;
   isSelected?: boolean;
+  isAssetBlocked?: boolean;
   onSelect: () => void;
 }) {
   // INFO: 화면에 노출될 때만 무한 반복 재생
-  const { ref: replayRef, replayToken } = useViewportReplay(MINI_ANIMATION_LOOP_INTERVAL);
-  const emoticonAssetUrl = toEmoticonAssetUrl(item.id, "animated-image", item.version);
+  const { ref: replayRef, replayToken } = useViewportReplay(
+    isAssetBlocked ? undefined : MINI_ANIMATION_LOOP_INTERVAL,
+  );
+  const emoticonAssetUrl = isAssetBlocked
+    ? ""
+    : toEmoticonAssetUrl(item.id, "animated-image", item.version);
 
   return (
     <HapticTarget className="flex square-cell" overlayClassName="touch-pan-y" keepsScroll>
       <button
-        ref={replayRef}
+        ref={isAssetBlocked ? undefined : replayRef}
         className={cn(
           "relative flex size-full touch-pan-y items-center justify-center overflow-hidden rounded-xl p-1.5 transition-all duration-150 select-none [-webkit-touch-callout:none] group-active:scale-95 active:scale-95",
           isSelected
@@ -405,18 +431,26 @@ function MiniEmoticonCellButton({
         aria-label={item.keywords.length > 0 ? item.keywords.join(", ") : "미니 이모티콘"}
         onClick={onSelect}
       >
-        <PreloadImage
-          key={replayToken}
-          className="size-full"
-          imgClassName="size-full object-contain"
-          placeholderClassName="rounded-sm"
-          alt=""
-          previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
-          hidesPreviewOnReveal
-          loading={replayToken > 0 ? "eager" : "lazy"}
-          draggable={false}
-          src={toReplaySrc(emoticonAssetUrl, replayToken)}
-        />
+        {isAssetBlocked ? (
+          <div className="flex size-full flex-col items-center justify-center p-1 text-center select-none">
+            <span className="truncate text-caption font-medium text-meta">
+              {item.keywords[0] ?? "미니"}
+            </span>
+          </div>
+        ) : (
+          <PreloadImage
+            key={replayToken}
+            className="size-full"
+            imgClassName="size-full object-contain"
+            placeholderClassName="rounded-sm"
+            alt=""
+            previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
+            hidesPreviewOnReveal
+            loading={replayToken > 0 ? "eager" : "lazy"}
+            draggable={false}
+            src={toReplaySrc(emoticonAssetUrl, replayToken)}
+          />
+        )}
       </button>
     </HapticTarget>
   );
@@ -425,19 +459,23 @@ function MiniEmoticonCellButton({
 function RecentMiniEmoticonButton({
   itemId,
   isSelected = false,
+  isAssetBlocked = false,
   onSelect,
 }: {
   itemId: EmoticonItemId;
   isSelected?: boolean;
+  isAssetBlocked?: boolean;
   onSelect: () => void;
 }) {
-  const { ref: replayRef, replayToken } = useViewportReplay(MINI_ANIMATION_LOOP_INTERVAL);
-  const emoticonAssetUrl = toEmoticonAssetUrl(itemId, "animated-image");
+  const { ref: replayRef, replayToken } = useViewportReplay(
+    isAssetBlocked ? undefined : MINI_ANIMATION_LOOP_INTERVAL,
+  );
+  const emoticonAssetUrl = isAssetBlocked ? "" : toEmoticonAssetUrl(itemId, "animated-image");
 
   return (
     <HapticTarget className="flex square-cell" overlayClassName="touch-pan-y" keepsScroll>
       <button
-        ref={replayRef}
+        ref={isAssetBlocked ? undefined : replayRef}
         className={cn(
           "relative flex size-full touch-pan-y items-center justify-center overflow-hidden rounded-xl p-1.5 transition-all duration-150 select-none [-webkit-touch-callout:none] group-active:scale-95 active:scale-95",
           isSelected
@@ -448,18 +486,24 @@ function RecentMiniEmoticonButton({
         aria-label="최근 미니 이모티콘"
         onClick={onSelect}
       >
-        <PreloadImage
-          key={replayToken}
-          className="size-full"
-          imgClassName="size-full object-contain"
-          placeholderClassName="rounded-sm"
-          alt=""
-          previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
-          hidesPreviewOnReveal
-          loading={replayToken > 0 ? "eager" : "lazy"}
-          draggable={false}
-          src={toReplaySrc(emoticonAssetUrl, replayToken)}
-        />
+        {isAssetBlocked ? (
+          <div className="flex size-full flex-col items-center justify-center p-1 text-center select-none">
+            <span className="truncate text-caption font-medium text-meta">미니</span>
+          </div>
+        ) : (
+          <PreloadImage
+            key={replayToken}
+            className="size-full"
+            imgClassName="size-full object-contain"
+            placeholderClassName="rounded-sm"
+            alt=""
+            previewSrc={toPreviousReplaySrc(emoticonAssetUrl, replayToken)}
+            hidesPreviewOnReveal
+            loading={replayToken > 0 ? "eager" : "lazy"}
+            draggable={false}
+            src={toReplaySrc(emoticonAssetUrl, replayToken)}
+          />
+        )}
       </button>
     </HapticTarget>
   );

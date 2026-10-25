@@ -253,7 +253,11 @@ export function MessageRow({
   // WARN: REQUIREMENTS.md § 8.17. `estimateRowHeight`'s own rule — a folded row is the ordinary text bubble whatever its content would otherwise draw, so every art and link branch below is closed for one.
   const isEmoticonHidden = Boolean(emoticon && isOfficeMode && isPackHidden?.(emoticon.packId));
   const isEmoticonArt = Boolean(emoticon) && !isEmoticonHidden;
-  const hasArt = !isCollapsed && (isEmoticonArt || hasMedia || Boolean(soloEmoticon));
+  const isSoloEmoticonHidden = Boolean(
+    soloEmoticon && isOfficeMode && isPackHidden?.(soloEmoticon.info.packId),
+  );
+  const isSoloEmoticonArt = Boolean(soloEmoticon) && !isSoloEmoticonHidden;
+  const hasArt = !isCollapsed && (isEmoticonArt || hasMedia || isSoloEmoticonArt);
 
   const linkOnlyUrl = hasArt || isCollapsed ? null : toLinkOnlyUrl(text, inline);
   // WARN: § 8.3. A subscription where the estimate makes a cache read, and on purpose: a link-only row priced as a bubble before the scrape answered re-renders as the card the moment it does, which is a re-measure the virtualizer compensates — a row drawing one thing while the estimate prices another is not.
@@ -265,7 +269,7 @@ export function MessageRow({
   const linkOnlyCard = linkOnlyUrl !== null && linkOnlyPreview ? linkOnlyUrl : null;
   const isBubbleless = hasArt || linkOnlyCard !== null;
   // INFO: DESIGN.md § 6.10. An emoticon answering alone wears a badge beside itself under the card — the same predicate `estimateRowHeight` reads.
-  const hasReplyBadge = Boolean(replyTo) && (isEmoticonArt || Boolean(soloEmoticon));
+  const hasReplyBadge = Boolean(replyTo) && (isEmoticonArt || isSoloEmoticonArt);
   // INFO: REQUIREMENTS.md § 8.9. One card per bubble — the first link, not every link, because a message pasted from a share sheet routinely carries several.
   // INFO: DESIGN.md § 6.5. A bubble-less message carries an attachment rather than text, so there is no link in it to preview.
   const previewUrl = isBubbleless || isCollapsed ? undefined : findFirstUrl(text);
@@ -330,6 +334,8 @@ export function MessageRow({
             variant="card"
             isMine={isMine}
             hasNotch={hasNotch}
+            isOfficeMode={isOfficeMode}
+            isPackHidden={isPackHidden}
             onOpen={onOpenReply}
           />
         )}
@@ -394,6 +400,8 @@ export function MessageRow({
                   className="mb-2xs border-b border-quote-divider pb-2xs"
                   replyTo={replyTo}
                   heading={replyToHeading ?? ""}
+                  isOfficeMode={isOfficeMode}
+                  isPackHidden={isPackHidden}
                   onOpen={onOpenReply}
                 />
               )}
@@ -410,7 +418,7 @@ export function MessageRow({
                 )}
               </div>
             </div>
-          ) : soloEmoticon && soloBox ? (
+          ) : soloEmoticon && soloBox && !isSoloEmoticonHidden ? (
             // INFO: § 13. One emoticon and no words, drawn at `toSoloEmoticonBox` — the same absence of a bubble an emoticon message takes, but a smaller ceiling than `toEmoticonBox`'s so the two kinds read apart. A mini never occupies `messages.emoticon_item_id`, so this is a rendering rule read off the content rather than a second kind of row.
             // WARN: § 8.3. The box is the **stored** one and never the loaded asset's, so it is the same before and after the image arrives — and `estimateRowHeight` prices it through the identical `toSoloEmoticonBox` call.
             // WARN: `lineHeight` is what resizes the shared `InlineEmoticon`, whose own `1lh` is otherwise one line of body text. It is an inline style there, so no class could win it — setting the line-height this box inherits is the one lever that reaches it, and it lands exactly: `1lh × width/height` is `toSoloEmoticonBox`'s own width by construction.
@@ -441,6 +449,41 @@ export function MessageRow({
                 />
               )}
               {isSilent && <SilentRing className="rounded-sm" />}
+            </div>
+          ) : soloEmoticon && isSoloEmoticonHidden ? (
+            <div
+              className={cn(
+                "min-w-0 cursor-pointer rounded-bubble px-sm py-xs text-chat-body wrap-anywhere [word-break:normal] whitespace-pre-wrap transition-colors select-text",
+                LONG_PRESS_TARGET_CLASS,
+                isOnlyMe ? "text-bubble-private-ink" : "text-bubble-ink",
+                isMine
+                  ? isOnlyMe
+                    ? "bg-bubble-mine-private active:bg-bubble-mine-private-pressed"
+                    : isSilent
+                      ? "bg-bubble-mine-silent outline-1 -outline-offset-1 outline-bubble-silent-line outline-dashed active:bg-bubble-mine-silent-pressed"
+                      : "bg-bubble-mine active:bg-bubble-mine-pressed"
+                  : isSilent
+                    ? "border border-dashed border-bubble-silent-line bg-bubble-theirs-silent active:bg-bubble-theirs-silent-pressed"
+                    : "border border-hairline bg-bubble-theirs active:bg-bubble-theirs-pressed",
+                hasNotch && (isMine ? "rounded-tr-xs" : "rounded-tl-xs"),
+                status !== "sent" && "opacity-60",
+                bubbleClassName,
+              )}
+              data-emoticon-bubble
+              {...longPressHandlers}
+              onClick={() => onFollowEmoticon?.()}
+            >
+              {replyTo && (
+                <ReplyQuote
+                  className="mb-2xs border-b border-quote-divider pb-2xs"
+                  replyTo={replyTo}
+                  heading={replyToHeading ?? ""}
+                  isOfficeMode={isOfficeMode}
+                  isPackHidden={isPackHidden}
+                  onOpen={onOpenReply}
+                />
+              )}
+              <span className="text-chat-body">{soloEmoticon.info.name ?? "이모티콘"}</span>
             </div>
           ) : linkOnlyCard ? (
             // INFO: DESIGN.md § 6.9. Where a photo would stand, and no bubble — the bubble would only repeat the address the card names.
@@ -545,6 +588,8 @@ export function MessageRow({
                       className="mb-2xs border-b border-quote-divider pb-2xs"
                       replyTo={replyTo}
                       heading={replyToHeading ?? ""}
+                      isOfficeMode={isOfficeMode}
+                      isPackHidden={isPackHidden}
                       onOpen={onOpenReply}
                     />
                   )}
@@ -558,6 +603,8 @@ export function MessageRow({
                       inlineEmoticonItemIds={inlineEmoticonItemIds}
                       inlineEmoticons={inlineEmoticons}
                       query={searchQuery}
+                      isOfficeMode={isOfficeMode}
+                      isPackHidden={isPackHidden}
                     />
                   )}
                   {/* WARN: REQUIREMENTS.md § 8.3. Never conditioned on `onExpand`. The estimate prices this row from `text` alone, so a caller that forgot the handler must still draw the box it reserved rather than silently losing it. */}

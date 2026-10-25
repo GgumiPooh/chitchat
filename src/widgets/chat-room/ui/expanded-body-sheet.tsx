@@ -9,6 +9,7 @@ import {
   useScrollFade,
   useSheetDrag,
   type EmoticonItemId,
+  type EmoticonPackId,
   type Nullable,
 } from "@/shared/lib";
 import { MarkdownBody, Modal } from "@/shared/ui";
@@ -33,6 +34,8 @@ export type ExpandedBodySheetProps = {
   body: Nullable<ExpandedBody>;
   /** REQUIREMENTS.md § 8.6.1. The open search's query, lit here as it is in the bubble — the sheet is where a match past the cut is legible at all. */
   searchQuery?: string;
+  isOfficeMode?: boolean;
+  isPackHidden?: (packId: EmoticonPackId) => boolean;
   onClose: () => void;
 };
 
@@ -44,6 +47,8 @@ export function ExpandedBodySheet({
   className,
   body,
   searchQuery,
+  isOfficeMode = false,
+  isPackHidden,
   onClose,
 }: ExpandedBodySheetProps) {
   // INFO: The caller clears the body on close, and the exit animation would otherwise play over an empty header and no text — `ActionSheet` holds its own rows the same way and for the same reason.
@@ -104,6 +109,8 @@ export function ExpandedBodySheet({
         inlineEmoticonItemIds={shown.inlineEmoticonItemIds}
         inlineEmoticons={shown.inlineEmoticons}
         query={searchQuery}
+        isOfficeMode={isOfficeMode}
+        isPackHidden={isPackHidden}
         text={shown.text}
       />
     )

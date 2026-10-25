@@ -15,6 +15,7 @@ import {
   formatMonthDay,
   withoutFragment,
   type EmoticonItemId,
+  type EmoticonPackId,
   type MessageId,
   type Nullable,
 } from "@/shared/lib";
@@ -68,6 +69,7 @@ export async function listReplyPreviews(
       // INFO: REQUIREMENTS.md § 13.4. Joined for this column alone — the tile's URL is versioned by it, and the join is what keeps the quote showing an edited emoticon's correction (§ 8.10.).
       emoticonUpdatedAt: emoticonItems.updatedAt,
       emoticonDeletedAt: emoticonItems.deletedAt,
+      emoticonPackId: emoticonItems.packId,
       // INFO: REQUIREMENTS.md § 8.10. Carried for an `assistant_reply` parent only — the quote's heading names the AI by this rather than by `senderId`, which stays the asker.
       llmProvider: messages.llmProvider,
       eventTitle: messages.eventTitle,
@@ -123,7 +125,12 @@ export async function listReplyPreviews(
             toQuotedEmoticon(row),
             attachments,
             soloId && soloInfo
-              ? { id: soloId, version: soloInfo.version, isDeleted: soloInfo.isDeleted }
+              ? {
+                  id: soloId,
+                  version: soloInfo.version,
+                  isDeleted: soloInfo.isDeleted,
+                  packId: soloInfo.packId,
+                }
               : null,
             toLinkImageUrl(row.id),
           ),
@@ -200,11 +207,13 @@ function toQuotedEmoticon({
   emoticonItemId,
   emoticonUpdatedAt,
   emoticonDeletedAt,
+  emoticonPackId,
 }: {
   emoticonItemId: Nullable<EmoticonItemId>;
   emoticonUpdatedAt: Nullable<Date>;
   emoticonDeletedAt: Nullable<Date>;
-}): Nullable<{ version: number; isDeleted: boolean; id: string }> {
+  emoticonPackId: Nullable<EmoticonPackId>;
+}): Nullable<{ isDeleted: boolean; packId?: string; version: number; id: string }> {
   if (!emoticonItemId || !emoticonUpdatedAt) {
     return null;
   }
@@ -213,5 +222,6 @@ function toQuotedEmoticon({
     id: emoticonItemId,
     version: emoticonUpdatedAt.getTime(),
     isDeleted: emoticonDeletedAt !== null,
+    packId: emoticonPackId ?? undefined,
   };
 }

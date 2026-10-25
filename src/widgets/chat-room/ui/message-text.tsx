@@ -1,7 +1,13 @@
 "use client";
 
 import type { InlineEmoticonMap, MessageSegment } from "@/shared/config";
-import { cn, splitTextByQuery, splitTextByUrls, type EmoticonItemId } from "@/shared/lib";
+import {
+  cn,
+  splitTextByQuery,
+  splitTextByUrls,
+  type EmoticonItemId,
+  type EmoticonPackId,
+} from "@/shared/lib";
 import { InlineEmoticon } from "@/shared/ui";
 import { Fragment } from "react";
 import { toInlineContent } from "../model/to-inline-content";
@@ -18,6 +24,8 @@ export type MessageTextProps = {
   inlineEmoticons?: InlineEmoticonMap;
   /** REQUIREMENTS.md § 8.6.1. Lit in the bubble while a search is open; empty the rest of the time. */
   query?: string;
+  isOfficeMode?: boolean;
+  isPackHidden?: (packId: EmoticonPackId) => boolean;
 };
 
 const NO_EMOTICONS: InlineEmoticonMap = {};
@@ -37,6 +45,8 @@ export function MessageText({
   inlineEmoticonItemIds,
   inlineEmoticons = NO_EMOTICONS,
   query = "",
+  isOfficeMode = false,
+  isPackHidden,
 }: MessageTextProps) {
   const inline = toInlineContent(text, inlineEmoticonItemIds);
 
@@ -60,8 +70,9 @@ export function MessageText({
     const info = inlineEmoticons[segment.itemId];
     // WARN: § 8.3. The box comes from here and `toInlineRuns` prices the same call — an id sized in one and guessed in the other is a bubble wider than the estimate reserved.
     const box = toInlineEmoticonBox(info);
+    const isAssetBlocked = Boolean(isOfficeMode && info && isPackHidden?.(info.packId));
 
-    if (info && box.isKnown && !info.isDeleted) {
+    if (info && box.isKnown && !info.isDeleted && !isAssetBlocked) {
       return (
         <InlineEmoticon
           itemId={segment.itemId}
@@ -84,7 +95,12 @@ export function MessageText({
           aspectRatio: box.ratio,
         }}
       >
-        <InlineEmoticonTombstone label={info?.isDeleted ? undefined : "이모티콘"} />
+        <InlineEmoticonTombstone
+          isOfficeModeHidden={isAssetBlocked}
+          label={
+            info?.isDeleted ? undefined : isAssetBlocked ? (info?.name ?? "이모티콘") : "이모티콘"
+          }
+        />
       </span>
     );
   }
