@@ -1707,12 +1707,13 @@ The toggle (`SidePanelToggle`) sits in `AppHeader`'s leading slot (§ 7.12.) alo
 
 ## 7.23. PIN Lock Gate & Keypad.
 
-- **KakaoTalk-equivalent 6-digit PIN Lock UI**: When the user has not unlocked the app with a session key, `PinLockGate` renders a dedicated full-screen PIN entry surface (`PinKeypad`) blocking unauthenticated access to the main shell and all child tabs.
+- **Spinner-First Gate (`PinLockGate`)**: Renders a centered `LoaderCircle` (`animate-spin text-meta-soft`) on `bg-canvas` during SSR / pre-hydration (`useHasSessionKey() === null`) and while `MainShell` decrypts `encryptedShell`, eliminating any flash of the keypad when the browser already holds a session key. `<PinKeypad>` mounts only when `useHasSessionKey() === false`.
+- **KakaoTalk-equivalent 6-digit PIN Lock UI**: Clean single-line sentence header (`text-display-md text-ink` — `"비밀번호를 입력해 주세요"` for unlock, `"사용할 비밀번호를 입력해 주세요"` / `"비밀번호를 한 번 더 입력해 주세요"` for setup, `"현재 비밀번호를 입력해 주세요"` / `"새 비밀번호를 입력해 주세요"` / `"새 비밀번호를 한 번 더 입력해 주세요"` in settings) with no decorative lock icon or static subtitle; a fixed `min-h-[20px]` slot below the title reveals error/countdown copy only when needed.
 - **Keypad Geometry & Layout**: 3×4 numerical grid (digits 1–9, empty balance spacer, 0, and backspace icon button) with generous circular tap targets (≥64×64 touch boundaries, `active:scale-95` press micro-feedback, and haptic feedback via `haptic("selection")` or `haptic("light")`).
 - **PIN Dot Indicators**: 6 circular glyph indicators centered above the keypad. Entered digits fill with `bg-ink`, while vacant slots render a subtle `border-hairline-strong`.
 - **Shake Error Animation**: On incorrect PIN entry or setup confirmation mismatch, a CSS horizontal shake animation (`animate-shake`) triggers alongside `haptic("error")`, clearing the input buffer for immediate re-attempt.
 - **1-Minute Lockout Overlay & Countdown**: Exceeding 5 failed attempts locks the keypad for 60 seconds (`PIN_LOCKOUT_MS`). Numerical buttons become disabled, and a live 1-second countdown timer alerts the user to wait before trying again.
-- **Reset & Re-login Modal**: The "PIN 번호를 잊으셨나요?" link opens a flat `Modal` explaining that the current session will be terminated and re-authenticating with Google will prompt a fresh PIN setup.
+- **Reset & Re-login Modal**: The `"비밀번호를 잊으셨나요?"` link opens a flat `Modal` explaining that the current session will be terminated and re-authenticating with Google will prompt a fresh PIN setup.
 
 # 8. Rules.
 

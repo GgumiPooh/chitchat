@@ -2,19 +2,18 @@
 
 import { cn, type Nullable } from "@/shared/lib";
 import { HapticTarget } from "@/shared/ui";
-import { Delete, Lock } from "lucide-react";
+import { Delete } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 export type PinKeypadProps = {
   className?: string;
   title: string;
-  subtitle: string;
+  subtitle?: Nullable<string>;
   errorMessage?: Nullable<string>;
   isSubmitting?: boolean;
   isLocked?: boolean;
   shakeKey?: number;
   footer?: ReactNode;
-  hideLockIcon?: boolean;
   onComplete: (pin: string) => void;
 };
 
@@ -29,7 +28,6 @@ export function PinKeypad({
   isLocked = false,
   shakeKey = 0,
   footer,
-  hideLockIcon = false,
   onComplete,
 }: PinKeypadProps) {
   const [digits, setDigits] = useState("");
@@ -121,25 +119,21 @@ export function PinKeypad({
 
   return (
     <div className={cn("flex w-full flex-col items-center select-none", className)}>
-      {!hideLockIcon && (
-        <div className="mb-4 flex size-14 items-center justify-center rounded-full bg-primary-tint text-primary">
-          <Lock className="size-6" />
-        </div>
-      )}
-
       <h2 className="text-center text-display-md text-ink">{title}</h2>
 
-      {errorMessage ? (
-        <p
-          className="mt-1 min-h-[20px] text-center text-body-sm text-semantic-error"
-          role="status"
-          aria-live="polite"
-        >
-          {errorMessage}
-        </p>
-      ) : (
-        <p className="mt-1 min-h-[20px] text-center text-body-sm text-meta">{subtitle}</p>
-      )}
+      <div className="mt-1.5 flex min-h-[20px] items-center justify-center">
+        {errorMessage ? (
+          <p
+            className="text-center text-body-sm text-semantic-error"
+            role="status"
+            aria-live="polite"
+          >
+            {errorMessage}
+          </p>
+        ) : subtitle ? (
+          <p className="text-center text-body-sm text-meta">{subtitle}</p>
+        ) : null}
+      </div>
 
       {/* 6 indicator dots */}
       <div

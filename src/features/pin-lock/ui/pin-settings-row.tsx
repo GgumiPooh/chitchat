@@ -16,7 +16,7 @@ export function PinSettingsRow({ className }: PinSettingsRowProps) {
     <>
       <SettingsRow
         className={className}
-        label="보안 PIN 변경"
+        label="비밀번호 변경"
         description="앱 잠금 해제에 사용하는 6자리 숫자 변경"
         Icon={KeyRound}
         haptic

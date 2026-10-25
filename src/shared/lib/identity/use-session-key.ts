@@ -13,10 +13,10 @@ import {
   subscribeSessionKey,
 } from "./session-key-store";
 
-const getSessionKeySnapshot = () => hasStoredSessionKey();
-const getServerSessionKeySnapshot = () => false;
+const getSessionKeySnapshot = (): Nullable<boolean> => hasStoredSessionKey();
+const getServerSessionKeySnapshot = (): Nullable<boolean> => null;
 
-export function useHasSessionKey(): boolean {
+export function useHasSessionKey(): Nullable<boolean> {
   return useSyncExternalStore(
     subscribeSessionKey,
     getSessionKeySnapshot,

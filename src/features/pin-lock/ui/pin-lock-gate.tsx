@@ -2,6 +2,7 @@
 
 import { cn, useHasSessionKey, type Nullable } from "@/shared/lib";
 import { Button, Modal } from "@/shared/ui";
+import { LoaderCircle } from "lucide-react";
 import { useCallback, useEffect, useState, type PropsWithChildren } from "react";
 import { requestPinResetLogout, submitPinHandshake } from "../api/pin-api";
 import { PinKeypad } from "./pin-keypad";
@@ -79,7 +80,7 @@ export function PinLockGate({
           setShakeKey((k) => k + 1);
           setSetupStep(1);
           setFirstPin("");
-          setAttemptErrorMessage("입력한 두 PIN 번호가 서로 달라요. 다시 입력해 주세요");
+          setAttemptErrorMessage("입력한 두 비밀번호가 서로 달라요. 다시 입력해 주세요");
           return;
         }
 
@@ -97,7 +98,7 @@ export function PinLockGate({
           if (result.lockedUntil) {
             setLockedUntil(result.lockedUntil);
           } else {
-            setAttemptErrorMessage("PIN 번호 설정에 실패했어요. 다시 시도해 주세요");
+            setAttemptErrorMessage("비밀번호 설정에 실패했어요. 다시 시도해 주세요");
           }
         }
         return;
@@ -117,7 +118,7 @@ export function PinLockGate({
         } else if (result.status === 401) {
           const attempts = result.remainingAttempts ?? 0;
           setRemainingAttempts(attempts);
-          setAttemptErrorMessage(`PIN 번호가 일치하지 않아요 (남은 기회 ${attempts}회)`);
+          setAttemptErrorMessage(`비밀번호가 일치하지 않아요 (남은 기회 ${attempts}회)`);
         } else {
           setAttemptErrorMessage("잠금 해제에 실패했어요. 다시 시도해 주세요");
         }
@@ -125,6 +126,15 @@ export function PinLockGate({
     },
     [firstPin, isLocked, isPinConfigured, isSubmitting, serverPublicKey, setupStep],
   );
+
+  // INFO: Render minimal centered spinner during SSR / hydration before sessionStorage is checked.
+  if (hasSessionKey === null) {
+    return (
+      <div className={cn("flex min-h-dvh w-full items-center justify-center bg-canvas", className)}>
+        <LoaderCircle className="size-6 animate-spin text-meta-soft" aria-hidden />
+      </div>
+    );
+  }
 
   if (hasSessionKey) {
     return className ? <div className={className}>{children}</div> : <>{children}</>;
@@ -134,17 +144,11 @@ export function PinLockGate({
     ? `입력 횟수를 초과했어요. ${secondsLeft}초 후에 다시 시도해 주세요`
     : attemptErrorMessage;
 
-  let title = "보안 잠금 해제";
-  let subtitle = "대화 내용을 보호하기 위해 6자리 숫자를 입력해 주세요";
+  let title = "비밀번호를 입력해 주세요";
 
   if (!isPinConfigured) {
-    if (setupStep === 1) {
-      title = "보안 PIN 설정";
-      subtitle = "앱 진입 시 사용할 6자리 숫자를 입력해 주세요";
-    } else {
-      title = "PIN 번호 한 번 더 입력";
-      subtitle = "확인을 위해 같은 번호를 한 번 더 입력해 주세요";
-    }
+    title =
+      setupStep === 1 ? "사용할 비밀번호를 입력해 주세요" : "비밀번호를 한 번 더 입력해 주세요";
   }
 
   const footer = isPinConfigured ? (
@@ -153,7 +157,7 @@ export function PinLockGate({
       type="button"
       onClick={() => setIsResetModalOpen(true)}
     >
-      PIN 번호를 잊으셨나요?
+      비밀번호를 잊으셨나요?
     </button>
   ) : setupStep === 2 ? (
     <button
@@ -178,7 +182,6 @@ export function PinLockGate({
     >
       <PinKeypad
         title={title}
-        subtitle={subtitle}
         errorMessage={errorMessage}
         isSubmitting={isSubmitting}
         isLocked={isLocked}
@@ -190,9 +193,9 @@ export function PinLockGate({
       <Modal
         isOpen={isResetModalOpen}
         header={{
-          title: "PIN 번호를 재설정할까요?",
+          title: "비밀번호를 재설정할까요?",
           description:
-            "현재 기기에서 로그아웃되며, 다시 로그인하면 새 PIN 번호를 설정할 수 있어요.",
+            "현재 기기에서 로그아웃되며, 다시 로그인하면 새 비밀번호를 설정할 수 있어요.",
         }}
         onClose={() => setIsResetModalOpen(false)}
       >

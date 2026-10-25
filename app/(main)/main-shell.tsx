@@ -27,6 +27,7 @@ import { InstallGuide } from "@/widgets/install-guide";
 import { OfflineBanner } from "@/widgets/offline-banner";
 import { ShortcutGuide } from "@/widgets/shortcut-guide";
 import { NavRail, TabBar } from "@/widgets/tab-bar";
+import { LoaderCircle } from "lucide-react";
 import type { PropsWithChildren } from "react";
 
 export type MainShellSeed = {
@@ -56,7 +57,11 @@ export function MainShell({
   const shell = useDecryptedServerPayload<MainShellSeed>(encryptedShell);
 
   if (!shell) {
-    return <div className={cn("min-h-dvh bg-canvas", className)} />;
+    return (
+      <div className={cn("flex min-h-dvh w-full items-center justify-center bg-canvas", className)}>
+        <LoaderCircle className="size-6 animate-spin text-meta-soft" aria-hidden />
+      </div>
+    );
   }
 
   return (
