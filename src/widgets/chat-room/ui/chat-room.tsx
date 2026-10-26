@@ -1317,8 +1317,9 @@ export function ChatRoom({
             : null);
 
         // INFO: § 13.6. An emoticon's own sound is the arrival's sound; the 전송음 covers the message that has none.
+        // INFO: REQUIREMENTS.md § 12. Office Mode silences all emoticon audio.
         const isEmoticonBlocked = Boolean(
-          isOfficeMode && emoticon?.packId && isPackHidden(emoticon.packId),
+          isOfficeMode || (emoticon?.packId && isPackHidden(emoticon.packId)),
         );
         if (emoticon?.hasAudio && !isEmoticonBlocked) {
           // WARN: § 8.6.1. The hold needs the arriving row to actually mount and report back, and only the live edge guarantees that — a reader scrolled up has it outside the virtualizer's range even with no newer page to fetch, and the sound would then wait out the whole cap instead of announcing the arrival.
@@ -3111,7 +3112,8 @@ export function ChatRoom({
     if (
       !clientMsgId ||
       !emoticon?.hasAudio ||
-      Boolean(isOfficeMode && emoticon.packId && isPackHidden(emoticon.packId))
+      isOfficeMode ||
+      Boolean(emoticon.packId && isPackHidden(emoticon.packId))
     ) {
       return false;
     }

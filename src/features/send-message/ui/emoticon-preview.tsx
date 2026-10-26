@@ -34,6 +34,8 @@ export function EmoticonPreview({ className, emoticon, onRemove, onFollow }: Emo
   const { isFavorite, toggleFavorite } = useEmoticonFavorites();
   const { isOfficeMode, isPackHidden } = useHiddenEmoticonPacks();
   const isAssetBlocked = isOfficeMode && isPackHidden(emoticon.packId);
+  // INFO: REQUIREMENTS.md § 12. Office Mode silences emoticon staging preview.
+  const isAudioBlocked = isOfficeMode || isAssetBlocked;
   const favorited = isFavorite(emoticon.id);
   const box = toBox(emoticon);
   const emoticonAssetUrl = isAssetBlocked
@@ -45,9 +47,9 @@ export function EmoticonPreview({ className, emoticon, onRemove, onFollow }: Emo
       );
   const { phase, frameRef, play } = useSyncedEmoticonPlayback({
     imageSrc: emoticonAssetUrl,
-    audioSrc: isAssetBlocked ? "" : toEmoticonAssetUrl(emoticon.id, "audio", emoticon.version),
+    audioSrc: isAudioBlocked ? "" : toEmoticonAssetUrl(emoticon.id, "audio", emoticon.version),
     hasAnimated: isAssetBlocked ? false : hasAnimated,
-    hasAudio: isAssetBlocked ? false : hasAudio,
+    hasAudio: isAudioBlocked ? false : hasAudio,
     frameClassName: "rounded-md",
     startsHeld: isAssetBlocked ? false : hasAnimated,
     isEnabled: !isAssetBlocked,

@@ -6,7 +6,7 @@ import {
   SERVICE_WORKER_VERSION,
   VAPID_PUBLIC_KEY,
 } from "@/shared/config";
-import { A_SECOND, safelyGetAsync, safelyRunAsync } from "@/shared/lib";
+import { A_SECOND, getIsOfficeMode, safelyGetAsync, safelyRunAsync } from "@/shared/lib";
 import { deleteSubscription } from "../api/delete-subscription";
 import { saveSubscription } from "../api/save-subscription";
 import {
@@ -147,11 +147,26 @@ export async function subscribeToPush(): Promise<PushState> {
 
   const saved = await saveSubscription(toSubscriptionInput(subscription));
 
+  let soundEnabled = saved.soundEnabled;
+  let previewEnabled = saved.previewEnabled;
+
+  // INFO: REQUIREMENTS.md § 12. Subscribing to push under Office Mode strictly enforces mute and preview privacy.
+  if (getIsOfficeMode()) {
+    if (soundEnabled) {
+      await updateSubscriptionSound(subscription.endpoint, false);
+      soundEnabled = false;
+    }
+    if (previewEnabled) {
+      await updateSubscriptionPreview(subscription.endpoint, false);
+      previewEnabled = false;
+    }
+  }
+
   // WARN: REQUIREMENTS.md § 16.1. The launch upsert preserves 알림 소리 and 알림 내용 표시, but 알림 off deletes the row and mints a new endpoint — so off-then-on lands on the column defaults, and this reports them rather than the values the deleted row held.
   return {
     status: "on",
-    soundEnabled: saved.soundEnabled,
-    previewEnabled: saved.previewEnabled,
+    soundEnabled,
+    previewEnabled,
   };
 }
 

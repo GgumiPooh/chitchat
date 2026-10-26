@@ -11,6 +11,7 @@ import {
   warmAnimatedImage,
 } from "../dom/animated-image";
 import type { Nullable } from "../nullish";
+import { getIsOfficeMode } from "./use-office-mode";
 
 /**
  * How long a picture may be held back waiting for its assets.
@@ -79,7 +80,7 @@ export function useSyncedEmoticonPlayback<T extends HTMLElement = HTMLDivElement
       return;
     }
 
-    if (hasAudio) {
+    if (hasAudio && !getIsOfficeMode()) {
       void warmSound(audioSrc);
     }
 
@@ -93,7 +94,8 @@ export function useSyncedEmoticonPlayback<T extends HTMLElement = HTMLDivElement
     async ({ isSilent = false } = {}) => {
       const run = ++runRef.current;
       const isStale = () => run !== runRef.current;
-      const sounds = hasAudio && !isSilent;
+      // INFO: REQUIREMENTS.md § 12. Office Mode silences all emoticon audio across the app.
+      const sounds = hasAudio && !isSilent && !getIsOfficeMode();
 
       if (!hasAnimated) {
         if (sounds) {

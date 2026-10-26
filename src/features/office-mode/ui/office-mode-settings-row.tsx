@@ -1,7 +1,10 @@
 "use client";
 
 import { PinVerifySheet } from "@/features/pin-lock/@x/office-mode";
-import { setPushPreviewEnabled } from "@/features/push-notifications/@x/office-mode";
+import {
+  setPushPreviewEnabled,
+  setPushSoundEnabled,
+} from "@/features/push-notifications/@x/office-mode";
 import { cn, setDevicePinLockEnabled, useOfficeMode } from "@/shared/lib";
 import { SettingsRow, Switch, toast } from "@/shared/ui";
 import { Briefcase } from "lucide-react";
@@ -12,9 +15,10 @@ export type OfficeModeSettingsRowProps = {
 };
 
 const OFFICE_MODE_PREV_PREVIEW_KEY = "jandh:office-mode-prev-preview";
+const OFFICE_MODE_PREV_SOUND_KEY = "jandh:office-mode-prev-sound";
 
-const ENABLED_DESCRIPTION = "미디어 로딩을 차단하고, 화면 잠금과 알림 내용 숨김을 켜요";
-const DISABLED_DESCRIPTION = "사진·영상·파일 및 보관함을 정상적으로 이용해요";
+const ENABLED_DESCRIPTION = "미디어와 소리를 차단하고, 화면 잠금과 알림 내용 숨김을 켜요";
+const DISABLED_DESCRIPTION = "사진·영상·파일, 효과음 및 보관함을 정상적으로 이용해요";
 
 export function OfficeModeSettingsRow({ className }: OfficeModeSettingsRowProps) {
   const { isOfficeMode, setOfficeMode } = useOfficeMode();
@@ -27,7 +31,7 @@ export function OfficeModeSettingsRow({ className }: OfficeModeSettingsRowProps)
         // SEC: Turning on Office Mode strictly enforces Screen Lock mode
         setDevicePinLockEnabled(true);
 
-        // SEC: Mask push notification preview when Office Mode is turned on
+        // SEC: Mask push notification preview and mute notification sound when Office Mode is turned on
         try {
           const cookieVal = document.cookie
             .split("; ")
@@ -39,11 +43,21 @@ export function OfficeModeSettingsRow({ className }: OfficeModeSettingsRowProps)
               window.localStorage.setItem(OFFICE_MODE_PREV_PREVIEW_KEY, "true");
               await setPushPreviewEnabled(false);
             }
+            if (parsed?.soundEnabled === true) {
+              window.localStorage.setItem(OFFICE_MODE_PREV_SOUND_KEY, "true");
+              await setPushSoundEnabled(false);
+            }
+            const nextCookie = {
+              ...parsed,
+              previewEnabled: false,
+              soundEnabled: false,
+            };
+            document.cookie = `jandh:push-state=${encodeURIComponent(JSON.stringify(nextCookie))}; path=/; max-age=31536000; SameSite=Lax`;
           }
         } catch {
           // Push might not be active or supported on this device; ignore
         }
-        toast.success("오피스 모드를 켰어요. 화면 잠금과 알림 내용 숨김이 켜져요");
+        toast.success("오피스 모드를 켰어요. 화면 잠금, 알림 내용 숨김과 무음 처리가 켜져요");
         return;
       }
 
@@ -55,13 +69,31 @@ export function OfficeModeSettingsRow({ className }: OfficeModeSettingsRowProps)
 
   const handleVerifySuccess = useCallback(async () => {
     setOfficeMode(false);
-    // Restore previous preview preference if it was enabled before
+    // Restore previous preview and sound preferences if they were enabled before
     try {
       const wasPreviewEnabled =
         window.localStorage.getItem(OFFICE_MODE_PREV_PREVIEW_KEY) === "true";
       if (wasPreviewEnabled) {
         window.localStorage.removeItem(OFFICE_MODE_PREV_PREVIEW_KEY);
         await setPushPreviewEnabled(true);
+      }
+      const wasSoundEnabled = window.localStorage.getItem(OFFICE_MODE_PREV_SOUND_KEY) === "true";
+      if (wasSoundEnabled) {
+        window.localStorage.removeItem(OFFICE_MODE_PREV_SOUND_KEY);
+        await setPushSoundEnabled(true);
+      }
+      const cookieVal = document.cookie
+        .split("; ")
+        .find((row) => row.startsWith("jandh:push-state="))
+        ?.split("=")[1];
+      if (cookieVal) {
+        const parsed = JSON.parse(decodeURIComponent(cookieVal));
+        const nextCookie = {
+          ...parsed,
+          ...(wasPreviewEnabled ? { previewEnabled: true } : {}),
+          ...(wasSoundEnabled ? { soundEnabled: true } : {}),
+        };
+        document.cookie = `jandh:push-state=${encodeURIComponent(JSON.stringify(nextCookie))}; path=/; max-age=31536000; SameSite=Lax`;
       }
     } catch {
       // Ignore

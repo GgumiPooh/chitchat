@@ -3,6 +3,7 @@
 import { toEmoticonAssetUrl } from "@/shared/config";
 import {
   cn,
+  getIsOfficeMode,
   toPreviousReplaySrc,
   toReplaySrc,
   useSyncedEmoticonPlayback,
@@ -73,13 +74,16 @@ export function InlineEmoticon({
   onArrivalSoundReady,
   onFollow,
 }: InlineEmoticonProps) {
+  // INFO: REQUIREMENTS.md § 12. Office Mode silences inline emoticon audio.
+  const isAudioBlocked = getIsOfficeMode();
+  const effectiveHasAudio = isAudioBlocked ? false : hasAudio;
   const { ref, replayToken } = useViewportReplay();
   const emoticonAssetUrl = toEmoticonAssetUrl(itemId, "animated-image", version);
   const { phase, frameRef, play } = useSyncedEmoticonPlayback<HTMLSpanElement>({
     imageSrc: emoticonAssetUrl,
-    audioSrc: toEmoticonAssetUrl(itemId, "audio", version),
+    audioSrc: effectiveHasAudio ? toEmoticonAssetUrl(itemId, "audio", version) : "",
     hasAnimated: true,
-    hasAudio,
+    hasAudio: effectiveHasAudio,
     frameClassName: cn("object-center", imgClassName),
     isEnabled: isTappable || awaitsArrivalSound,
     startsHeld: awaitsArrivalSound,

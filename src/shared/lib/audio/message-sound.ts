@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect } from "react";
 import { useStorageState } from "synced-storage/react";
+import { getIsOfficeMode } from "../hooks/use-office-mode";
 import { playSound, warmSound } from "./sound";
 
 export type MessageSoundKind = "sent" | "received";
@@ -17,6 +18,8 @@ const SOURCES: Record<MessageSoundKind, string> = {
  * REQUIREMENTS.md § 13.6. The 전송음 — a soft sweep on a send and on a live
  * arrival, per device and on by default, through the same shared player an
  * emoticon sounds on and always yielding to it.
+ *
+ * Muted when Office Mode is active (REQUIREMENTS.md § 12.).
  */
 export function useMessageSound() {
   const [isEnabled, setEnabled] = useStorageState<boolean>(STORAGE_KEY, true, {
@@ -24,7 +27,7 @@ export function useMessageSound() {
   });
 
   useEffect(() => {
-    if (isEnabled) {
+    if (isEnabled && !getIsOfficeMode()) {
       // INFO: § 13.6. The shared player's own cache, which an emoticon's sound uses too — these two are simply the pair that is warmed before anything has asked for them.
       Object.values(SOURCES).forEach(warmSound);
     }
@@ -33,7 +36,8 @@ export function useMessageSound() {
   const play = useCallback(
     (kind: MessageSoundKind) => {
       // INFO: A room in a background tab is already announced by § 16.1.'s push, and its own sound would double it.
-      if (!isEnabled || document.visibilityState !== "visible") {
+      // INFO: REQUIREMENTS.md § 12. Office Mode silences chat room sound effects.
+      if (!isEnabled || getIsOfficeMode() || document.visibilityState !== "visible") {
         return;
       }
 

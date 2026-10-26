@@ -18,7 +18,12 @@ export function playEmoticonSound(
     return;
   }
 
-  if (getIsOfficeMode() && emoticon.packId && isPackHidden?.(emoticon.packId)) {
+  // INFO: REQUIREMENTS.md § 12. Office Mode silences all emoticon audio across the app.
+  if (getIsOfficeMode()) {
+    return;
+  }
+
+  if (emoticon.packId && isPackHidden?.(emoticon.packId)) {
     return;
   }
 

@@ -1,1 +1,1 @@
-export { setPushPreviewEnabled } from "../model/push-registration";
+export { setPushPreviewEnabled, setPushSoundEnabled } from "../model/push-registration";
