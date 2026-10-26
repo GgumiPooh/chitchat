@@ -55,18 +55,18 @@ export function OtpSettingsRow({ className, initialHasOtp = false }: OtpSettings
     ? "인증기 앱의 6자리 번호로 계정 선택 없이 바로 로그인할 수 있어요"
     : "Google Authenticator 등 인증기 앱을 등록해 원스텝으로 로그인해요";
 
-  let pinTitle = "비밀번호 확인";
-  let pinDescription = "보안을 위해 6자리 비밀번호를 입력해 주세요";
+  let pinTitle = "PIN 비밀번호 확인";
+  let pinDescription = "보안을 위해 6자리 PIN 비밀번호를 입력해 주세요";
 
   if (pinAction === "setup") {
-    pinTitle = "OTP 등록 비밀번호 확인";
-    pinDescription = "OTP 로그인을 등록하려면 6자리 비밀번호를 입력해 주세요";
+    pinTitle = "PIN 비밀번호 확인";
+    pinDescription = "OTP 로그인을 등록하려면 6자리 PIN 비밀번호를 입력해 주세요";
   } else if (pinAction === "reissue") {
-    pinTitle = "OTP 재발급 비밀번호 확인";
-    pinDescription = "새 OTP를 등록하려면 6자리 비밀번호를 입력해 주세요";
+    pinTitle = "PIN 비밀번호 확인";
+    pinDescription = "OTP를 재발급하려면 6자리 PIN 비밀번호를 입력해 주세요";
   } else if (pinAction === "delete") {
-    pinTitle = "OTP 해제 비밀번호 확인";
-    pinDescription = "OTP 로그인을 해제하려면 6자리 비밀번호를 입력해 주세요";
+    pinTitle = "PIN 비밀번호 확인";
+    pinDescription = "OTP 로그인을 해제하려면 6자리 PIN 비밀번호를 입력해 주세요";
   }
 
   return (

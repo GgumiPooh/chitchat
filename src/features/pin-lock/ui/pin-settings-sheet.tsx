@@ -26,11 +26,24 @@ export function PinSettingsSheet({ className, isOpen, onClose }: PinSettingsShee
   const [shakeKey, setShakeKey] = useState(0);
 
   const [now, setNow] = useState(() => Date.now());
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+
+  // INFO: Reset state during render when sheet opens or closes.
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    setStep(1);
+    setCurrentPin("");
+    setNewPin("");
+    setIsSubmitting(false);
+    setAttemptErrorMessage(null);
+    setShakeKey(0);
+  }
 
   const handleClose = useCallback(() => {
     setStep(1);
     setCurrentPin("");
     setNewPin("");
+    setIsSubmitting(false);
     setAttemptErrorMessage(null);
     setShakeKey(0);
     onClose();
@@ -56,7 +69,7 @@ export function PinSettingsSheet({ className, isOpen, onClose }: PinSettingsShee
         if (cancelled) {
           return;
         }
-        setAttemptErrorMessage("비밀번호 설정을 불러오지 못했어요");
+        setAttemptErrorMessage("PIN 비밀번호 설정을 불러오지 못했어요");
       });
 
     return () => {
@@ -131,7 +144,7 @@ export function PinSettingsSheet({ className, isOpen, onClose }: PinSettingsShee
         setIsSubmitting(false);
 
         if (result.ok) {
-          toast.success("비밀번호를 변경했어요");
+          toast.success("PIN 비밀번호를 변경했어요");
           handleClose();
           return;
         }
@@ -147,9 +160,9 @@ export function PinSettingsSheet({ className, isOpen, onClose }: PinSettingsShee
         } else if (result.status === 401) {
           const attempts = result.remainingAttempts ?? 0;
           setRemainingAttempts(attempts);
-          setAttemptErrorMessage(`비밀번호가 일치하지 않아요 (남은 기회 ${attempts}회)`);
+          setAttemptErrorMessage(`PIN 비밀번호가 일치하지 않아요 (남은 기회 ${attempts}회)`);
         } else {
-          setAttemptErrorMessage("비밀번호 변경에 실패했어요. 다시 시도해 주세요");
+          setAttemptErrorMessage("PIN 비밀번호 변경에 실패했어요. 다시 시도해 주세요");
         }
       }
     },
@@ -160,12 +173,12 @@ export function PinSettingsSheet({ className, isOpen, onClose }: PinSettingsShee
     ? `입력 횟수를 초과했어요. ${secondsLeft}초 후에 다시 시도해 주세요`
     : attemptErrorMessage;
 
-  let title = "현재 비밀번호를 입력해 주세요";
+  let title = "현재 PIN 비밀번호를 입력해 주세요";
 
   if (step === 2) {
-    title = "새 비밀번호를 입력해 주세요";
+    title = "새 PIN 비밀번호를 입력해 주세요";
   } else if (step === 3) {
-    title = "새 비밀번호를 한 번 더 입력해 주세요";
+    title = "새 PIN 비밀번호를 한 번 더 입력해 주세요";
   }
 
   const footer =
@@ -179,7 +192,7 @@ export function PinSettingsSheet({ className, isOpen, onClose }: PinSettingsShee
           setAttemptErrorMessage(null);
         }}
       >
-        현재 비밀번호 다시 입력
+        현재 PIN 비밀번호 다시 입력
       </button>
     ) : step === 3 ? (
       <button
@@ -191,7 +204,7 @@ export function PinSettingsSheet({ className, isOpen, onClose }: PinSettingsShee
           setAttemptErrorMessage(null);
         }}
       >
-        새 비밀번호 다시 입력
+        새 PIN 비밀번호 다시 입력
       </button>
     ) : null;
 
@@ -200,8 +213,8 @@ export function PinSettingsSheet({ className, isOpen, onClose }: PinSettingsShee
       className={className}
       isOpen={isOpen}
       header={{
-        title: "비밀번호 변경",
-        description: "현재 비밀번호 확인 후 새 6자리 숫자를 설정해요",
+        title: "PIN 비밀번호 변경",
+        description: "현재 PIN 비밀번호 확인 후 새 6자리 숫자를 설정해요",
       }}
       onClose={handleClose}
     >
@@ -210,6 +223,7 @@ export function PinSettingsSheet({ className, isOpen, onClose }: PinSettingsShee
           title={title}
           errorMessage={errorMessage}
           isSubmitting={isSubmitting}
+          submittingText="PIN 비밀번호 변경 중..."
           isLocked={isLocked}
           shakeKey={shakeKey}
           footer={footer}

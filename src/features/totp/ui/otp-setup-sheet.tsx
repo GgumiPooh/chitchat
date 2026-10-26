@@ -32,6 +32,19 @@ export function OtpSetupSheet({ className, isOpen, onClose, onSuccess }: OtpSetu
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState<Nullable<string>>(null);
   const [shakeKey, setShakeKey] = useState(0);
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+
+  // INFO: Reset state during render when sheet opens or closes.
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    setStep("register");
+    setSetupData(null);
+    setErrorMessage(null);
+    setIsCopied(false);
+    setIsLoading(true);
+    setIsSubmitting(false);
+    setShakeKey(0);
+  }
 
   const handleClose = useCallback(() => {
     setStep("register");
@@ -39,6 +52,7 @@ export function OtpSetupSheet({ className, isOpen, onClose, onSuccess }: OtpSetu
     setErrorMessage(null);
     setIsCopied(false);
     setIsLoading(true);
+    setIsSubmitting(false);
     setShakeKey(0);
     onClose();
   }, [onClose]);
@@ -95,6 +109,7 @@ export function OtpSetupSheet({ className, isOpen, onClose, onSuccess }: OtpSetu
       const result = await verifyOtpSetup(code);
 
       if (result.ok) {
+        setIsSubmitting(false);
         toast.success("OTP 로그인을 등록했어요");
         onSuccess();
         handleClose();
@@ -204,14 +219,14 @@ export function OtpSetupSheet({ className, isOpen, onClose, onSuccess }: OtpSetu
               <div className="flex w-full max-w-[320px] items-center gap-xs rounded-xl bg-surface-soft px-sm py-2.5 text-caption text-meta">
                 <ShieldCheck className="size-4 shrink-0 text-primary" />
                 <span>
-                  Google OTP 등 인증기 앱의 6자리 숫자를 입력해 주세요 (보안 PIN이 아니에요)
+                  Google OTP 등 인증기 앱의 6자리 숫자를 입력해 주세요 (PIN 비밀번호가 아니에요)
                 </span>
               </div>
 
               <div className="w-full">
                 <PinKeypad
                   title="OTP 인증번호 6자리"
-                  subtitle="인증기 앱에 실시간으로 표시된 번호를 입력해 주세요"
+                  subtitle="인증기 앱에 실시간으로 표시된 번호예요 (PIN 비밀번호가 아니에요)"
                   errorMessage={errorMessage}
                   isSubmitting={isSubmitting}
                   submittingText="인증번호 확인 중..."

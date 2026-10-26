@@ -26,6 +26,7 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
       return;
     }
     setIsOpen(false);
+    setIsSubmitting(false);
     setErrorMessage(null);
     setShakeKey(0);
   }, [isRedirecting]);
@@ -117,7 +118,7 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
         <div className="flex flex-col items-center py-md">
           <div className="mb-3 flex w-full max-w-[320px] items-center justify-center gap-xs rounded-xl bg-surface-soft px-sm py-2 text-caption text-meta">
             <Smartphone className="size-4 shrink-0 text-primary" />
-            <span>인증기 앱의 실시간 6자리 번호 (보안 PIN이 아니에요)</span>
+            <span>인증기 앱의 실시간 6자리 번호 (PIN 비밀번호가 아니에요)</span>
           </div>
 
           <div className="w-full">

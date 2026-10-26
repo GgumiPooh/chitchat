@@ -18,8 +18,8 @@ export type PinVerifySheetProps = {
 export function PinVerifySheet({
   className,
   isOpen,
-  title = "화면 잠금 끄기",
-  description = "잠금을 해제하려면 현재 비밀번호를 입력해 주세요",
+  title = "PIN 비밀번호 확인",
+  description = "계속하려면 6자리 PIN 비밀번호를 입력해 주세요",
   onClose,
   onSuccess,
 }: PinVerifySheetProps) {
@@ -30,8 +30,18 @@ export function PinVerifySheet({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
+
+  // INFO: Reset transient submitting and error state during render when sheet opens or closes.
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    setIsSubmitting(false);
+    setAttemptErrorMessage(null);
+    setShakeKey(0);
+  }
 
   const handleClose = useCallback(() => {
+    setIsSubmitting(false);
     setAttemptErrorMessage(null);
     setShakeKey(0);
     onClose();
@@ -56,7 +66,7 @@ export function PinVerifySheet({
         if (cancelled) {
           return;
         }
-        setAttemptErrorMessage("비밀번호 설정을 불러오지 못했어요");
+        setAttemptErrorMessage("PIN 비밀번호 설정을 불러오지 못했어요");
       });
 
     return () => {
@@ -106,6 +116,7 @@ export function PinVerifySheet({
       });
 
       if (result.ok) {
+        setIsSubmitting(false);
         onSuccess();
         handleClose();
         return;
@@ -119,9 +130,9 @@ export function PinVerifySheet({
       } else if (result.status === 401) {
         const attempts = result.remainingAttempts ?? 0;
         setRemainingAttempts(attempts);
-        setAttemptErrorMessage(`비밀번호가 일치하지 않아요 (남은 기회 ${attempts}회)`);
+        setAttemptErrorMessage(`PIN 비밀번호가 일치하지 않아요 (남은 기회 ${attempts}회)`);
       } else {
-        setAttemptErrorMessage("비밀번호 확인에 실패했어요. 다시 시도해 주세요");
+        setAttemptErrorMessage("PIN 비밀번호 확인에 실패했어요. 다시 시도해 주세요");
       }
     },
     [handleClose, isLocked, isSubmitting, onSuccess, serverPublicKey],
@@ -143,12 +154,12 @@ export function PinVerifySheet({
     >
       <div className="py-4">
         <PinKeypad
-          title="비밀번호를 입력해 주세요"
+          title="PIN 비밀번호 입력"
           errorMessage={errorMessage}
           isLocked={isLocked}
           isSubmitting={isSubmitting}
           shakeKey={shakeKey}
-          submittingText="비밀번호 확인 중..."
+          submittingText="PIN 비밀번호 확인 중..."
           onComplete={handleComplete}
         />
       </div>
