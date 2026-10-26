@@ -368,9 +368,6 @@ const HISTORY_SCROLL_STEP = 0.4;
 // INFO: DESIGN.md § 7.12. Deep enough that a bubble dissolves well before the floating header's own text, rather than being clipped by it or dissolving right at its edge.
 const TOP_FADE_LENGTH = "4rem";
 
-// WARN: Short on purpose — it dissolves the sliver leaving the shell below the tab bar, not the strip behind the bars. Fading that strip would leave the glass with nothing to blur (DESIGN.md § 3.5.).
-const BOTTOM_FADE_LENGTH = "2rem";
-
 /**
  * The chat surface — virtualized list, composer, and the scroll-to-bottom pill.
  * Offscreen bubbles stay out of the DOM (REQUIREMENTS.md § 8.3.), which is what
@@ -3637,14 +3634,13 @@ export function ChatRoom({
     }
   }
 
-  // INFO: The bottom edge needs no scroll condition — resting at the bottom leaves the trailing spacer there, so the gradient has nothing to act on.
+  // INFO: Only the top edge fades when scrolled off the top; the bottom edge keeps full opacity down to the composer.
   function buildScrollFadeMask() {
     return buildFadeMask({
       direction: "to bottom",
       fadeStart: !isAtTop,
-      fadeEnd: true,
+      fadeEnd: false,
       startLength: TOP_FADE_LENGTH,
-      endLength: BOTTOM_FADE_LENGTH,
     });
   }
 
