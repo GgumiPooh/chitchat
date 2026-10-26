@@ -3,7 +3,7 @@
 import { PinKeypad } from "@/features/pin-lock/@x/totp";
 import type { Nullable } from "@/shared/lib";
 import { BottomSheet, Button } from "@/shared/ui";
-import { KeyRound } from "lucide-react";
+import { KeyRound, Smartphone } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { submitOtpLogin } from "../api/totp-api";
 
@@ -114,16 +114,24 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
         }}
         onClose={handleClose}
       >
-        <div className="py-md">
-          <PinKeypad
-            title="인증번호 6자리"
-            errorMessage={displayError}
-            isLocked={isLocked}
-            isSubmitting={isSubmitting || isRedirecting}
-            shakeKey={shakeKey}
-            submittingText={isRedirecting ? "로그인 완료! 이동 중..." : "로그인 확인 중..."}
-            onComplete={handleComplete}
-          />
+        <div className="flex flex-col items-center py-md">
+          <div className="mb-3 flex w-full max-w-[320px] items-center justify-center gap-xs rounded-xl bg-surface-soft px-sm py-2 text-caption text-meta">
+            <Smartphone className="size-4 shrink-0 text-primary" />
+            <span>인증기 앱의 실시간 6자리 번호 (보안 PIN이 아니에요)</span>
+          </div>
+
+          <div className="w-full">
+            <PinKeypad
+              title="OTP 번호 입력"
+              subtitle="Google OTP 등 인증기 앱 화면의 6자리 번호예요"
+              errorMessage={displayError}
+              isLocked={isLocked}
+              isSubmitting={isSubmitting || isRedirecting}
+              shakeKey={shakeKey}
+              submittingText={isRedirecting ? "로그인 완료! 이동 중..." : "로그인 확인 중..."}
+              onComplete={handleComplete}
+            />
+          </div>
         </div>
       </BottomSheet>
     </>
