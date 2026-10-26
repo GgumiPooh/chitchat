@@ -50,10 +50,10 @@ async function hashSessionToken(token: string): Promise<string> {
   return toHex(new Uint8Array(digest));
 }
 
-export async function createSession(
+export async function createSessionWithKey(
   userId: UserId,
   deviceLabel: Nullable<string>,
-): Promise<string> {
+): Promise<{ token: string; encryptionKey: string }> {
   const token = generateSessionToken();
   const encryptionKey = generateEncryptionKey();
 
@@ -68,6 +68,14 @@ export async function createSession(
       encryptionKey,
     });
 
+  return { token, encryptionKey };
+}
+
+export async function createSession(
+  userId: UserId,
+  deviceLabel: Nullable<string>,
+): Promise<string> {
+  const { token } = await createSessionWithKey(userId, deviceLabel);
   return token;
 }
 

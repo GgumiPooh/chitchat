@@ -4,6 +4,7 @@ import type { DeviceSession } from "@/entities/session";
 import { OfficeModeSettingsRow } from "@/features/office-mode";
 import { DevicePinLockRow, PinSettingsRow } from "@/features/pin-lock";
 import { DeviceList } from "@/features/session";
+import { OtpSettingsRow } from "@/features/totp";
 import { TypingSettingsRow } from "@/features/typing-indicator";
 import { SETTINGS_ROUTE } from "@/shared/config";
 import type { User } from "@/shared/db";
@@ -47,6 +48,8 @@ export function SecuritySettingsPage({ className, user, sessions }: SecuritySett
         {/* INFO: REQUIREMENTS.md § 8.12. 입력 중 표시 */}
         <TypingSettingsRow isEnabled={user.typingIndicatorEnabled} />
         <PinSettingsRow />
+        {/* INFO: RFC 6238 TOTP 로그인 설정 */}
+        <OtpSettingsRow initialHasOtp={user.totpEnabled} />
         {/* INFO: 단축어 키 */}
         <ShortcutSettingsRow shareKey={user.shareKey} />
 

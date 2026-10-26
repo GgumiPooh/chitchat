@@ -28,6 +28,7 @@ export {
 export {
   clearSessionCookie,
   createSession,
+  createSessionWithKey,
   ensureSessionEncryptionKey,
   getCurrentUser,
   getSessionContext,
@@ -38,3 +39,14 @@ export {
   setSessionCookie,
   type SessionContext,
 } from "./session";
+export {
+  TOTP_LOCKOUT_MS,
+  TOTP_MAX_ATTEMPTS,
+  TOTP_STEP_SECONDS,
+  computeTotp,
+  formatTotpUri,
+  generateTotpQrSvg,
+  generateTotpSecret,
+  verifyTotp,
+  type VerifyTotpResult,
+} from "./totp";

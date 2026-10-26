@@ -1,4 +1,5 @@
 import { DevLoginForm, GoogleLoginButton, SessionEndSync } from "@/features/session";
+import { OtpLoginSection } from "@/features/totp";
 import { APP_NAME, IS_DEV_LOGIN_ENABLED } from "@/shared/config";
 import { cn } from "@/shared/lib";
 import { Container } from "@/shared/ui";
@@ -32,6 +33,7 @@ export function LoginPage({ className, error }: LoginPageProps) {
         <div className="flex flex-col gap-sm">
           {error}
           <GoogleLoginButton />
+          <OtpLoginSection />
           <p className="text-center text-caption text-meta-soft">
             초대된 계정만 로그인할 수 있어요
           </p>

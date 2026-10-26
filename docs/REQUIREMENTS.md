@@ -255,6 +255,16 @@ A 6-digit security PIN lock gate (`PinLockGate`, KakaoTalk-style custom touch ke
   - **Two-Tier Nonce Deduplication (L1 Memory + L2 PostgreSQL `UNLOGGED TABLE` `request_nonces`):** All requests (`GET` included) are checked against an in-memory TTL map (`seenMemoryNonces`) for zero-IO same-instance replay rejection. State-changing requests (`POST`, `PUT`, `PATCH`, `DELETE`) additionally execute an atomic `INSERT INTO request_nonces ... ON CONFLICT DO NOTHING RETURNING nonce` on the PostgreSQL `UNLOGGED` table `request_nonces` (`0079_request_nonces_unlogged.sql`), guaranteeing cross-instance replay immunity without WAL fsync overhead.
   - **Response Replay Defense:** `withEncryptedRoute` attaches an encrypted `x-jandh-meta` response header binding the request's `nonce`, HTTP status `s`, server timestamp `ts`, and SHA-256 hash `b` of the encrypted response body. The client verifies that `nonce`, `s`, and `b` match before accepting any response.
 
+### 5.6. TOTP Login (Passwordless RFC 6238) ✅
+
+Zero-profile, one-step TOTP login (`POST /api/auth/login/otp`) and security settings (`GET/POST/DELETE /api/auth/otp`, `POST /api/auth/otp/verify`). Compatible with Google Authenticator, Apple Passwords, 1Password, and any standard RFC 6238 authenticator.
+
+- **Profile-less 6-digit login:** The user inputs only their 6-digit code on `/login` (`OtpLoginSection`, using `PinKeypad`). Because the app is a closed two-participant system, the server evaluates all active TOTP-enrolled users in <0.1ms and logs in the matched user automatically.
+- **Replay attack defense:** When a valid TOTP step is verified, the server records `users.last_used_totp_step`. Any subsequent submission of the same code within the ±30s window is rejected with `"replayed"`.
+- **IP rate limiting & Brute-force protection:** Maximum 5 failed attempts per IP address before a 15-minute lockout is enforced (`TOTP_MAX_ATTEMPTS = 5`, `TOTP_LOCKOUT_MS = 900_000`).
+- **PIN-protected operations:** Enrolling, re-issuing, or deleting TOTP requires entering the 6-digit security PIN (`PinVerifySheet`) first, ensuring an unattended unlocked session cannot modify authentication credentials.
+- **Session transport encryption integration:** Upon successful OTP login, the server creates the session with a 32-byte AES-256-GCM transport key (`createSessionWithKey`) and delivers it to the client, which immediately stores it in `sessionStorage` (`setClientSessionKey`), granting direct access to the app without redundant authentication hurdles.
+
 ---
 
 ## 6. Database Schema (Drizzle) ✅
@@ -303,6 +313,7 @@ Schema, migrations, and triggers have landed. **Columns are not listed here — 
 - `users` carries **three** nullable `media` references — `avatar_media_id`, `profile_background_media_id` (§ 12.1.) and `chat_background_media_id` — all `ON DELETE SET NULL`, all declared through `AnyPgColumn` to break the `users` ⇄ `media` type cycle. **The third is dead**: § 12.2. moved the wallpaper to `couple_settings` and nothing reads or writes that column any more. It stays declared until its own release drops it, for the reason the migration-ordering rules below give in full. `0019`'s warning governs both ends of its life and comes from one fact — `getSessionContext` selects `users` whole, so a column this table gains must exist **before** the code naming it deploys, and one it loses must stop being named **before** the migration removes it. Getting either backwards fails **every request that resolves a session** on `42703`
 - **`couple_settings` is the one table with exactly one row** (§ 12.2.), pinned by `id boolean PRIMARY KEY DEFAULT true` and `CHECK (id)`. It exists because a conversation-wide setting has no user row to live on — not because the conversation acquired an identity, which is the bullet immediately below and is unchanged. `start_date` (§ 11.1.) replaces the `RELATIONSHIP_START_DATE` env var as a row. `first_user_id` and `second_user_id` record the first two accounts to ever log in, in order, filled by an `AFTER INSERT` trigger on `users` rather than `upsertGoogleUser` itself — `ALLOWED_EMAILS` stays the allowlist
 - **PIN security & session encryption**: `users.pin_hash` (`varchar(255)`), `users.pin_failed_attempts` (`integer DEFAULT 0 NOT NULL`), and `users.pin_locked_until` (`timestamp with time zone`) secure app access with a 6-digit PIN and lockout tracking (§ 5.5.). `sessions.encryption_key` (`varchar(64)`) holds a 32-byte symmetric AES-256-GCM transport key established during the PIN handshake.
+- **TOTP login & anti-replay**: `users.totp_secret` (`text`), `users.totp_enabled` (`boolean DEFAULT false NOT NULL`), `users.totp_failed_attempts` (`integer DEFAULT 0 NOT NULL`), `users.totp_locked_until` (`timestamp with time zone`), and `users.last_used_totp_step` (`bigint`) store RFC 6238 enrollment and prevent replay attacks (§ 5.6.).
 
 **Media**
 

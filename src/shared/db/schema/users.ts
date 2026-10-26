@@ -1,6 +1,14 @@
 import type { MediaId, MessageId, UserId } from "@/shared/lib";
 import { sql } from "drizzle-orm";
-import { boolean, integer, pgTable, text, timestamp, type AnyPgColumn } from "drizzle-orm/pg-core";
+import {
+  bigint,
+  boolean,
+  integer,
+  pgTable,
+  text,
+  timestamp,
+  type AnyPgColumn,
+} from "drizzle-orm/pg-core";
 import { snowflake } from "../types";
 import { media } from "./media";
 
@@ -34,6 +42,12 @@ export const users = pgTable("users", {
   pinHash: text("pin_hash"),
   pinFailedAttempts: integer("pin_failed_attempts").notNull().default(0),
   pinLockedUntil: timestamp("pin_locked_until", { withTimezone: true }),
+  // INFO: RFC 6238 TOTP (Time-based One-Time Password) secret and replay protection.
+  totpSecret: text("totp_secret"),
+  totpEnabled: boolean("totp_enabled").notNull().default(false),
+  totpFailedAttempts: integer("totp_failed_attempts").notNull().default(0),
+  totpLockedUntil: timestamp("totp_locked_until", { withTimezone: true }),
+  lastUsedTotpStep: bigint("last_used_totp_step", { mode: "number" }),
 });
 
 export type User = typeof users.$inferSelect;
