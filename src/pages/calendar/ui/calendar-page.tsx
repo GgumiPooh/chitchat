@@ -250,9 +250,9 @@ function CalendarPageView({
         }
       />
       {/* INFO: DESIGN.md § 7.9. Full-bleed and outside `Container`, since the hero already fills the device height and sits under the floating header on its own. */}
-      {/* WARN: DESIGN.md § 3.4. The photo is `100lvh` inside the `h-svh` box, or `object-cover` scales it to the small viewport and the same wallpaper is visibly smaller here than in 채팅 by the toolbar's height. */}
+      {/* WARN: DESIGN.md § 3.4. The box and the photo are both `100lvh` so the hero spans the full device height on standalone PWA and collapsed toolbar without resizing under the reader during scroll, matching the chat wallpaper pixels. */}
       <DDayHero
-        className="h-svh w-full lg:hidden"
+        className="h-[100lvh] w-full lg:hidden"
         backdropClassName="bottom-auto h-[100lvh]"
         summary={summary}
       />

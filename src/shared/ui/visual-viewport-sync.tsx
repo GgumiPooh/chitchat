@@ -124,15 +124,17 @@ export function VisualViewportSync() {
     function write() {
       const { height, offsetTop } = viewport as VisualViewport;
 
-      root.style.setProperty(HEIGHT_PROPERTY, `${height}px`);
+      // INFO: When no editable element is focused, the resting height cannot legitimately be smaller than the layout window (e.g. WebKit standalone PWA reporting small viewport height with ghost toolbars or stuck post-dismissal height). Clamping to window.innerHeight when keyboard is closed prevents the bottom chin gap while preserving true keyboard shrink.
+      const isFieldActive =
+        isEditableElement(document.activeElement) || root.hasAttribute(KEYBOARD_OVERLAID_ATTRIBUTE);
+      const effectiveHeight = isFieldActive ? height : Math.max(height, window.innerHeight);
+
+      root.style.setProperty(HEIGHT_PROPERTY, `${effectiveHeight}px`);
       // WARN: DESIGN.md § 3.4. Held while a field is focused rather than the largest height seen at this width — Safari's toolbar collapses on the document-scrolling screens and chat never sees that height, so a maximum left the chat screen a toolbar too tall once the keys went down.
       // WARN: REQUIREMENTS.md § 13.6. Held through an overlaid swap too, and the focus test cannot cover it: the emoticon toggle blurs the field *before* the keys start sliding, so every mid-slide height was recorded as a resting one and the screen pinned to this chased the keyboard it is held clear of.
-      if (
-        !isEditableElement(document.activeElement) &&
-        !root.hasAttribute(KEYBOARD_OVERLAID_ATTRIBUTE)
-      ) {
-        restingHeight = height;
-        root.style.setProperty(RESTING_HEIGHT_PROPERTY, `${height}px`);
+      if (!isFieldActive) {
+        restingHeight = effectiveHeight;
+        root.style.setProperty(RESTING_HEIGHT_PROPERTY, `${effectiveHeight}px`);
       } else if (height > restingHeight) {
         restingHeight = height;
         root.style.setProperty(RESTING_HEIGHT_PROPERTY, `${height}px`);
@@ -155,7 +157,7 @@ export function VisualViewportSync() {
       // WARN: Nothing sizes itself to the layout viewport through this component. A background that must ignore the keyboard takes the `lvh` unit directly (§ 3.4.) — `clientHeight` is not that, since Chromium's `interactive-widget=resizes-content` shrinks the layout viewport too.
       root.style.setProperty(
         BOTTOM_PROPERTY,
-        `${Math.max(root.clientHeight - offsetTop - height, 0)}px`,
+        `${Math.max(root.clientHeight - offsetTop - effectiveHeight, 0)}px`,
       );
       root.setAttribute(SYNCED_ATTRIBUTE, "");
     }
