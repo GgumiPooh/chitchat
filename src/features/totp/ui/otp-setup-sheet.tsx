@@ -93,19 +93,20 @@ export function OtpSetupSheet({ className, isOpen, onClose, onSuccess }: OtpSetu
       setErrorMessage(null);
 
       const result = await verifyOtpSetup(code);
-      setIsSubmitting(false);
 
       if (result.ok) {
         toast.success("OTP 로그인을 등록했어요");
         onSuccess();
         handleClose();
+        return;
+      }
+
+      setIsSubmitting(false);
+      setShakeKey((k) => k + 1);
+      if (result.error === "replayed") {
+        setErrorMessage("이미 사용된 일회용 코드예요. 다음 번호를 기다려 주세요");
       } else {
-        setShakeKey((k) => k + 1);
-        if (result.error === "replayed") {
-          setErrorMessage("이미 사용된 일회용 코드예요. 다음 번호를 기다려 주세요");
-        } else {
-          setErrorMessage("인증번호가 일치하지 않아요. 다시 확인해 주세요");
-        }
+        setErrorMessage("인증번호가 일치하지 않아요. 다시 확인해 주세요");
       }
     },
     [handleClose, isSubmitting, onSuccess],
@@ -213,6 +214,7 @@ export function OtpSetupSheet({ className, isOpen, onClose, onSuccess }: OtpSetu
                   subtitle="인증기 앱에 실시간으로 표시된 번호를 입력해 주세요"
                   errorMessage={errorMessage}
                   isSubmitting={isSubmitting}
+                  submittingText="인증번호 확인 중..."
                   shakeKey={shakeKey}
                   footer={
                     <Button

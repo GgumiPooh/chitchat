@@ -104,13 +104,14 @@ export function PinVerifySheet({
         mode: "verify",
         pin,
       });
-      setIsSubmitting(false);
 
       if (result.ok) {
         onSuccess();
         handleClose();
         return;
       }
+
+      setIsSubmitting(false);
 
       setShakeKey((k) => k + 1);
       if (result.status === 429 || result.lockedUntil) {
@@ -144,9 +145,10 @@ export function PinVerifySheet({
         <PinKeypad
           title="비밀번호를 입력해 주세요"
           errorMessage={errorMessage}
-          isSubmitting={isSubmitting}
           isLocked={isLocked}
+          isSubmitting={isSubmitting}
           shakeKey={shakeKey}
+          submittingText="비밀번호 확인 중..."
           onComplete={handleComplete}
         />
       </div>

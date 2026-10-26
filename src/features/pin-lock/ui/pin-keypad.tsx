@@ -2,7 +2,7 @@
 
 import { cn, type Nullable } from "@/shared/lib";
 import { HapticTarget } from "@/shared/ui";
-import { Delete } from "lucide-react";
+import { Delete, LoaderCircle } from "lucide-react";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 
 export type PinKeypadProps = {
@@ -11,6 +11,7 @@ export type PinKeypadProps = {
   subtitle?: Nullable<string>;
   errorMessage?: Nullable<string>;
   isSubmitting?: boolean;
+  submittingText?: string;
   isLocked?: boolean;
   shakeKey?: number;
   footer?: ReactNode;
@@ -28,6 +29,7 @@ export function PinKeypad({
   subtitle,
   errorMessage,
   isSubmitting = false,
+  submittingText = "확인 중...",
   isLocked = false,
   shakeKey = 0,
   footer,
@@ -125,7 +127,16 @@ export function PinKeypad({
       <h2 className="text-center text-display-md text-ink">{title}</h2>
 
       <div className="mt-1.5 flex min-h-[20px] items-center justify-center">
-        {errorMessage ? (
+        {isSubmitting ? (
+          <div
+            className="flex items-center justify-center gap-1.5 text-body-sm font-medium text-primary transition-opacity"
+            role="status"
+            aria-live="polite"
+          >
+            <LoaderCircle className="size-4 animate-spin text-primary" />
+            <span>{submittingText}</span>
+          </div>
+        ) : errorMessage ? (
           <p
             className="text-center text-body-sm text-semantic-error"
             role="status"
@@ -142,8 +153,9 @@ export function PinKeypad({
       <div
         key={shakeKey}
         className={cn(
-          "my-8 flex items-center justify-center gap-4",
+          "my-8 flex items-center justify-center gap-4 transition-opacity duration-200",
           shakeKey > 0 ? "animate-wax-shake" : "",
+          isSubmitting ? "animate-pulse opacity-70" : "",
         )}
         aria-hidden="true"
       >

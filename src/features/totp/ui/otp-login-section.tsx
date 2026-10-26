@@ -14,6 +14,7 @@ export type OtpLoginSectionProps = {
 export function OtpLoginSection({ className }: OtpLoginSectionProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRedirecting, setIsRedirecting] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
 
   const [lockedUntil, setLockedUntil] = useState<Nullable<string>>(null);
@@ -21,10 +22,13 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
   const [now, setNow] = useState(() => Date.now());
 
   const handleClose = useCallback(() => {
+    if (isRedirecting) {
+      return;
+    }
     setIsOpen(false);
     setErrorMessage(null);
     setShakeKey(0);
-  }, []);
+  }, [isRedirecting]);
 
   useEffect(() => {
     if (!lockedUntil) {
@@ -52,7 +56,7 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
 
   const handleComplete = useCallback(
     async (code: string) => {
-      if (isSubmitting || isLocked) {
+      if (isSubmitting || isLocked || isRedirecting) {
         return;
       }
 
@@ -60,14 +64,15 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
       setErrorMessage(null);
 
       const result = await submitOtpLogin(code);
-      setIsSubmitting(false);
 
       if (result.ok) {
+        setIsRedirecting(true);
         // INFO: REQUIREMENTS.md § 5.1. Replace location on navigation so /login does not remain in history.
         window.location.replace(result.redirectUrl ?? "/");
         return;
       }
 
+      setIsSubmitting(false);
       setShakeKey((k) => k + 1);
 
       if (result.error === "too_many_attempts") {
@@ -87,7 +92,7 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
         setErrorMessage(`인증번호가 일치하지 않아요 (남은 기회 ${attempts}회)`);
       }
     },
-    [isLocked, isSubmitting],
+    [isLocked, isRedirecting, isSubmitting],
   );
 
   const displayError = isLocked
@@ -113,9 +118,10 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
           <PinKeypad
             title="인증번호 6자리"
             errorMessage={displayError}
-            isSubmitting={isSubmitting}
             isLocked={isLocked}
+            isSubmitting={isSubmitting || isRedirecting}
             shakeKey={shakeKey}
+            submittingText={isRedirecting ? "로그인 완료! 이동 중..." : "로그인 확인 중..."}
             onComplete={handleComplete}
           />
         </div>
