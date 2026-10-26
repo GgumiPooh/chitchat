@@ -6,6 +6,7 @@ import {
   RESUME_STAGGER_DELAYS,
   VIEWPORT_QUIET_WINDOW,
   isEditableElement,
+  isStandalone,
   safelyGet,
   safelyRun,
 } from "@/shared/lib";
@@ -47,7 +48,22 @@ export function VisualViewportSync() {
     let frame = 0;
     let settleTimer: ReturnType<typeof setTimeout>;
     let resumeTimers: ReturnType<typeof setTimeout>[] = [];
-    let restingHeight = viewport.height;
+
+    function measureLvh(): number {
+      const probe = document.createElement("div");
+      probe.style.cssText =
+        "position:fixed;height:100lvh;top:0;pointer-events:none;visibility:hidden;";
+      root.appendChild(probe);
+      const measured = probe.getBoundingClientRect().height;
+      probe.remove();
+      return measured;
+    }
+
+    let lastWidth = viewport.width;
+    let lvhHeight = measureLvh();
+    let restingHeight = isStandalone()
+      ? Math.max(viewport.height, window.innerHeight, lvhHeight)
+      : viewport.height;
     let keyboardHeight = 0;
     // WARN: As `useIsVirtualKeyboardOpen` is gated — a desktop window resized while a field is focused is a drop past the threshold too, and it would be remembered as a keyboard.
     const hasVirtualKeyboard = matchMedia("(pointer: coarse)").matches;
@@ -61,6 +77,9 @@ export function VisualViewportSync() {
     let wasHidden = document.visibilityState !== "visible";
 
     sync();
+    RESUME_STAGGER_DELAYS.forEach((delay) => {
+      resumeTimers.push(setTimeout(sync, delay));
+    });
     viewport.addEventListener("resize", sync);
     viewport.addEventListener("scroll", syncPan);
     document.addEventListener("focusout", onFocusOut);
@@ -122,12 +141,20 @@ export function VisualViewportSync() {
     }
 
     function write() {
-      const { height, offsetTop } = viewport as VisualViewport;
+      const { height, width, offsetTop } = viewport as VisualViewport;
 
-      // INFO: When no editable element is focused, the resting height cannot legitimately be smaller than the layout window (e.g. WebKit standalone PWA reporting small viewport height with ghost toolbars or stuck post-dismissal height). Clamping to window.innerHeight when keyboard is closed prevents the bottom chin gap while preserving true keyboard shrink.
+      if (width !== lastWidth) {
+        lastWidth = width;
+        lvhHeight = measureLvh();
+      }
+
+      // INFO: When no editable element is focused, the resting height cannot legitimately be smaller than the layout window (e.g. WebKit standalone PWA reporting small viewport height with ghost toolbars or stuck post-dismissal height). In standalone PWA where no browser toolbars exist, clamping to `100lvh` prevents the bottom chin gap on cold launch while preserving true keyboard shrink.
       const isFieldActive =
         isEditableElement(document.activeElement) || root.hasAttribute(KEYBOARD_OVERLAID_ATTRIBUTE);
-      const effectiveHeight = isFieldActive ? height : Math.max(height, window.innerHeight);
+      const minRestingHeight = isStandalone()
+        ? Math.max(height, window.innerHeight, lvhHeight)
+        : Math.max(height, window.innerHeight);
+      const effectiveHeight = isFieldActive ? height : minRestingHeight;
 
       root.style.setProperty(HEIGHT_PROPERTY, `${effectiveHeight}px`);
       // WARN: DESIGN.md § 3.4. Held while a field is focused rather than the largest height seen at this width — Safari's toolbar collapses on the document-scrolling screens and chat never sees that height, so a maximum left the chat screen a toolbar too tall once the keys went down.

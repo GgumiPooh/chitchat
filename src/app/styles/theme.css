@@ -400,6 +400,14 @@
   }
 }
 
+/* INFO: DESIGN.md § 3.4. In standalone PWA there are no browser toolbars, so the resting height is the large viewport (`100lvh`). On cold launch before `VisualViewportSync` sets `--viewport-height`, this prevents WebKit from falling back to dynamic/small viewport with a 64px chin gap. */
+@media (display-mode: standalone) {
+  :root {
+    --viewport-resting-height: 100lvh;
+    --chat-screen-height: var(--viewport-height, 100lvh);
+  }
+}
+
 /* INFO: AGENTS.md § 4.4. The panel breakpoint — the rail alone answers `md`, and the panel needs `lg`'s extra room beside it. */
 @media (min-width: 1024px) {
   :root {
