@@ -149,8 +149,8 @@ export function OtpSetupSheet({ className, isOpen, onClose, onSuccess }: OtpSetu
             {/* 6-digit verification Keypad */}
             <div className="w-full pt-xs">
               <PinKeypad
-                title="인증번호 6자리 입력"
-                subtitle="앱에 등록 후 표시되는 6자리 번호를 입력해 주세요"
+                title="OTP 인증번호 6자리 입력"
+                subtitle="Google Authenticator 등 인증기 앱 화면에 표시된 6자리 번호를 입력해 주세요 (보안 PIN 번호가 아니에요)"
                 errorMessage={errorMessage}
                 isSubmitting={isSubmitting}
                 shakeKey={shakeKey}
