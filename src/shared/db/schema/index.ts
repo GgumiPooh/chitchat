@@ -61,7 +61,14 @@ export {
 } from "./messages";
 export { pushSubscriptions, type StoredPushSubscription } from "./push-subscriptions";
 export { messageReactions, type MessageReactionRow, type NewMessageReactionRow } from "./reactions";
-export { requestNonces, sessions, type RequestNonce, type Session } from "./sessions";
+export {
+  authThrottles,
+  requestNonces,
+  sessions,
+  type AuthThrottle,
+  type RequestNonce,
+  type Session,
+} from "./sessions";
 export { storageReservations, type StorageReservation } from "./storage";
 export {
   letterMedia,

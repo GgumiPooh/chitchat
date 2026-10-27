@@ -40,6 +40,12 @@ export {
   type SessionContext,
 } from "./session";
 export {
+  checkOtpThrottle,
+  recordOtpThrottleFailure,
+  resetOtpIpThrottle,
+  type ThrottleCheckResult,
+} from "./throttle";
+export {
   TOTP_LOCKOUT_MS,
   TOTP_MAX_ATTEMPTS,
   TOTP_STEP_SECONDS,

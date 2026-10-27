@@ -1,5 +1,5 @@
 import type { SessionId, UserId } from "@/shared/lib";
-import { index, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
+import { index, integer, pgTable, primaryKey, text, timestamp } from "drizzle-orm/pg-core";
 import { snowflake } from "../types";
 import { users } from "./users";
 
@@ -33,3 +33,18 @@ export const requestNonces = pgTable(
 );
 
 export type RequestNonce = typeof requestNonces.$inferSelect;
+
+// SEC: Multi-instance throttle & circuit breaker store (created as UNLOGGED in 0082_auth_throttles_unlogged.sql for memory-speed atomic updates without WAL fsync overhead).
+export const authThrottles = pgTable(
+  "auth_throttles",
+  {
+    key: text("key").primaryKey(),
+    failedAttempts: integer("failed_attempts").default(1).notNull(),
+    windowStartedAt: timestamp("window_started_at", { withTimezone: true }).defaultNow().notNull(),
+    lockedUntil: timestamp("locked_until", { withTimezone: true }),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+  },
+  (table) => [index("auth_throttles_locked_until_idx").on(table.lockedUntil)],
+);
+
+export type AuthThrottle = typeof authThrottles.$inferSelect;

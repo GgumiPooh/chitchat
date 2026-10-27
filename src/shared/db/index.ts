@@ -12,6 +12,7 @@ export {
 } from "./listen";
 export { notifyChannel } from "./notify";
 export {
+  authThrottles,
   coupleSettings,
   emoticonItems,
   emoticonKeywords,
@@ -48,6 +49,7 @@ export {
   vocaCards,
   vocaReviews,
   vocaUserSettings,
+  type AuthThrottle,
   type CoupleSettings,
   type EmoticonItem,
   type EmoticonKeyword,
