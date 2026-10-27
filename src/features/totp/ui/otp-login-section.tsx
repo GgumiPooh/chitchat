@@ -156,7 +156,7 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
           <div className="w-full">
             <PinKeypad
               title="1회용 번호 입력"
-              subtitle="스마트폰 칫챗 앱에 표시된 6자리 번호예요"
+              subtitle="PIN 비밀번호가 아닌 실시간 1회용 번호예요"
               errorMessage={displayError}
               isLocked={isLocked}
               isSubmitting={isSubmitting || isRedirecting}
