@@ -31,6 +31,40 @@ export async function fetchOtpStatus(): Promise<{ hasOtp: boolean }> {
   return response.json() as Promise<{ hasOtp: boolean }>;
 }
 
+export async function fetchCurrentOtpCode(): Promise<{
+  code: string;
+  remainingSeconds: number;
+  period: number;
+}> {
+  const response = await request("/api/auth/otp/code", { method: "GET" });
+  if (!response.ok) {
+    throw new Error(`GET /api/auth/otp/code failed with ${response.status}`);
+  }
+  return response.json() as Promise<{
+    code: string;
+    remainingSeconds: number;
+    period: number;
+  }>;
+}
+
+export async function fetchOtpLoginState(): Promise<{
+  isLocked: boolean;
+  remainingAttempts?: number;
+  remainingSeconds?: number;
+  lockedUntil?: Nullable<string>;
+}> {
+  const response = await request("/api/auth/login/otp", { method: "GET" });
+  if (!response.ok) {
+    throw new Error(`GET /api/auth/login/otp failed with ${response.status}`);
+  }
+  return response.json() as Promise<{
+    isLocked: boolean;
+    remainingAttempts?: number;
+    remainingSeconds?: number;
+    lockedUntil?: Nullable<string>;
+  }>;
+}
+
 export async function requestOtpSetup(): Promise<OtpSetupResponse> {
   const response = await request("/api/auth/otp", { method: "POST" });
   if (!response.ok) {

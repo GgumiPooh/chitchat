@@ -2,6 +2,7 @@ import {
   A_DAY,
   A_MINUTE,
   A_SECOND,
+  AN_HOUR,
   safelyGet,
   type Maybe,
   type MessageId,
@@ -730,6 +731,10 @@ export const SESSION_COOKIE_OPTIONS = {
   domain: SESSION_COOKIE_DOMAIN,
   maxAge: SESSION_DURATION / A_SECOND,
 } as const;
+
+export const TEMP_SESSION_COOKIE_NAME = "jandh_temp_session";
+export const TEMP_SESSION_DURATION = 12 * AN_HOUR;
+export const TEMP_SESSION_MAX_AGE_SECONDS = (12 * AN_HOUR) / A_SECOND;
 
 /**
  * REQUIREMENTS.md § 7. The Web Share Target parameters, and the order the shared

@@ -9,6 +9,7 @@ import {
   SESSION_COOKIE_NAME,
   SESSION_COOKIE_OPTIONS,
   SHARE_TARGET_PARAMS,
+  TEMP_SESSION_COOKIE_NAME,
 } from "@/shared/config";
 import { NextResponse, type NextRequest } from "next/server";
 
@@ -53,7 +54,11 @@ export function proxy(request: NextRequest) {
   const response = NextResponse.next();
 
   // INFO: The client half of the sliding renewal in `getSessionContext` — the row's new expiry is invisible to the browser without it.
-  response.cookies.set(SESSION_COOKIE_NAME, sessionToken, SESSION_COOKIE_OPTIONS);
+  // For temporary sessions (e.g. 12-hour OTP session), do not extend cookie to 180 days.
+  const isTempSession = Boolean(request.cookies.get(TEMP_SESSION_COOKIE_NAME)?.value);
+  if (!isTempSession) {
+    response.cookies.set(SESSION_COOKIE_NAME, sessionToken, SESSION_COOKIE_OPTIONS);
+  }
 
   return response;
 }

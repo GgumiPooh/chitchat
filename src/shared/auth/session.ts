@@ -6,6 +6,7 @@ import {
   SESSION_COOKIE_OPTIONS,
   SESSION_DURATION,
   SESSION_EXPIRE_ROUTE,
+  TEMP_SESSION_COOKIE_NAME,
 } from "@/shared/config";
 import { getDb, nextSnowflake, sessions, users, type Session, type User } from "@/shared/db";
 import { A_DAY, safelyGet, type Nullable, type SessionId, type UserId } from "@/shared/lib";
@@ -53,6 +54,7 @@ async function hashSessionToken(token: string): Promise<string> {
 export async function createSessionWithKey(
   userId: UserId,
   deviceLabel: Nullable<string>,
+  durationMs = SESSION_DURATION,
 ): Promise<{ token: string; encryptionKey: string }> {
   const token = generateSessionToken();
   const encryptionKey = generateEncryptionKey();
@@ -64,7 +66,7 @@ export async function createSessionWithKey(
       userId,
       tokenHash: await hashSessionToken(token),
       deviceLabel,
-      expiresAt: new Date(Date.now() + SESSION_DURATION),
+      expiresAt: new Date(Date.now() + durationMs),
       encryptionKey,
     });
 
@@ -74,8 +76,9 @@ export async function createSessionWithKey(
 export async function createSession(
   userId: UserId,
   deviceLabel: Nullable<string>,
+  durationMs = SESSION_DURATION,
 ): Promise<string> {
-  const { token } = await createSessionWithKey(userId, deviceLabel);
+  const { token } = await createSessionWithKey(userId, deviceLabel, durationMs);
   return token;
 }
 
@@ -116,7 +119,9 @@ export const getSessionContext = cache(async (): Promise<Nullable<SessionContext
     row.session.encryptionKey = encryptionKey;
   }
 
-  if (now - row.session.lastSeenAt.getTime() > SESSION_RENEWAL_INTERVAL) {
+  const isTempSession = Boolean((await cookies()).get(TEMP_SESSION_COOKIE_NAME)?.value);
+
+  if (!isTempSession && now - row.session.lastSeenAt.getTime() > SESSION_RENEWAL_INTERVAL) {
     const renewed = {
       lastSeenAt: new Date(now),
       expiresAt: new Date(now + SESSION_DURATION),
@@ -213,15 +218,36 @@ export async function invalidateCurrentSession(): Promise<void> {
   }
 }
 
-export async function setSessionCookie(token: string): Promise<void> {
-  (await cookies()).set(SESSION_COOKIE_NAME, token, SESSION_COOKIE_OPTIONS);
+export async function setSessionCookie(
+  token: string,
+  options?: { maxAgeSeconds?: number },
+): Promise<void> {
+  const cookieOptions =
+    options?.maxAgeSeconds !== undefined
+      ? { ...SESSION_COOKIE_OPTIONS, maxAge: options.maxAgeSeconds }
+      : SESSION_COOKIE_OPTIONS;
+  const cookieStore = await cookies();
+  cookieStore.set(SESSION_COOKIE_NAME, token, cookieOptions);
+  if (!options?.maxAgeSeconds) {
+    cookieStore.delete({
+      name: TEMP_SESSION_COOKIE_NAME,
+      domain: SESSION_COOKIE_DOMAIN,
+      path: "/",
+    });
+  }
 }
 
 export async function clearSessionCookie(): Promise<void> {
   // WARN: The name alone clears a host-only cookie, and the session cookie is issued over a parent domain (REQUIREMENTS.md § 5.2.) — a delete that omits `Domain` leaves it in place, and the proxy then bounces off `SESSION_EXPIRE_ROUTE` forever.
-  (await cookies()).delete({
+  const cookieStore = await cookies();
+  cookieStore.delete({
     name: SESSION_COOKIE_NAME,
     domain: SESSION_COOKIE_DOMAIN,
     path: SESSION_COOKIE_OPTIONS.path,
+  });
+  cookieStore.delete({
+    name: TEMP_SESSION_COOKIE_NAME,
+    domain: SESSION_COOKIE_DOMAIN,
+    path: "/",
   });
 }

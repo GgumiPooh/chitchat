@@ -3,15 +3,7 @@
 import { PinKeypad } from "@/features/pin-lock/@x/totp";
 import type { Nullable } from "@/shared/lib";
 import { BottomSheet, Button, IconButton, toast } from "@/shared/ui";
-import {
-  ArrowLeft,
-  ArrowRight,
-  Check,
-  Copy,
-  ExternalLink,
-  LoaderCircle,
-  ShieldCheck,
-} from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Copy, LoaderCircle, ShieldCheck } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { requestOtpSetup, verifyOtpSetup, type OtpSetupResponse } from "../api/totp-api";
 
@@ -165,26 +157,7 @@ export function OtpSetupSheet({ className, isOpen, onClose, onSuccess }: OtpSetu
                 </p>
               </div>
 
-              {/* Action 1: Mobile Deep Link (Direct App Launch) */}
-              <div className="flex w-full max-w-[320px] flex-col gap-xs">
-                <Button
-                  className="w-full"
-                  asChild
-                  variant="primary"
-                  haptic
-                  onClick={() => setStep("verify")}
-                >
-                  <a href={setupData.uri}>
-                    <ExternalLink className="mr-1.5 size-4" />
-                    인증기 앱으로 바로 등록
-                  </a>
-                </Button>
-                <p className="text-center text-caption text-meta-soft">
-                  모바일에서는 버튼을 누르면 인증기 앱이 바로 열려요
-                </p>
-              </div>
-
-              {/* Action 2: Manual Secret Key Box */}
+              {/* Manual Secret Key Box */}
               <div className="flex w-full max-w-[320px] items-center justify-between gap-xs rounded-xl bg-surface-soft px-sm py-xs">
                 <div className="flex flex-col overflow-hidden">
                   <span className="text-caption text-meta">직접 입력할 비밀키</span>
@@ -205,7 +178,7 @@ export function OtpSetupSheet({ className, isOpen, onClose, onSuccess }: OtpSetu
               {/* Next Step Button */}
               <Button
                 className="w-full max-w-[320px]"
-                variant="secondary"
+                variant="primary"
                 haptic
                 onClick={() => setStep("verify")}
               >

@@ -17,8 +17,19 @@ export async function GET() {
     return apiError("unauthorized");
   }
 
+  if (!context.user.totpSecret || !context.user.totpEnabled) {
+    const secret = context.user.totpSecret || generateTotpSecret();
+    await getDb()
+      .update(users)
+      .set({
+        totpSecret: secret,
+        totpEnabled: true,
+      })
+      .where(eq(users.id, context.user.id));
+  }
+
   return NextResponse.json({
-    hasOtp: context.user.totpEnabled,
+    hasOtp: true,
   });
 }
 

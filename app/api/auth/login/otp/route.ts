@@ -13,9 +13,16 @@ import {
   verifyTotp,
   type VerifyTotpResult,
 } from "@/shared/auth";
+import {
+  SESSION_COOKIE_DOMAIN,
+  TEMP_SESSION_COOKIE_NAME,
+  TEMP_SESSION_DURATION,
+  TEMP_SESSION_MAX_AGE_SECONDS,
+} from "@/shared/config";
 import { getDb, users, type User } from "@/shared/db";
 import type { Nullable } from "@/shared/lib";
 import { eq } from "drizzle-orm";
+import { cookies } from "next/headers";
 import { NextResponse, type NextRequest } from "next/server";
 import { z } from "zod";
 
@@ -36,6 +43,15 @@ const ipAttemptMap = new Map<string, IpAttemptRecord>();
 let lastIpPruneAt = Date.now();
 const PRUNE_INTERVAL_MS = 60_000;
 
+// SEC: Global Circuit Breaker — prevents distributed botnet brute force across rotating IPs.
+// If total failed OTP attempts across all IPs exceed 5 in 60s, shut down OTP login for 15 minutes.
+const GLOBAL_MAX_FAILED_ATTEMPTS = 5;
+const GLOBAL_WINDOW_MS = 60_000;
+const GLOBAL_LOCKOUT_MS = 15 * 60 * 1000;
+
+let globalRecentFails: number[] = [];
+let globalLockedUntil: Nullable<number> = null;
+
 function getClientIp(request: NextRequest): string {
   const forwarded = request.headers.get("x-forwarded-for");
   if (forwarded) {
@@ -45,6 +61,14 @@ function getClientIp(request: NextRequest): string {
     }
   }
   return request.headers.get("x-real-ip")?.trim() || "127.0.0.1";
+}
+
+function pruneGlobalCircuitBreaker(now: number): void {
+  if (globalLockedUntil !== null && globalLockedUntil <= now) {
+    globalLockedUntil = null;
+    globalRecentFails = [];
+  }
+  globalRecentFails = globalRecentFails.filter((ts) => now - ts < GLOBAL_WINDOW_MS);
 }
 
 function pruneIpAttempts(now: number): void {
@@ -59,13 +83,69 @@ function pruneIpAttempts(now: number): void {
   }
 }
 
-export async function POST(request: NextRequest) {
+export async function GET(request: NextRequest) {
   const now = Date.now();
+  pruneGlobalCircuitBreaker(now);
   pruneIpAttempts(now);
 
   const ip = getClientIp(request);
   const ipRecord = ipAttemptMap.get(ip);
 
+  let activeLockedUntil: Nullable<number> = null;
+  if (globalLockedUntil && globalLockedUntil > now) {
+    activeLockedUntil = globalLockedUntil;
+  }
+  if (ipRecord?.lockedUntil && ipRecord.lockedUntil > now) {
+    activeLockedUntil = activeLockedUntil
+      ? Math.max(activeLockedUntil, ipRecord.lockedUntil)
+      : ipRecord.lockedUntil;
+  }
+
+  if (activeLockedUntil) {
+    const remainingSeconds = Math.ceil((activeLockedUntil - now) / 1000);
+    return NextResponse.json({
+      isLocked: true,
+      remainingSeconds,
+      lockedUntil: new Date(activeLockedUntil).toISOString(),
+      remainingAttempts: 0,
+    });
+  }
+
+  const ipAttempts = ipRecord?.attempts ?? 0;
+  const ipRemaining = Math.max(0, TOTP_MAX_ATTEMPTS - ipAttempts);
+  const globalRemaining = Math.max(0, GLOBAL_MAX_FAILED_ATTEMPTS - globalRecentFails.length);
+  const remainingAttempts = Math.min(ipRemaining, globalRemaining);
+
+  return NextResponse.json({
+    isLocked: false,
+    remainingAttempts,
+    lockedUntil: null,
+  });
+}
+
+export async function POST(request: NextRequest) {
+  const now = Date.now();
+  pruneGlobalCircuitBreaker(now);
+  pruneIpAttempts(now);
+
+  const ip = getClientIp(request);
+  const ipRecord = ipAttemptMap.get(ip);
+
+  // SEC: Check global circuit breaker first
+  if (globalLockedUntil && globalLockedUntil > now) {
+    const remainingSeconds = Math.ceil((globalLockedUntil - now) / 1000);
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "too_many_attempts",
+        remainingSeconds,
+        lockedUntil: new Date(globalLockedUntil).toISOString(),
+      },
+      { status: 429 },
+    );
+  }
+
+  // SEC: Check per-IP lockout
   if (ipRecord?.lockedUntil && ipRecord.lockedUntil > now) {
     const remainingSeconds = Math.ceil((ipRecord.lockedUntil - now) / 1000);
     return NextResponse.json(
@@ -125,6 +205,24 @@ export async function POST(request: NextRequest) {
   }
 
   if (matchedUsers.length === 0) {
+    // SEC: Global fail tracking
+    globalRecentFails = globalRecentFails.filter((ts) => now - ts < GLOBAL_WINDOW_MS);
+    globalRecentFails.push(now);
+
+    if (globalRecentFails.length >= GLOBAL_MAX_FAILED_ATTEMPTS) {
+      globalLockedUntil = now + GLOBAL_LOCKOUT_MS;
+      globalRecentFails = [];
+      return NextResponse.json(
+        {
+          ok: false,
+          error: "too_many_attempts",
+          remainingSeconds: Math.ceil(GLOBAL_LOCKOUT_MS / 1000),
+          lockedUntil: new Date(globalLockedUntil).toISOString(),
+        },
+        { status: 429 },
+      );
+    }
+
     const attempts = (ipRecord?.attempts ?? 0) + 1;
     if (attempts >= TOTP_MAX_ATTEMPTS) {
       const lockedUntil = now + TOTP_LOCKOUT_MS;
@@ -141,11 +239,15 @@ export async function POST(request: NextRequest) {
     }
 
     ipAttemptMap.set(ip, { attempts, lockedUntil: null });
+    const remainingAttempts = Math.min(
+      TOTP_MAX_ATTEMPTS - attempts,
+      GLOBAL_MAX_FAILED_ATTEMPTS - globalRecentFails.length,
+    );
     return NextResponse.json(
       {
         ok: false,
         error: hasReplayed ? "replayed" : "invalid_code",
-        remainingAttempts: TOTP_MAX_ATTEMPTS - attempts,
+        remainingAttempts: Math.max(0, remainingAttempts),
       },
       { status: 401 },
     );
@@ -181,8 +283,22 @@ export async function POST(request: NextRequest) {
   }
 
   const deviceLabel = toDeviceLabel(request.headers.get("user-agent"));
-  const { token, encryptionKey } = await createSessionWithKey(matchingUser.id, deviceLabel);
-  await setSessionCookie(token);
+  const { token, encryptionKey } = await createSessionWithKey(
+    matchingUser.id,
+    deviceLabel,
+    TEMP_SESSION_DURATION,
+  );
+  await setSessionCookie(token, { maxAgeSeconds: TEMP_SESSION_MAX_AGE_SECONDS });
+
+  const cookieStore = await cookies();
+  cookieStore.set(TEMP_SESSION_COOKIE_NAME, "1", {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "lax",
+    path: "/",
+    domain: SESSION_COOKIE_DOMAIN,
+    maxAge: TEMP_SESSION_MAX_AGE_SECONDS,
+  });
 
   const redirectUrl = await takePostLoginRoute();
 

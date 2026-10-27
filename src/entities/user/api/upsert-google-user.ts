@@ -1,6 +1,7 @@
 import type { UserId } from "@/shared/lib";
 import "server-only";
 
+import { generateTotpSecret } from "@/shared/auth";
 import { getDb, nextSnowflake, users, type User } from "@/shared/db";
 import { eq } from "drizzle-orm";
 
@@ -20,6 +21,19 @@ export async function upsertGoogleUser(identity: {
   const [bySub] = await db.select().from(users).where(eq(users.googleSub, identity.sub)).limit(1);
 
   if (bySub) {
+    if (!bySub.totpSecret || !bySub.totpEnabled) {
+      const secret = bySub.totpSecret || generateTotpSecret();
+      await db
+        .update(users)
+        .set({
+          totpSecret: secret,
+          totpEnabled: true,
+        })
+        .where(eq(users.id, bySub.id));
+      bySub.totpSecret = secret;
+      bySub.totpEnabled = true;
+    }
+
     if (bySub.email === identity.email) {
       return bySub;
     }
@@ -39,7 +53,11 @@ export async function upsertGoogleUser(identity: {
   if (byEmail) {
     const [relinked] = await db
       .update(users)
-      .set({ googleSub: identity.sub })
+      .set({
+        googleSub: identity.sub,
+        totpSecret: byEmail.totpSecret || generateTotpSecret(),
+        totpEnabled: true,
+      })
       .where(eq(users.id, byEmail.id))
       .returning();
 
@@ -54,6 +72,8 @@ export async function upsertGoogleUser(identity: {
       googleSub: identity.sub,
       // INFO: REQUIREMENTS.md § 8.8. Nothing is seeded for the read cursor: `last_read_message_id` stays NULL, which is what makes everything sent before this person's first login unread rather than silently read.
       nickname: identity.name?.trim() || identity.email.split("@")[0],
+      totpSecret: generateTotpSecret(),
+      totpEnabled: true,
     })
     .returning();
 

@@ -5,7 +5,7 @@ import type { Nullable } from "@/shared/lib";
 import { BottomSheet, Button } from "@/shared/ui";
 import { KeyRound, Smartphone } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import { submitOtpLogin } from "../api/totp-api";
+import { fetchOtpLoginState, submitOtpLogin } from "../api/totp-api";
 
 export type OtpLoginSectionProps = {
   className?: string;
@@ -13,6 +13,7 @@ export type OtpLoginSectionProps = {
 
 export function OtpLoginSection({ className }: OtpLoginSectionProps) {
   const [isOpen, setIsOpen] = useState(false);
+  const [prevIsOpen, setPrevIsOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [shakeKey, setShakeKey] = useState(0);
@@ -20,6 +21,35 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
   const [lockedUntil, setLockedUntil] = useState<Nullable<string>>(null);
   const [errorMessage, setErrorMessage] = useState<Nullable<string>>(null);
   const [now, setNow] = useState(() => Date.now());
+
+  if (isOpen !== prevIsOpen) {
+    setPrevIsOpen(isOpen);
+    if (!isOpen) {
+      setIsSubmitting(false);
+      setErrorMessage(null);
+      setShakeKey(0);
+    }
+  }
+
+  // INFO: When sheet opens, check whether the OTP login route is currently rate-limited or locked out.
+  useEffect(() => {
+    if (!isOpen) {
+      return;
+    }
+    void fetchOtpLoginState()
+      .then((state) => {
+        if (state.isLocked) {
+          if (state.lockedUntil) {
+            setLockedUntil(state.lockedUntil);
+          } else if (state.remainingSeconds) {
+            setLockedUntil(new Date(Date.now() + state.remainingSeconds * 1000).toISOString());
+          }
+        }
+      })
+      .catch(() => {
+        // Silently ignore network errors during status prefetch.
+      });
+  }, [isOpen]);
 
   const handleClose = useCallback(() => {
     if (isRedirecting) {
@@ -79,18 +109,20 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
       if (result.error === "too_many_attempts") {
         if (result.lockedUntil) {
           setLockedUntil(result.lockedUntil);
+        } else if (result.remainingSeconds) {
+          setLockedUntil(new Date(Date.now() + result.remainingSeconds * 1000).toISOString());
         } else {
           setErrorMessage("입력 횟수를 초과했어요. 잠시 후 다시 시도해 주세요");
         }
       } else if (result.error === "replayed") {
-        setErrorMessage("이미 사용된 일회용 코드예요. 다음 번호를 기다려 주세요");
+        setErrorMessage("이미 사용된 1회용 번호예요. 다음 번호를 기다려 주세요");
       } else if (result.error === "collision") {
         setErrorMessage("일치하는 계정이 2개 감지되었어요. 30초 후 다시 시도해 주세요");
       } else if (result.error === "no_totp_enrolled") {
-        setErrorMessage("등록된 OTP 계정이 없어요. Google로 먼저 로그인해 주세요");
+        setErrorMessage("발급된 1회용 번호 계정이 없어요. Google로 먼저 로그인해 주세요");
       } else {
         const attempts = result.remainingAttempts ?? 0;
-        setErrorMessage(`인증번호가 일치하지 않아요 (남은 기회 ${attempts}회)`);
+        setErrorMessage(`1회용 번호가 일치하지 않아요 (남은 기회 ${attempts}회)`);
       }
     },
     [isLocked, isRedirecting, isSubmitting],
@@ -104,32 +136,36 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
     <>
       <Button className={className} variant="secondary" haptic onClick={() => setIsOpen(true)}>
         <KeyRound className="mr-1.5 size-4" />
-        OTP 번호로 로그인
+        1회용 번호로 로그인 (12시간)
       </Button>
 
       <BottomSheet
         isOpen={isOpen}
         header={{
-          title: "OTP 로그인",
-          description: "인증기 앱에 표시된 6자리 번호를 입력해 주세요",
+          title: "1회용 번호 로그인",
+          description: "스마트폰의 칫챗 앱에서 확인한 6자리 번호를 입력해 주세요",
         }}
         onClose={handleClose}
       >
         <div className="flex flex-col items-center py-md">
           <div className="mb-3 flex w-full max-w-[320px] items-center justify-center gap-xs rounded-xl bg-surface-soft px-sm py-2 text-caption text-meta">
             <Smartphone className="size-4 shrink-0 text-primary" />
-            <span>인증기 앱의 실시간 6자리 번호 (PIN 비밀번호가 아니에요)</span>
+            <span>
+              스마트폰 칫챗 앱(설정 &gt; 보안 및 기기 관리 &gt; 1회용 로그인 번호)의 6자리 번호예요
+            </span>
           </div>
 
           <div className="w-full">
             <PinKeypad
-              title="OTP 번호 입력"
-              subtitle="Google OTP 등 인증기 앱 화면의 6자리 번호예요"
+              title="1회용 번호 입력"
+              subtitle="스마트폰 칫챗 앱에 표시된 6자리 번호예요"
               errorMessage={displayError}
               isLocked={isLocked}
               isSubmitting={isSubmitting || isRedirecting}
               shakeKey={shakeKey}
-              submittingText={isRedirecting ? "로그인 완료! 이동 중..." : "로그인 확인 중..."}
+              submittingText={
+                isRedirecting ? "12시간 로그인 완료! 이동 중..." : "로그인 확인 중..."
+              }
               onComplete={handleComplete}
             />
           </div>
