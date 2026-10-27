@@ -6,6 +6,7 @@ import {
   RESUME_STAGGER_DELAYS,
   VIEWPORT_QUIET_WINDOW,
   isEditableElement,
+  isIos,
   isStandalone,
   safelyGet,
   safelyRun,
@@ -59,10 +60,27 @@ export function VisualViewportSync() {
       return measured;
     }
 
+    function getStandaloneScreenHeight(): number {
+      if (!isIos() || typeof window === "undefined" || !window.screen) {
+        return 0;
+      }
+
+      // WARN: User agent check distinguishes iPhone/iPod from iPad, where Split View and Stage Manager allow windows smaller than the hardware screen. On iPhone standalone PWA, the window is unconditionally the full display screen.
+      if (!/iPhone|iPod/.test(window.navigator.userAgent)) {
+        return 0;
+      }
+
+      const isLandscape = window.innerWidth > window.innerHeight;
+      return isLandscape
+        ? Math.min(window.screen.width, window.screen.height)
+        : Math.max(window.screen.width, window.screen.height);
+    }
+
     let lastWidth = viewport.width;
     let lvhHeight = measureLvh();
+    let screenHeight = getStandaloneScreenHeight();
     let restingHeight = isStandalone()
-      ? Math.max(viewport.height, window.innerHeight, lvhHeight)
+      ? Math.max(viewport.height, window.innerHeight, lvhHeight, screenHeight)
       : viewport.height;
     let keyboardHeight = 0;
     // WARN: As `useIsVirtualKeyboardOpen` is gated — a desktop window resized while a field is focused is a drop past the threshold too, and it would be remembered as a keyboard.
@@ -146,13 +164,14 @@ export function VisualViewportSync() {
       if (width !== lastWidth) {
         lastWidth = width;
         lvhHeight = measureLvh();
+        screenHeight = getStandaloneScreenHeight();
       }
 
-      // INFO: When no editable element is focused, the resting height cannot legitimately be smaller than the layout window (e.g. WebKit standalone PWA reporting small viewport height with ghost toolbars or stuck post-dismissal height). In standalone PWA where no browser toolbars exist, clamping to `100lvh` prevents the bottom chin gap on cold launch while preserving true keyboard shrink.
+      // INFO: When no editable element is focused, the resting height cannot legitimately be smaller than the layout window (e.g. WebKit standalone PWA reporting small viewport height with ghost toolbars or stuck post-dismissal height). In standalone PWA where no browser toolbars exist, clamping to `100lvh` and hardware screen height on iPhone prevents the bottom chin gap on cold launch while preserving true keyboard shrink.
       const isFieldActive =
         isEditableElement(document.activeElement) || root.hasAttribute(KEYBOARD_OVERLAID_ATTRIBUTE);
       const minRestingHeight = isStandalone()
-        ? Math.max(height, window.innerHeight, lvhHeight)
+        ? Math.max(height, window.innerHeight, lvhHeight, screenHeight)
         : Math.max(height, window.innerHeight);
       const effectiveHeight = isFieldActive ? height : minRestingHeight;
 

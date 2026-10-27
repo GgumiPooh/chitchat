@@ -400,10 +400,14 @@
   }
 }
 
-/* INFO: DESIGN.md § 3.4. In standalone PWA there are no browser toolbars, so the resting height is the large viewport (`100lvh`). On cold launch before `VisualViewportSync` sets `--viewport-height`, this prevents WebKit from falling back to dynamic/small viewport with a 64px chin gap. */
+/* INFO: DESIGN.md § 3.4. In standalone PWA there are no browser toolbars, so the resting height is the large viewport (`100lvh`). On cold launch before `VisualViewportSync` sets `--viewport-height`, and while no keyboard is open, this keeps the chat screen flush to the device bottom without a 64px chin gap. When the virtual keyboard opens, `--chat-screen-height` follows `--viewport-height` to shrink above the keys. */
 @media (display-mode: standalone) {
   :root {
     --viewport-resting-height: 100lvh;
+    --chat-screen-height: 100lvh;
+  }
+
+  :root[data-keyboard-open] {
     --chat-screen-height: var(--viewport-height, 100lvh);
   }
 }
