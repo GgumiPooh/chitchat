@@ -65,6 +65,7 @@ export function ShortcutHelp({ className, isOpen, onClose }: ShortcutHelpProps) 
         {/* INFO: § 8.14. `⌘/` is not listed. Anyone reading this has already pressed it, so the row taught nothing and cost a line of the few this has. */}
         {renderGroup("대화", [
           { chord: [alt], keys: ["↑", "↓"], label: "대화 스크롤" },
+          { keys: ["PgUp", "PgDn"], label: "대화 페이지 스크롤" },
           { chord: [goToNewest], keys: ["↓"], label: "최신 메시지로 이동하기" },
           { keys: ["Esc", "Enter"], label: "메시지 입력창으로" },
           // WARN: § 8.14. `Ctrl`, spelled out rather than `command` — these two spend the physical key on every platform, never `⌘` on a Mac (`isCtrlKey`'s own WARN).

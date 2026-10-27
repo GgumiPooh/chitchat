@@ -71,6 +71,8 @@ export type ChatShortcuts = {
   onSelectEmoticonMenu: (menu: EmoticonMenu) => void;
   /** `⌥↑` / `⌥↓` — the conversation, a step at a time. `-1` is towards older messages. */
   onScrollHistory: (direction: -1 | 1) => void;
+  /** `PgUp` / `PgDn` — the conversation, a page at a time. `-1` is towards older messages. */
+  onScrollPage: (direction: -1 | 1) => void;
   /** `⌃A` — REQUIREMENTS.md § 8.5. AI 질문 모드, entered on an empty selection or exited. */
   onToggleAiMode: () => void;
   /** `⌃S` — REQUIREMENTS.md § 16.1. Cycles 알림 울리게 보내기 → 조용히 보내기 → 나에게만 보내기 → …. */
@@ -178,6 +180,8 @@ export function useChatShortcuts(shortcuts: ChatShortcuts) {
         handlers.current.onToggleEmoticonPanel();
       } else if (isAltKey(event)) {
         handlers.current.onScrollHistory(event.key === "ArrowDown" ? 1 : -1);
+      } else if (event.key === "PageUp" || event.key === "PageDown") {
+        handlers.current.onScrollPage(event.key === "PageDown" ? 1 : -1);
       } else if (event.key === "Enter") {
         if (isBareKey(event)) {
           handlers.current.onFocusComposer();
@@ -329,6 +333,11 @@ function isOwnedKey(event: KeyboardEvent): boolean {
 
   if (event.key === "ArrowDown") {
     return isAltKey(event) || isCommandKey(event);
+  }
+
+  // INFO: § 8.14. `PgUp`/`PgDn` scrolls the conversation by page, claimed off any control and inside the composer too.
+  if (event.key === "PageUp" || event.key === "PageDown") {
+    return isBareKey(event);
   }
 
   // INFO: § 8.5., § 16.1. `⌃A`/`⌃S`, the physical `Ctrl` on every platform rather than

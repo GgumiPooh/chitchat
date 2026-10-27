@@ -365,6 +365,9 @@ const LOAD_OLDER_THRESHOLD = 600;
 // INFO: REQUIREMENTS.md § 8.14. How far `⌥↑`/`⌥↓` moves, as a share of what is on screen rather than a pixel count — a step that reads the same on a phone and on a desktop, and that leaves most of the last screenful in view to read against.
 const HISTORY_SCROLL_STEP = 0.4;
 
+// INFO: REQUIREMENTS.md § 8.14. How far `PgUp`/`PgDn` moves, advancing by most of a page while retaining a reading overlap.
+const HISTORY_PAGE_SCROLL_STEP = 0.85;
+
 // INFO: DESIGN.md § 7.12. Deep enough that a bubble dissolves well before the floating header's own text, rather than being clipped by it or dissolving right at its edge.
 const TOP_FADE_LENGTH = "4rem";
 
@@ -1763,6 +1766,7 @@ export function ChatRoom({
     onToggleEmoticonPanel: toggleEmoticonPanel,
     onSelectEmoticonMenu: selectEmoticonMenu,
     onScrollHistory: scrollHistory,
+    onScrollPage: scrollPage,
     onToggleAiMode: toggleAiMode,
     onToggleSilentSend,
     onTypeAhead: typeIntoComposer,
@@ -3486,7 +3490,7 @@ export function ChatRoom({
    * had reached, so a held key reads as one glide rather than a queue of jumps that
    * outlives the press.
    */
-  function scrollHistory(direction: -1 | 1) {
+  function scrollHistoryByStep(direction: -1 | 1, step: number) {
     const scroller = scrollerRef.current;
 
     if (!scroller) {
@@ -3500,9 +3504,17 @@ export function ChatRoom({
       settleFirstParkFrameRef.current = undefined;
     }
     scroller.scrollBy({
-      top: scroller.clientHeight * HISTORY_SCROLL_STEP * direction,
+      top: scroller.clientHeight * step * direction,
       behavior: "smooth",
     });
+  }
+
+  function scrollHistory(direction: -1 | 1) {
+    scrollHistoryByStep(direction, HISTORY_SCROLL_STEP);
+  }
+
+  function scrollPage(direction: -1 | 1) {
+    scrollHistoryByStep(direction, HISTORY_PAGE_SCROLL_STEP);
   }
 
   /**
