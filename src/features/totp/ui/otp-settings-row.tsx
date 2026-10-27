@@ -24,7 +24,7 @@ export function OtpSettingsRow({ className }: OtpSettingsRowProps) {
     <>
       <SettingsRow
         className={className}
-        description="사내 PC 등 다른 기기에서 12시간 동안 로그인할 수 있는 1회용 번호를 확인해요"
+        description="다른 기기에서 로그인할 수 있는 1회용 번호를 확인해요"
         Icon={KeyRound}
         label="1회용 로그인 번호"
         trailing={

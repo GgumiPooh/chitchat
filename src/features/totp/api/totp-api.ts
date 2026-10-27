@@ -33,6 +33,7 @@ export async function fetchOtpStatus(): Promise<{ hasOtp: boolean }> {
 
 export async function fetchCurrentOtpCode(): Promise<{
   code: string;
+  nextCode?: string;
   remainingSeconds: number;
   period: number;
 }> {
@@ -42,6 +43,7 @@ export async function fetchCurrentOtpCode(): Promise<{
   }
   return response.json() as Promise<{
     code: string;
+    nextCode?: string;
     remainingSeconds: number;
     period: number;
   }>;

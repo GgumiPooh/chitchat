@@ -16,11 +16,13 @@ export function OtpCodeViewerSheet({ className, isOpen, onClose }: OtpCodeViewer
   const [code, setCode] = useState<string>("");
   const [period, setPeriod] = useState<number>(30);
   const [remainingSeconds, setRemainingSeconds] = useState<number>(30);
+  const [isResetting, setIsResetting] = useState<boolean>(false);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [errorMessage, setErrorMessage] = useState<Nullable<string>>(null);
   const [isCopied, setIsCopied] = useState<boolean>(false);
   const [prevIsOpen, setPrevIsOpen] = useState(isOpen);
 
+  const nextCodeRef = useRef<string>("");
   const isFetchingRef = useRef(false);
 
   // INFO: Reset state when sheet transitions between open and closed.
@@ -30,6 +32,7 @@ export function OtpCodeViewerSheet({ className, isOpen, onClose }: OtpCodeViewer
       setIsLoading(true);
       setErrorMessage(null);
       setIsCopied(false);
+      setIsResetting(false);
     }
   }
 
@@ -42,6 +45,9 @@ export function OtpCodeViewerSheet({ className, isOpen, onClose }: OtpCodeViewer
     try {
       const data = await fetchCurrentOtpCode();
       setCode(data.code);
+      if (data.nextCode) {
+        nextCodeRef.current = data.nextCode;
+      }
       setPeriod(data.period > 0 ? data.period : 30);
       setRemainingSeconds(data.remainingSeconds);
       setIsCopied(false);
@@ -69,6 +75,9 @@ export function OtpCodeViewerSheet({ className, isOpen, onClose }: OtpCodeViewer
       .then((data) => {
         if (!cancelled) {
           setCode(data.code);
+          if (data.nextCode) {
+            nextCodeRef.current = data.nextCode;
+          }
           setPeriod(data.period > 0 ? data.period : 30);
           setRemainingSeconds(data.remainingSeconds);
           setIsCopied(false);
@@ -86,10 +95,15 @@ export function OtpCodeViewerSheet({ className, isOpen, onClose }: OtpCodeViewer
     const timer = setInterval(() => {
       setRemainingSeconds((prev) => {
         if (prev <= 1) {
+          if (nextCodeRef.current) {
+            setCode(nextCodeRef.current);
+            nextCodeRef.current = "";
+          }
+          setIsResetting(true);
           if (!cancelled) {
             void loadCode(false);
           }
-          return 0;
+          return 30;
         }
         return prev - 1;
       });
@@ -100,6 +114,15 @@ export function OtpCodeViewerSheet({ className, isOpen, onClose }: OtpCodeViewer
       clearInterval(timer);
     };
   }, [isOpen, loadCode]);
+
+  useEffect(() => {
+    if (isResetting) {
+      const frame = requestAnimationFrame(() => {
+        setIsResetting(false);
+      });
+      return () => cancelAnimationFrame(frame);
+    }
+  }, [isResetting]);
 
   const handleCopy = useCallback(async () => {
     if (!code) {
@@ -125,7 +148,7 @@ export function OtpCodeViewerSheet({ className, isOpen, onClose }: OtpCodeViewer
       isOpen={isOpen}
       header={{
         title: "1회용 로그인 번호",
-        description: "사내 PC 등 다른 기기 로그인 창에 입력해 주세요",
+        description: "다른 기기 로그인 창에 입력해 주세요",
       }}
       onClose={onClose}
     >
@@ -177,7 +200,10 @@ export function OtpCodeViewerSheet({ className, isOpen, onClose }: OtpCodeViewer
               <div className="h-1.5 w-full overflow-hidden rounded-full bg-surface-strong">
                 <div
                   className={cn(
-                    "h-full rounded-full transition-all duration-1000 ease-linear",
+                    "h-full rounded-full",
+                    isResetting
+                      ? "transition-none"
+                      : "transition-[width] duration-1000 ease-linear",
                     isUrgent ? "bg-semantic-error" : "bg-primary",
                   )}
                   style={{ width: `${progressPercent}%` }}
@@ -193,9 +219,9 @@ export function OtpCodeViewerSheet({ className, isOpen, onClose }: OtpCodeViewer
             <div className="flex w-full max-w-[320px] items-start gap-xs rounded-xl bg-surface-soft p-sm text-caption leading-relaxed text-meta">
               <ShieldCheck className="mt-0.5 size-4 shrink-0 text-primary" />
               <div>
-                사내 PC 등 다른 기기 로그인 창에서{" "}
+                다른 기기 로그인 창에서{" "}
                 <strong className="font-semibold text-ink">「1회용 번호로 로그인」</strong>을
-                누르고, 위 번호를 입력하면 12시간 동안 바로 로그인돼요.
+                누르고, 위 번호를 입력하면 바로 로그인돼요.
               </div>
             </div>
 

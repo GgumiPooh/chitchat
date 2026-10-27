@@ -4,6 +4,7 @@ import { safelyGet, safelyRun, useHydrated } from "@/shared/lib";
 import { BottomSheet, Button } from "@/shared/ui";
 import { PlusSquare, Share } from "lucide-react";
 import { useState } from "react";
+import { isIosSafariBrowserTab } from "../model/is-ios-browser-tab";
 
 const DISMISSED_KEY = "jandh:install-guide-dismissed";
 
@@ -19,9 +20,8 @@ export function InstallGuide({ className }: InstallGuideProps) {
 
   // INFO: localStorage is fine for a dismissal flag — REQUIREMENTS.md § 5.2. bans it for auth state only, where ITP eviction would sign the user out.
   // WARN: Blocked storage makes every `localStorage` access throw, and this renders inside the `(main)` layout — an unguarded read takes down all four tabs.
-  // INFO: Mac/iOS 등 일반 브라우저 탭(미설치 상태)에서 가이드를 띄움
-  const isTargetTab =
-    typeof window !== "undefined" && !window.matchMedia("(display-mode: standalone)").matches;
+  // INFO: Only shown on iOS Safari browser tab (미설치 상태)
+  const isTargetTab = isIosSafariBrowserTab();
 
   const isVisible =
     isHydrated &&

@@ -136,7 +136,7 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
     <>
       <Button className={className} variant="secondary" haptic onClick={() => setIsOpen(true)}>
         <KeyRound className="mr-1.5 size-4" />
-        1회용 번호로 로그인 (12시간)
+        1회용 번호로 로그인
       </Button>
 
       <BottomSheet
@@ -150,9 +150,7 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
         <div className="flex flex-col items-center py-md">
           <div className="mb-3 flex w-full max-w-[320px] items-center justify-center gap-xs rounded-xl bg-surface-soft px-sm py-2 text-caption text-meta">
             <Smartphone className="size-4 shrink-0 text-primary" />
-            <span>
-              스마트폰 칫챗 앱(설정 &gt; 보안 및 기기 관리 &gt; 1회용 로그인 번호)의 6자리 번호예요
-            </span>
+            <span>설정 &gt; 보안 및 기기 관리 &gt; 1회용 로그인 번호</span>
           </div>
 
           <div className="w-full">
@@ -163,9 +161,7 @@ export function OtpLoginSection({ className }: OtpLoginSectionProps) {
               isLocked={isLocked}
               isSubmitting={isSubmitting || isRedirecting}
               shakeKey={shakeKey}
-              submittingText={
-                isRedirecting ? "12시간 로그인 완료! 이동 중..." : "로그인 확인 중..."
-              }
+              submittingText={isRedirecting ? "로그인 완료! 이동 중..." : "로그인 확인 중..."}
               onComplete={handleComplete}
             />
           </div>

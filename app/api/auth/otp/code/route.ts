@@ -36,10 +36,12 @@ export async function GET() {
   const nowSec = Math.floor(Date.now() / 1000);
   const currentStep = Math.floor(nowSec / TOTP_STEP_SECONDS);
   const code = computeTotp(secret, currentStep);
+  const nextCode = computeTotp(secret, currentStep + 1);
   const remainingSeconds = TOTP_STEP_SECONDS - (nowSec % TOTP_STEP_SECONDS);
 
   return NextResponse.json({
     code,
+    nextCode,
     period: TOTP_STEP_SECONDS,
     remainingSeconds,
   });
