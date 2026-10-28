@@ -348,6 +348,9 @@
   /* INFO: DESIGN.md § 3.4. What the chat screen is tall: the visual viewport, except while 검색's field holds the keyboard, where the screen stands still and the keys cover the sheet instead. */
   --viewport-resting-height: 100dvh;
   --chat-screen-height: var(--viewport-height, 100dvh);
+  /* WARN: DESIGN.md § 3.4. At rest (`:not([data-keyboard-open])`), the chat screen is pinned to `bottom: 0` with `height: auto` so it spans the physical display to the bottom on iOS standalone PWA cold launch without relying on WebKit's 100lvh/100dvh estimates. */
+  --chat-screen-bottom: 0px;
+  --chat-screen-box-height: auto;
   /* WARN: DESIGN.md § 3.4. `0s` until a height has been measured, and that is the whole of what keeps a standalone cold launch still — see the section for what iOS moves after the first paint. */
   --viewport-settle-duration: 0s;
   /* INFO: DESIGN.md § 3.4. The keyboard FLIP — the composer and the list easing on `transform` after the chat screen's height has landed in one shot. */
@@ -400,11 +403,11 @@
   }
 }
 
-/* INFO: DESIGN.md § 3.4. In standalone PWA there are no browser toolbars, so the resting height is the large viewport (`100lvh`). On cold launch before `VisualViewportSync` sets `--viewport-height`, and while no keyboard is open, this keeps the chat screen flush to the device bottom without a 64px chin gap. When the virtual keyboard opens, `--chat-screen-height` follows `--viewport-height` to shrink above the keys. */
+/* INFO: DESIGN.md § 3.4. In standalone PWA there are no browser toolbars, so the resting height is the large viewport (`100lvh`). On cold launch before `VisualViewportSync` sets `--viewport-height`, `--chat-screen-bottom: 0px` keeps the chat screen pinned to the device bottom without a 64px chin gap. When `VisualViewportSync` synchronizes to hardware screen height, `--chat-screen-height` follows `--viewport-height`. When the virtual keyboard opens, `--chat-screen-height` follows `--viewport-height` to shrink above the keys. */
 @media (display-mode: standalone) {
   :root {
-    --viewport-resting-height: 100lvh;
-    --chat-screen-height: 100lvh;
+    --viewport-resting-height: var(--viewport-height, 100lvh);
+    --chat-screen-height: var(--viewport-height, 100lvh);
   }
 
   :root[data-keyboard-open] {
@@ -448,6 +451,8 @@
 :root[data-keyboard-open] {
   --bar-lift: 0px;
   --keyboard-pan: var(--viewport-top, 0px);
+  --chat-screen-bottom: auto;
+  --chat-screen-box-height: var(--chat-screen-height);
 }
 
 /* INFO: DESIGN.md § 3.4. Published by `VisualViewportSync` at its first write — from here on a height change is the keyboard, which is what the ease was written for. */
@@ -457,6 +462,8 @@
 
 /* INFO: DESIGN.md § 3.4. Published by the chat room while 검색's field holds the keyboard: the screen keeps its resting height, so the keys slide over the sheet's lower rows instead of squeezing the sheet into what they leave. */
 :root[data-keyboard-overlaid] {
+  --chat-screen-bottom: 0px;
+  --chat-screen-box-height: auto;
   --chat-screen-height: var(--viewport-resting-height, 100dvh);
   /* WARN: REQUIREMENTS.md § 13.6. `0s` while the screen is held clear of the keys: the height settles behind a keyboard that is still up, so easing it buys nothing and the sheet — anchored to the screen's bottom edge with no ease of its own to cancel — was revealed a few frames before that edge had arrived, above where it belongs. */
   /* WARN: § 13.6. This reaches `--chat-composer-spacer` too late to be its only source, since the attribute lands after the picker's own layout effects have forced a recalculation — the room writes the same `0s` inline beside the value (`chat-room.tsx`). */

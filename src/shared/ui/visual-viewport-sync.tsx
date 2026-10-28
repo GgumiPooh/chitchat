@@ -53,7 +53,7 @@ export function VisualViewportSync() {
     function measureLvh(): number {
       const probe = document.createElement("div");
       probe.style.cssText =
-        "position:fixed;height:100lvh;top:0;pointer-events:none;visibility:hidden;";
+        "position:absolute;height:100lvh;top:0;left:0;pointer-events:none;visibility:hidden;";
       root.appendChild(probe);
       const measured = probe.getBoundingClientRect().height;
       probe.remove();
