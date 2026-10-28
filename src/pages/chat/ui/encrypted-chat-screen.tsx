@@ -41,7 +41,7 @@ export function EncryptedChatScreen({
   const seed = useDecryptedServerPayload<DecryptedChatSeed>(encryptedPayload);
 
   if (!seed) {
-    return <div className={cn("min-h-dvh bg-canvas", className)} />;
+    return <div className={cn("min-h-[var(--viewport-height,100dvh)] bg-canvas", className)} />;
   }
 
   return (

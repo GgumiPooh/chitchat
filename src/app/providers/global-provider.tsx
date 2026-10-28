@@ -1,5 +1,5 @@
 import { ThemeProvider } from "@/shared/theme";
-import { Toaster } from "@/shared/ui";
+import { Toaster, VisualViewportSync } from "@/shared/ui";
 import { type PropsWithChildren } from "react";
 import { SyncedStorageProvider } from "synced-storage/react";
 import { QueryProvider } from "./query-provider";
@@ -12,6 +12,7 @@ export function GlobalProvider({ children }: PropsWithChildren) {
         <QueryProvider>
           {children}
           <Toaster />
+          <VisualViewportSync />
         </QueryProvider>
       </SyncedStorageProvider>
     </ThemeProvider>

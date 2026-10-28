@@ -44,8 +44,13 @@ export type ChatBackdropProps = {
 export function ChatBackdrop({ className, mediaId, blurhash }: ChatBackdropProps) {
   return (
     // WARN: `absolute`, never `fixed` — the room is a bounded box inside the § 3.4. chat screen, so this already spans exactly what is on screen. Going `fixed` would only take it out of the wash's own stacking order.
-    // WARN: DESIGN.md § 3.4. Sized to the **large** viewport and not clipped to the room. With the keys up the screen ends at the composer while iOS keeps the layout viewport its full height, and Safari's glass toolbar shows the page's pixels in the strip between — left clipped, that strip is bare `body` and the wallpaper reads as cut off at the composer.
-    <div className={cn("pointer-events-none absolute inset-x-0 top-0 h-[100lvh]", className)}>
+    // WARN: DESIGN.md § 3.4. Sized to `--viewport-resting-height` and at least `min-h-full` so it spans the physical display to the bottom without relying on WebKit's 100lvh (which reports small viewport height before scroll), while extending past the screen bottom when the virtual keyboard shrinks the room.
+    <div
+      className={cn(
+        "pointer-events-none absolute inset-x-0 top-0 h-(--viewport-resting-height) min-h-full",
+        className,
+      )}
+    >
       {/* INFO: `original`, not the thumbnail. This is drawn across the whole screen, where § 9.'s 720px long edge would be visibly soft. */}
       {/* WARN: No skeleton. A load that has not landed should read as a wallpaper that was never set; a pulsing plate the size of the screen behind the conversation is louder than the swap it covers. The hash below is the opposite case and replaces it outright (DESIGN.md § 7.8.) — it is the photo rather than a plate over it. */}
       {/* WARN: REQUIREMENTS.md § 12.2. `placeholderClassName` is the **failure** floor and nothing else. Wherever the hash parses, `useBlurhashStyle` publishes the photo's average as an inline `background-color` that outranks this class from the first paint — which is what the status bar is sampled from, and a flat `chat-canvas` winning here is the whole of the bug it fixes. */}

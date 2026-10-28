@@ -130,7 +130,12 @@ export function PinLockGate({
   // INFO: Render minimal centered spinner during SSR / hydration before sessionStorage is checked.
   if (hasSessionKey === null) {
     return (
-      <div className={cn("flex min-h-dvh w-full items-center justify-center bg-canvas", className)}>
+      <div
+        className={cn(
+          "flex min-h-[var(--viewport-height,100dvh)] w-full items-center justify-center bg-canvas",
+          className,
+        )}
+      >
         <LoaderCircle className="size-6 animate-spin text-meta-soft" aria-hidden />
       </div>
     );

@@ -21,7 +21,6 @@ import {
   RouteTransition,
   ScrollMemory,
   SidePanelSync,
-  VisualViewportSync,
 } from "@/shared/ui";
 import { InstallGuide } from "@/widgets/install-guide";
 import { OfflineBanner } from "@/widgets/offline-banner";
@@ -58,7 +57,12 @@ export function MainShell({
 
   if (!shell) {
     return (
-      <div className={cn("flex min-h-dvh w-full items-center justify-center bg-canvas", className)}>
+      <div
+        className={cn(
+          "flex min-h-[var(--viewport-height,100dvh)] w-full items-center justify-center bg-canvas",
+          className,
+        )}
+      >
         <LoaderCircle className="size-6 animate-spin text-meta-soft" aria-hidden />
       </div>
     );
@@ -102,7 +106,6 @@ export function MainShell({
             <TabBar hasEventToday={shell.hasTodayEvent} />
           </BottomOverlay>
         </Container>
-        <VisualViewportSync />
         <SidePanelSync />
         {/* INFO: REQUIREMENTS.md § 9.2. Shell-level, because a stray drop navigates the PWA away from every screen — not only from the two that take one. */}
         <FileDropGuard />

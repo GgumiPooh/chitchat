@@ -1,7 +1,12 @@
 "use client";
 
 import { BOTTOM_OVERLAY_ID } from "@/shared/config";
-import { KEYBOARD_OVERLAID_ATTRIBUTE, type Nullable, type Optional } from "@/shared/lib";
+import {
+  KEYBOARD_OVERLAID_ATTRIBUTE,
+  isEditableElement,
+  type Nullable,
+  type Optional,
+} from "@/shared/lib";
 import { useEffect, useRef, type RefObject } from "react";
 
 const CLEARANCE_PROPERTY = "--chat-composer-gap";
@@ -100,6 +105,7 @@ export function useComposerClearance({
   const containerHeightRef = useRef<Nullable<number>>(null);
   const containerWidthRef = useRef<Nullable<number>>(null);
   const composerTopRef = useRef<Nullable<number>>(null);
+  const wasKeyboardOpenRef = useRef(false);
 
   // INFO: Whether the composer's own FLIP is running — `readTranslateY` only makes sense mid-flight, since the first step's prior position is always `0`.
   const isComposerFlippingRef = useRef(false);
@@ -405,8 +411,15 @@ export function useComposerClearance({
       const priorComposerTop = composerTopRef.current;
       const topDelta = priorComposerTop === null ? 0 : composerTop - priorComposerTop;
       // INFO: A keyboard step moves the container's own height; the composer growing under typed text moves only the composer, with the container standing still.
-      // WARN: Gated on a coarse pointer and an unchanged width — a desktop window dragged taller would freeze the scroller on every frame, and a rotation would FLIP a list being re-laid out under it.
+      // WARN: Gated on an active/closing virtual keyboard, coarse pointer, and unchanged width — cold-launch layout adjustments and desktop resizes must never falsely trigger a keyboard FLIP.
+      const isKeyboardOpen =
+        document.documentElement.hasAttribute("data-keyboard-open") ||
+        isEditableElement(document.activeElement);
+      const isKeyboardTransition = isKeyboardOpen || wasKeyboardOpenRef.current;
+      wasKeyboardOpenRef.current = isKeyboardOpen;
+
       const isKeyboardStep =
+        isKeyboardTransition &&
         priorContainerHeight !== null &&
         containerHeight !== priorContainerHeight &&
         containerWidth === containerWidthRef.current &&

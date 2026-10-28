@@ -304,7 +304,6 @@ export function ChatScreen({
   return (
     // WARN: DESIGN.md § 3.4. The one screen that is not in the document's flow, and the reason is the keyboard rather than the layout. WebKit pans the visual viewport to reveal a focused field, and it can only do that to a document there is something to scroll — a `fixed` box sized to the visual viewport leaves it nothing, so `offsetTop` stays `0` and no chrome has to chase it from script. Every other screen keeps the document scroller, and Safari's collapsing toolbar with it (§ 3.3.).
     // WARN: `Container`, because a `fixed` box has left the shell column and inherits neither its max width nor its centring — the same re-application `AppHeader` and `BottomOverlay` make.
-    // INFO: DESIGN.md § 3.4. At rest (`:not([data-keyboard-open])`), pinned to `bottom-(--chat-screen-bottom)` (0px) with `h-(--chat-screen-box-height)` (auto) so the screen spans the physical display to the bottom without relying on WebKit's 100lvh/100dvh (which reports small viewport height before scroll). Under `[data-keyboard-open]`, switches to `bottom-auto h-(--chat-screen-height)` so the screen shrinks to the visual viewport above the keys.
     // INFO: DESIGN.md § 3.4. `--chat-screen-height` is the visual viewport until 검색's field holds the keyboard, where `ChatRoom` holds it at the resting height so the keys cover the sheet rather than shrink it.
     // WARN: DESIGN.md § 3.4. No height transition. A keyboard step used to ease this over 300ms, which is a layout property — `useComposerClearance`'s `ResizeObserver` measured and re-pinned the scroller on every frame of that ease. The height now lands in one shot and `useComposerClearance` FLIPs the composer and the list's content wrapper on `transform` instead, which is the only property that animation was ever meant to cost.
     // WARN: REQUIREMENTS.md § 12.2. The background carries the wallpaper's tint, exactly as `body` does for every other screen. This box is `fixed` and borders both obscured content insets, so on iOS 26 it is what Safari samples its status bar and toolbar from (§ 3.3.) — `body` is behind it and never reached, and the wallpaper's colour would have nowhere to land.
@@ -312,8 +311,7 @@ export function ChatScreen({
     <Container
       className={cn(
         // WARN: DESIGN.md § 3.3. `shell-edge`, matching the shell's own — this box covers the column's edges, so without it the hairline that separates the app from the desktop gutter stops at the chat route.
-        // WARN: DESIGN.md § 3.4. Pinned to `bottom-(--chat-screen-bottom)` and sized by `h-(--chat-screen-box-height)` so it fills the display flush on cold launch without a chin gap and shrinks above the virtual keyboard when open.
-        "fixed top-(--keyboard-pan) right-0 bottom-(--chat-screen-bottom) left-(--rail-width) flex h-(--chat-screen-box-height) w-auto max-w-none flex-col bg-chat-canvas px-0 shell-edge",
+        "fixed top-(--keyboard-pan) right-0 left-(--rail-width) flex h-(--chat-screen-height) w-auto max-w-none flex-col bg-chat-canvas px-0 shell-edge",
         className,
       )}
       // INFO: REQUIREMENTS.md § 12.2. Overrides `bg-chat-canvas` above, which stays as the no-wallpaper answer and as the fallback for a hash the base83 pass rejects.

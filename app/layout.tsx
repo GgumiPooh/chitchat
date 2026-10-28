@@ -49,6 +49,13 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: PropsWithChildren) {
   return (
     <html className={pretendard.variable} lang="ko" suppressHydrationWarning>
+      <head>
+        <script
+          dangerouslySetInnerHTML={{
+            __html: `(function(){try{var s=window.matchMedia('(display-mode: standalone)').matches||window.navigator.standalone===true;if(s&&/iPhone|iPod/.test(navigator.userAgent)){var h=Math.max(screen.width,screen.height);if(h>0){document.documentElement.style.setProperty('--viewport-height',h+'px');document.documentElement.style.setProperty('--viewport-resting-height',h+'px');}}}catch(e){}})();`,
+          }}
+        />
+      </head>
       <body>
         <GlobalProvider>{children}</GlobalProvider>
       </body>
