@@ -1,3 +1,4 @@
+import { listEmoticonPacks } from "@/entities/emoticon";
 import { getCalendarSummary } from "@/entities/event";
 import { listMessages, toMessagePayload } from "@/entities/message";
 import { encryptServerPayload } from "@/shared/auth";
@@ -53,14 +54,16 @@ export async function ChatPage({
   // INFO: The newest page comes from the server render, so opening the tab costs no client round trip before the first paint. Participants are the shell's (§ 8.4.), since every tab needs them for the in-app banner.
   // INFO: REQUIREMENTS.md § 13. Through the payload builder, so this path carries its emoticons exactly as the fetched pages do — it is the only one whose map arrives as props rather than as a response.
   // WARN: REQUIREMENTS.md § 11.5.1. In parallel, and the summary is not optional to the first paint: the header's bloom is a property of the render itself, so a summary fetched after hydration would light the button a beat after the reader has already looked at it.
-  const [{ messages, emoticons }, summary] = await Promise.all([
+  const [{ messages, emoticons }, summary, packs] = await Promise.all([
     listMessages({ currentUserId, onlyMeFilter }).then(toMessagePayload),
     // WARN: REQUIREMENTS.md § 11.5.1. One past the page the side panel draws, exactly as the client's own fetches ask for — seeded with the bare page there is no row to prove a next one exists, so 더 보기 is missing until the first refresh puts it there.
     // INFO: The side panel's page, on every width — the mobile card slices its `MAX_UPCOMING_EVENTS` off the same rows, and a page this size is cheaper than a second render path keyed on the panel cookie.
     getCalendarSummary(SIDE_PANEL_UPCOMING_PAGE_SIZE + 1),
+    // INFO: REQUIREMENTS.md § 12. & § 13.6. Emoticon pack summaries seeded on the server render so Office Mode hidden pack checks and row height estimates succeed synchronously on frame 0 without layout shifts or image leaks.
+    listEmoticonPacks(currentUserId, { type: "all" }),
   ]);
 
-  const encryptedPayload = await encryptServerPayload({ messages, emoticons, summary });
+  const encryptedPayload = await encryptServerPayload({ messages, emoticons, summary, packs });
 
   return (
     <EncryptedChatScreen

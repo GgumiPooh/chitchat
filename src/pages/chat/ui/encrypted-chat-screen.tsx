@@ -1,5 +1,6 @@
 "use client";
 
+import type { EmoticonPackSummary } from "@/entities/emoticon";
 import type { CalendarSummary } from "@/entities/event";
 import type { ChatMessage } from "@/entities/message";
 import type { InlineEmoticonMap } from "@/shared/config";
@@ -16,6 +17,8 @@ export type DecryptedChatSeed = {
   messages: ChatMessage[];
   emoticons: InlineEmoticonMap;
   summary: CalendarSummary;
+  /** REQUIREMENTS.md § 12. & § 13.6. Emoticon pack summaries seeded on the server render. */
+  packs?: EmoticonPackSummary[];
 };
 
 export type EncryptedChatScreenProps = {
@@ -48,6 +51,7 @@ export function EncryptedChatScreen({
       initialMessages={seed.messages}
       initialEmoticons={seed.emoticons}
       initialSummary={seed.summary}
+      initialPacks={seed.packs}
       jumpMessageId={jumpMessageId}
       jumpOnlyMe={jumpOnlyMe}
       initialOnlyMeFilter={initialOnlyMeFilter}

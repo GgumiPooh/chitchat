@@ -1,5 +1,6 @@
 "use client";
 
+import type { EmoticonPackSummary } from "@/entities/emoticon";
 import type { CalendarSummary, EventOccurrence } from "@/entities/event";
 import type { ChatMessage } from "@/entities/message";
 import type { TimeLetter } from "@/entities/time-letter";
@@ -67,6 +68,8 @@ export type ChatScreenProps = {
   initialEmoticons: InlineEmoticonMap;
   /** REQUIREMENTS.md § 11.5.1. 다가오는 일정, for the header's own copy of the calendar's card. */
   initialSummary: CalendarSummary;
+  /** REQUIREMENTS.md § 12. & § 13.6. Emoticon pack summaries, for synchronous Office Mode checks on frame 0. */
+  initialPacks?: EmoticonPackSummary[];
   /** REQUIREMENTS.md § 10. A message 보관함 opened this screen on, if any. */
   jumpMessageId?: Maybe<MessageId>;
   /** REQUIREMENTS.md § 16.1. The mode that message lives in, handed to the jump alongside it. */
@@ -89,6 +92,7 @@ export function ChatScreen({
   initialMessages,
   initialEmoticons,
   initialSummary,
+  initialPacks,
   jumpMessageId,
   jumpOnlyMe,
   initialOnlyMeFilter,
@@ -487,6 +491,7 @@ export function ChatScreen({
           <ChatRoom
             currentUserId={currentUserId}
             initialMessages={initialMessages}
+            initialPacks={initialPacks}
             jumpTarget={search.target}
             // WARN: REQUIREMENTS.md § 10. A prop of its own rather than a fallback for the target above. Closing the search takes its target back to null, and a fallback would read that as a fresh instruction — jumping back to the tile's message from wherever the reader had got to.
             initialJumpMessageId={jumpMessageId}

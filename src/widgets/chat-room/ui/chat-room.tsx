@@ -1,6 +1,6 @@
 "use client";
 
-import type { Emoticon } from "@/entities/emoticon";
+import type { Emoticon, EmoticonPackSummary } from "@/entities/emoticon";
 import type { ChatMedia, MediaDraft } from "@/entities/media";
 import type { ChatMessage, MessageReaction, ReplyPreview } from "@/entities/message";
 import type { Participant } from "@/entities/user";
@@ -276,6 +276,8 @@ export type ChatRoomProps = {
   className?: string;
   currentUserId: UserId;
   initialMessages: ChatMessage[];
+  /** REQUIREMENTS.md § 12. & § 13.6. Emoticon pack summaries seeded on the server render. */
+  initialPacks?: EmoticonPackSummary[];
   /** @see ChatJumpTarget */
   jumpTarget?: Nullable<ChatJumpTarget>;
   /**
@@ -380,6 +382,7 @@ export function ChatRoom({
   className,
   currentUserId,
   initialMessages,
+  initialPacks,
   jumpTarget,
   initialJumpMessageId,
   initialJumpOnlyMe,
@@ -1073,7 +1076,10 @@ export function ChatRoom({
     [readerCursors],
   );
   const queryClient = useQueryClient();
-  const { data: packs = [] } = useQuery(toEmoticonPacksQuery());
+  const { data: packs = initialPacks ?? [] } = useQuery({
+    ...toEmoticonPacksQuery(),
+    initialData: initialPacks,
+  });
   const packTypes = useMemo(() => new Map(packs.map((p) => [p.id, p.type])), [packs]);
   const packNames = useMemo(() => new Map(packs.map((p) => [p.id, p.name])), [packs]);
   const hiddenPackIds = useMemo(
