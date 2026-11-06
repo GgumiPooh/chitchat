@@ -4,9 +4,9 @@ import type { Emoticon } from "@/entities/emoticon";
 import { toEmoticonAssetUrl } from "@/shared/config";
 import {
   cn,
-  getIsOfficeMode,
   toPreviousReplaySrc,
   toReplaySrc,
+  useOfficeMode,
   useSyncedEmoticonPlayback,
   useViewportReplay,
 } from "@/shared/lib";
@@ -59,7 +59,7 @@ export function EmoticonBubble({
 }: EmoticonBubbleProps) {
   const { hasAnimated, hasAudio, isDeleted } = emoticon;
   // INFO: REQUIREMENTS.md § 12. Office Mode silences emoticon bubble replay.
-  const isAudioBlocked = getIsOfficeMode();
+  const { isOfficeMode: isAudioBlocked } = useOfficeMode();
   const effectiveHasAudio = isAudioBlocked ? false : hasAudio;
   const { ref, replayToken } = useViewportReplay();
   const box = toEmoticonBox(emoticon);

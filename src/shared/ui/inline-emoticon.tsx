@@ -3,9 +3,9 @@
 import { toEmoticonAssetUrl } from "@/shared/config";
 import {
   cn,
-  getIsOfficeMode,
   toPreviousReplaySrc,
   toReplaySrc,
+  useOfficeMode,
   useSyncedEmoticonPlayback,
   useViewportReplay,
   type EmoticonItemId,
@@ -75,7 +75,7 @@ export function InlineEmoticon({
   onFollow,
 }: InlineEmoticonProps) {
   // INFO: REQUIREMENTS.md § 12. Office Mode silences inline emoticon audio.
-  const isAudioBlocked = getIsOfficeMode();
+  const { isOfficeMode: isAudioBlocked } = useOfficeMode();
   const effectiveHasAudio = isAudioBlocked ? false : hasAudio;
   const { ref, replayToken } = useViewportReplay();
   const emoticonAssetUrl = toEmoticonAssetUrl(itemId, "animated-image", version);
