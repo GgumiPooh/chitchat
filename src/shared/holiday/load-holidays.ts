@@ -1,6 +1,6 @@
 import "server-only";
 
-import { ensureEnv, IS_DEV } from "@/shared/config";
+import { ensureEnv, IS_BUILTIN_HOLIDAYS_ENABLED, IS_DEV } from "@/shared/config";
 import {
   A_DAY,
   A_MINUTE,
@@ -145,6 +145,10 @@ async function readYear(
  * year they are asked about is read from the clock and is not cached with them.
  */
 export const loadHolidays = cache(async (): Promise<HolidayTable> => {
+  if (!IS_BUILTIN_HOLIDAYS_ENABLED) {
+    return {};
+  }
+
   const table: HolidayTable = { ...FALLBACK_HOLIDAYS };
   const serviceKey = readServiceKey();
 

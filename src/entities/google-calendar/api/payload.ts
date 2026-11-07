@@ -120,11 +120,7 @@ export function fromRemotePayload(
   sourceBackgroundColor?: Nullable<string>,
   accessRole?: string,
 ): Nullable<MappedJandhEvent> {
-  if (
-    gEvent.eventType === "workingLocation" ||
-    gEvent.eventType === "focusTime" ||
-    gEvent.eventType === "birthday"
-  ) {
+  if (gEvent.eventType === "workingLocation" || gEvent.eventType === "focusTime") {
     return null;
   }
 

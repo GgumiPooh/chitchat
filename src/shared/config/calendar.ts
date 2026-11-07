@@ -175,13 +175,25 @@ export function toEventColorFromGoogle(
   return "plum";
 }
 
+/**
+ * REQUIREMENTS.md § 11.8. Filters out Google virtual calendars that are not supported.
+ *
+ * INFO: Public holiday calendars and contacts/birthday calendars are allowed (sync_enabled defaults to false).
+ * All other `@group.v.calendar.google.com` virtual calendars are excluded.
+ */
 export function isExcludedGoogleCalendarId(calendarId: string): boolean {
   const normalized = calendarId.trim().toLowerCase();
-  return (
-    normalized.endsWith("#holiday@group.v.calendar.google.com") ||
-    normalized.endsWith("@holiday.calendar.google.com") ||
-    normalized.endsWith("@group.v.calendar.google.com")
-  );
+
+  const isHolidayCalendar =
+    normalized.includes("holiday@group.v.calendar.google.com") ||
+    normalized.includes("@holiday.calendar.google.com");
+  const isBirthdayCalendar = normalized.includes("contacts@group.v.calendar.google.com");
+
+  if (isHolidayCalendar || isBirthdayCalendar) {
+    return false;
+  }
+
+  return normalized.endsWith("@group.v.calendar.google.com");
 }
 
 // INFO: The milestone constants are deliberately NOT here — they live in `shared/lib/date/calendar.ts` beside the arithmetic that reads them, because `shared/config` imports `shared/lib` and the reverse would be a cycle.
