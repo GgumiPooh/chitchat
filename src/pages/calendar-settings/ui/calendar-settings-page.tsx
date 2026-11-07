@@ -424,14 +424,20 @@ function CalendarSettingsView({
                         </svg>
                       )}
                       trailing={
-                        <Switch
-                          checked={source.syncEnabled}
-                          haptic
-                          aria-label={`${source.summary} 동기화`}
-                          onCheckedChange={(checked) =>
-                            void toggleSource(source.calendarId, checked)
-                          }
-                        />
+                        source.isPrimary ? (
+                          <span className="text-caption font-medium text-meta">
+                            기본 달력 · 항상 동기화
+                          </span>
+                        ) : (
+                          <Switch
+                            checked={source.syncEnabled}
+                            haptic
+                            aria-label={`${source.summary} 동기화`}
+                            onCheckedChange={(checked) =>
+                              void toggleSource(source.calendarId, checked)
+                            }
+                          />
+                        )
                       }
                     />
                   ))}
@@ -459,7 +465,8 @@ function CalendarSettingsView({
       >
         <div className="space-y-md">
           <p className="text-body-sm text-meta">
-            Google에서 가져온 일정은 {APP_NAME} 달력에서 정리되고, {APP_NAME}에서 직접 만든 일정은
+            Google 캘린더에서 가져온 일정은 {APP_NAME}에서 사라지고, {APP_NAME}에서 Google 캘린더로
+            내보냈던 일정은 Google 캘린더에서 정리돼요. {APP_NAME}에 직접 등록한 일정은 {APP_NAME}에
             그대로 유지돼요.
           </p>
           <div className="flex gap-xs">
@@ -504,12 +511,28 @@ function CalendarSettingsView({
   }
 
   async function toggleSource(calendarId: string, syncEnabled: boolean) {
-    setOverview((previous) => ({
-      ...previous,
-      sources: previous.sources.map((source) =>
-        source.calendarId === calendarId ? { ...source, syncEnabled } : source,
-      ),
-    }));
+    if (
+      !syncEnabled &&
+      overview.sources.find((source) => source.calendarId === calendarId)?.isPrimary
+    ) {
+      return;
+    }
+
+    setOverview((previous) => {
+      if (
+        !syncEnabled &&
+        previous.sources.find((source) => source.calendarId === calendarId)?.isPrimary
+      ) {
+        return previous;
+      }
+
+      return {
+        ...previous,
+        sources: previous.sources.map((source) =>
+          source.calendarId === calendarId ? { ...source, syncEnabled } : source,
+        ),
+      };
+    });
 
     try {
       const updated = await updateGoogleCalendarSources([{ calendarId, syncEnabled }]);

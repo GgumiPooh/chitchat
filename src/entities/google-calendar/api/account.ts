@@ -23,6 +23,7 @@ import type {
   GoogleCalendarSource,
 } from "../model/types";
 import {
+  deleteRemoteEvent,
   GoogleApiAuthError,
   listRemoteCalendars,
   toSyncErrorCode,
@@ -451,6 +452,10 @@ export async function updateGoogleCalendarSourceSelection(
       continue;
     }
 
+    if (current.isPrimary && !update.syncEnabled) {
+      continue;
+    }
+
     if (current.syncEnabled && !update.syncEnabled) {
       await db
         .update(googleCalendarSources)
@@ -503,6 +508,33 @@ export async function disconnectGoogleCalendarAccount(userId: UserId): Promise<v
     .limit(1);
 
   if (account) {
+    const exportedLinks = await db
+      .select({
+        calendarId: eventGoogleLinks.calendarId,
+        googleEventId: eventGoogleLinks.googleEventId,
+      })
+      .from(eventGoogleLinks)
+      .innerJoin(events, eq(eventGoogleLinks.eventId, events.id))
+      .where(and(eq(eventGoogleLinks.userId, userId), eq(events.source, "jandh")));
+
+    if (exportedLinks.length > 0) {
+      const sources = await db
+        .select()
+        .from(googleCalendarSources)
+        .where(eq(googleCalendarSources.userId, userId));
+
+      for (const link of exportedLinks) {
+        const source = sources.find((s) => s.calendarId === link.calendarId);
+        if (!source || !isWritableAccessRole(source.accessRole)) {
+          continue;
+        }
+
+        await withGoogleAccessToken(userId, (token) =>
+          deleteRemoteEvent(token, link.calendarId, link.googleEventId),
+        ).catch(() => undefined);
+      }
+    }
+
     const refreshToken = decryptGoogleCalendarToken(account.encryptedRefreshToken);
     if (refreshToken) {
       await getGoogleClient()
