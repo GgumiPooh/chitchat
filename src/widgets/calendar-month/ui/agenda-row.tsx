@@ -2,7 +2,13 @@
 
 import type { EventOccurrence } from "@/entities/event";
 import type { Participant } from "@/entities/user";
-import { cn, formatMultiDaySpan, formatOccurrenceTime, type Optional } from "@/shared/lib";
+import {
+  cn,
+  formatMultiDaySpan,
+  formatOccurrenceTime,
+  parseEventMemo,
+  type Optional,
+} from "@/shared/lib";
 import { Avatar, EventDot, EventMemo, HapticTap } from "@/shared/ui";
 import type { ReactNode } from "react";
 
@@ -28,6 +34,8 @@ export function AgendaEventRow({
   author,
   onSelect,
 }: AgendaEventRowProps) {
+  const { externalAuthor } = parseEventMemo(occurrence.event.description);
+
   return (
     <li className={cn("group relative flex", className)}>
       <button
@@ -51,9 +59,21 @@ export function AgendaEventRow({
           <EventMemo description={occurrence.event.description} />
         </span>
         {/* WARN: Not enlargeable, unlike the chat row's. This sits inside the button that opens the event, where a nested `button` is invalid markup and would swallow the tap the row exists for. */}
-        {author && (
-          <Avatar className="size-6 shrink-0" name={author.name} mediaId={author.avatarMediaId} />
-        )}
+        {/* INFO: REQUIREMENTS.md § 11.4. Read-only system events omit authorship; external shared events show [G] badge. */}
+        {!occurrence.event.isReadOnly &&
+          (externalAuthor ? (
+            <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-surface-strong text-caption font-semibold text-meta">
+              G
+            </span>
+          ) : (
+            author && (
+              <Avatar
+                className="size-6 shrink-0"
+                name={author.name}
+                mediaId={author.avatarMediaId}
+              />
+            )
+          ))}
       </button>
       {/* WARN: `keepsScroll` — the row runs the width of the shell, so a finger scrolling the screen lands here, and the switch would keep that drag and end it as a tap on the event (`DESIGN.md § 7.15.1.`). */}
       <HapticTap className="touch-pan-y" forwardsTap keepsScroll />

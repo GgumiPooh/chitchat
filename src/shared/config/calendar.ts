@@ -187,7 +187,12 @@ export function isExcludedGoogleCalendarId(calendarId: string): boolean {
   const isHolidayCalendar =
     normalized.includes("holiday@group.v.calendar.google.com") ||
     normalized.includes("@holiday.calendar.google.com");
-  const isBirthdayCalendar = normalized.includes("contacts@group.v.calendar.google.com");
+  const isBirthdayCalendar =
+    normalized.includes("contacts@group.v.calendar.google.com") ||
+    normalized.includes("birthday@group.v.calendar.google.com") ||
+    normalized.includes("birthdays@group.v.calendar.google.com") ||
+    normalized.includes("#contacts@") ||
+    normalized.includes("#birthday");
 
   if (isHolidayCalendar || isBirthdayCalendar) {
     return false;

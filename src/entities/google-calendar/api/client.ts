@@ -289,7 +289,6 @@ export async function listRemoteCalendars(accessToken: string): Promise<RemoteCa
 
   do {
     const url = new URL("https://www.googleapis.com/calendar/v3/users/me/calendarList");
-    url.searchParams.set("minAccessRole", "reader");
     // INFO: REQUIREMENTS.md § 11.8. Google hides system contacts/birthday calendars by default; showHidden=true admits them for discovery.
     url.searchParams.set("showHidden", "true");
     if (pageToken) {
@@ -342,6 +341,74 @@ export async function listRemoteCalendars(accessToken: string): Promise<RemoteCa
 
     pageToken = data.nextPageToken;
   } while (pageToken);
+
+  // INFO: REQUIREMENTS.md § 11.8. If Google contacts/birthday calendar was not in the returned list, probe it directly so users can subscribe to birthdays.
+  const hasBirthdayCalendar = calendars.some((cal) => {
+    const id = cal.calendarId.toLowerCase();
+    return id.includes("contacts@group.v.calendar.google.com") || id.includes("birthday");
+  });
+
+  if (!hasBirthdayCalendar) {
+    const birthdayId = "addressbook#contacts@group.v.calendar.google.com";
+    try {
+      const probeUrl = new URL(
+        `https://www.googleapis.com/calendar/v3/users/me/calendarList/${encodeURIComponent(birthdayId)}`,
+      );
+      const probeRes = await fetch(probeUrl, {
+        headers: { Authorization: `Bearer ${accessToken}` },
+        signal: AbortSignal.timeout(5 * A_SECOND),
+      });
+
+      if (probeRes.ok) {
+        const item = (await probeRes.json()) as {
+          accessRole?: string;
+          backgroundColor?: string;
+          deleted?: boolean;
+          summary?: string;
+          summaryOverride?: string;
+          id?: string;
+        };
+
+        if (item.id && item.deleted !== true) {
+          calendars.push({
+            accessRole: item.accessRole ?? "reader",
+            backgroundColor: item.backgroundColor ?? null,
+            calendarId: item.id,
+            isPrimary: false,
+            summary: item.summaryOverride || item.summary || "생일",
+          });
+        }
+      } else if (probeRes.status === 404) {
+        const directUrl = new URL(
+          `https://www.googleapis.com/calendar/v3/calendars/${encodeURIComponent(birthdayId)}`,
+        );
+        const directRes = await fetch(directUrl, {
+          headers: { Authorization: `Bearer ${accessToken}` },
+          signal: AbortSignal.timeout(5 * A_SECOND),
+        });
+
+        if (directRes.ok) {
+          const item = (await directRes.json()) as {
+            description?: string;
+            summary?: string;
+            id?: string;
+          };
+
+          if (item.id) {
+            calendars.push({
+              accessRole: "reader",
+              backgroundColor: null,
+              calendarId: item.id,
+              isPrimary: false,
+              summary: item.summary || "생일",
+            });
+          }
+        }
+      }
+    } catch {
+      // INFO: Probe failure is non-fatal; continue with discovered calendars.
+    }
+  }
 
   return calendars;
 }

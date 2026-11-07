@@ -152,7 +152,7 @@ function CalendarSettingsView({
           }
         }
 
-        const fresh = await fetchGoogleCalendarOverview();
+        const fresh = await fetchGoogleCalendarOverview({ refresh: true });
         if (isMountedRef.current) {
           setOverview(fresh);
         }
