@@ -41,9 +41,10 @@ export type MappedJandhEvent = {
 
 export function toGoogleEventPayload(
   event: Event | SyncableCalendarEvent,
-  options: boolean | { isPatch?: boolean } = false,
+  options: boolean | { isPatch?: boolean; omitRecurrence?: boolean } = false,
 ): Record<string, unknown> {
   const isPatch = typeof options === "boolean" ? options : Boolean(options.isPatch);
+  const omitRecurrence = typeof options === "boolean" ? false : Boolean(options.omitRecurrence);
   const isoStartsAt = new Date(event.startsAt).toISOString();
   const isoEndsAt = new Date(event.endsAt).toISOString();
 
@@ -74,7 +75,7 @@ export function toGoogleEventPayload(
     rrule: event.rrule,
   });
 
-  const recurrence = recurrenceLines ?? (isPatch ? [] : undefined);
+  const recurrence = omitRecurrence ? undefined : (recurrenceLines ?? (isPatch ? [] : undefined));
 
   let description: Optional<string>;
   if (isPatch) {

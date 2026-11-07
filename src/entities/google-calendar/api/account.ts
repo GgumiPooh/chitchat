@@ -131,10 +131,15 @@ export async function cleanupGoogleEventLinksForUser(
       await db.delete(events).where(eq(events.id, eventId));
     } else {
       const remainingUser = remainingLinks[0].userId;
+      const syncNow = new Date();
       await db
         .update(events)
-        .set({ createdBy: remainingUser, scope: "mine", updatedAt: new Date() })
+        .set({ createdBy: remainingUser, scope: "mine", updatedAt: syncNow })
         .where(eq(events.id, eventId));
+      await db
+        .update(eventGoogleLinks)
+        .set({ lastSyncedAt: syncNow })
+        .where(eq(eventGoogleLinks.eventId, eventId));
     }
   }
 }

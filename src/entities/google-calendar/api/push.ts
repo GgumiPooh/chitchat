@@ -76,6 +76,8 @@ export async function syncCreatedEventToGoogle(
           etag: created.etag ?? null,
           googleEventId: created.id,
           lastSyncedAt: new Date(),
+          originalStartKey: null,
+          recurringMasterGoogleId: null,
         },
         target: [eventGoogleLinks.eventId, eventGoogleLinks.userId],
       });
@@ -162,7 +164,10 @@ export async function syncUpdatedEventToGoogle(
           token,
           existingLink.calendarId,
           existingLink.googleEventId,
-          toGoogleEventPayload(after, true),
+          toGoogleEventPayload(after, {
+            isPatch: true,
+            omitRecurrence: Boolean(existingLink.recurringMasterGoogleId),
+          }),
         ),
       );
 
@@ -185,6 +190,8 @@ export async function syncUpdatedEventToGoogle(
                 etag: created.etag ?? null,
                 googleEventId: created.id,
                 lastSyncedAt: new Date(),
+                originalStartKey: null,
+                recurringMasterGoogleId: null,
               })
               .where(
                 and(
@@ -229,6 +236,8 @@ export async function syncUpdatedEventToGoogle(
                 etag: created.etag ?? null,
                 googleEventId: created.id,
                 lastSyncedAt: new Date(),
+                originalStartKey: null,
+                recurringMasterGoogleId: null,
               },
               target: [eventGoogleLinks.eventId, eventGoogleLinks.userId],
             });

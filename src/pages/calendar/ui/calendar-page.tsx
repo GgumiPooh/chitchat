@@ -201,9 +201,11 @@ function CalendarPageView({
 
         if (result.syncError === "reauth_required") {
           toast.error("Google 계정 재연결이 필요해요");
+        } else if (result.syncError === "api_disabled") {
+          toast.error("Google Cloud에서 Calendar API를 사용 설정해 주세요");
         } else if (result.syncError) {
           toast.error("동기화하지 못했어요");
-        } else if (result.changed) {
+        } else if (result.changed || (result.exported ?? 0) > 0) {
           toast.success("Google 캘린더 변경 사항을 반영했어요");
         } else {
           toast.success("이미 최신 상태예요");

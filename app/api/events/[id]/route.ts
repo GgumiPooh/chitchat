@@ -135,6 +135,12 @@ export const DELETE = withEncryptedRoute(async (_request: Request, { params }: R
   }
 
   const googleLinks = await listEventGoogleLinksForDelete(id.data);
+  try {
+    await deleteLinkedGoogleEvents(googleLinks);
+  } catch (error) {
+    console.error("[events] failed to delete linked Google events before local delete", error);
+  }
+
   const event = await deleteEvent(id.data);
 
   if (!event) {
@@ -143,10 +149,6 @@ export const DELETE = withEncryptedRoute(async (_request: Request, { params }: R
 
   // WARN: `eventId` is null — the row is already gone, and `messages.event_id` is `ON DELETE SET NULL` anyway (§ 6.). The snapshot is what lets the notice still name what was deleted.
   await postNotice(user, "event_deleted", null, event.title, event.startsAt);
-
-  after(() => {
-    safelyRunAsync(() => deleteLinkedGoogleEvents(googleLinks));
-  });
 
   return new NextResponse(null, { status: 204 });
 });
