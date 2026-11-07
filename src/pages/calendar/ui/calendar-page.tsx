@@ -2,6 +2,7 @@
 
 import type { CalendarSummary, EventOccurrence } from "@/entities/event";
 import { useChatStream } from "@/features/chat-stream";
+import { syncGoogleCalendar } from "@/features/google-calendar";
 import {
   EventDetailDialog,
   EventFormSheet,
@@ -10,11 +11,13 @@ import {
 } from "@/features/manage-event";
 import { useWriteCalendarSnapshot } from "@/features/offline-snapshot";
 import {
+  CALENDAR_SETTINGS_ROUTE,
   MAX_UPCOMING_EVENTS,
   SSE_SYNC_COALESCE_WINDOW,
   UPCOMING_EVENTS_PAGE_SIZE,
 } from "@/shared/config";
 import {
+  A_MINUTE,
   cn,
   findHoliday,
   listMilestonesInRange,
@@ -28,21 +31,24 @@ import {
   type Maybe,
   type Nullable,
 } from "@/shared/lib";
+import { OFFLINE_MESSAGES, toOfflineOpenMessage, useOfflineGate } from "@/shared/offline-ux";
 import { AppHeader, Container, IconButton, toast, TwoPane } from "@/shared/ui";
 import { CalendarMonth, toGridRange } from "@/widgets/calendar-month";
 import { toChromeTint } from "@/widgets/chat-room";
-import { Plus } from "lucide-react";
+import { CalendarCog, Plus } from "lucide-react";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DDayHero } from "./d-day-hero";
 import { DayAgenda } from "./day-agenda";
 import { UpcomingCard } from "./upcoming-card";
 
 export type CalendarSeed = {
-  initialSummary: CalendarSummary;
-  initialMonthKey: string;
-  initialOccurrences: EventOccurrence[];
   holidays: HolidayTable;
   initialDayKey: Maybe<string>;
+  initialMonthKey: string;
+  initialOccurrences: EventOccurrence[];
+  initialSummary: CalendarSummary;
+  isGoogleCalendarConnected: boolean;
 };
 
 export type CalendarPageProps = {
@@ -52,13 +58,14 @@ export type CalendarPageProps = {
 
 export type CalendarPageViewProps = {
   className?: string;
-  initialSummary: CalendarSummary;
-  initialMonthKey: string;
-  initialOccurrences: EventOccurrence[];
   /** REQUIREMENTS.md § 11.7. Every year at once, because a swipe resolves its 빨간 날 without asking for anything. */
   holidays: HolidayTable;
   /** REQUIREMENTS.md § 11.5. The day a chat system notice tapped through to, if any. */
   initialDayKey: Maybe<string>;
+  initialMonthKey: string;
+  initialOccurrences: EventOccurrence[];
+  initialSummary: CalendarSummary;
+  isGoogleCalendarConnected?: boolean;
 };
 
 export function CalendarPage({ className, encryptedPayload }: CalendarPageProps) {
@@ -71,11 +78,12 @@ export function CalendarPage({ className, encryptedPayload }: CalendarPageProps)
   return (
     <CalendarPageView
       className={className}
-      initialSummary={seed.initialSummary}
-      initialMonthKey={seed.initialMonthKey}
-      initialOccurrences={seed.initialOccurrences}
       holidays={seed.holidays}
       initialDayKey={seed.initialDayKey}
+      initialMonthKey={seed.initialMonthKey}
+      initialOccurrences={seed.initialOccurrences}
+      initialSummary={seed.initialSummary}
+      isGoogleCalendarConnected={seed.isGoogleCalendarConnected}
     />
   );
 }
@@ -91,20 +99,26 @@ type FormState = {
 
 function CalendarPageView({
   className,
-  initialSummary,
-  initialMonthKey,
-  initialOccurrences,
   holidays,
   initialDayKey,
+  initialMonthKey,
+  initialOccurrences,
+  initialSummary,
+  isGoogleCalendarConnected = false,
 }: CalendarPageViewProps) {
+  const router = useRouter();
   const { participants, chatBackgroundBlurhash } = useChatStream();
   // INFO: DESIGN.md § 3.3. The room's own tint, since the hero wears the room's wash; `#app-shell` paints `canvas` over `body`, so this reaches the status bar and nothing the reader scrolls to.
   useDocumentBackground(toChromeTint(chatBackgroundBlurhash) ?? "var(--color-chat-canvas)");
   const [summary, setSummary] = useState(initialSummary);
   const [monthKey, setMonthKey] = useState(initialMonthKey);
+  const activeMonthKeyRef = useRef(initialMonthKey);
+  useEffect(() => {
+    activeMonthKeyRef.current = monthKey;
+  }, [monthKey]);
   const [occurrences, setOccurrences] = useState(initialOccurrences);
   // INFO: REQUIREMENTS.md § 16. The loaded month, whichever it is — a mirror labels it stale rather than pretending it is this one.
-  useWriteCalendarSnapshot({ summary, monthKey, occurrences, holidays });
+  useWriteCalendarSnapshot({ holidays, monthKey, occurrences, summary });
   // INFO: § 11.3. A day is always selected, because the agenda under the grid always has one to show — `null` used to mean "no sheet up" and there is no sheet any more.
   const [selectedDayKey, setSelectedDayKey] = useState(initialDayKey ?? initialSummary.todayKey);
   // INFO: The agenda asserts `이 날은 일정이 없어요`, so it must be able to say "not yet" instead — a month still in flight is not an empty day.
@@ -115,6 +129,10 @@ function CalendarPageView({
   // INFO: REQUIREMENTS.md § 11.5.1. 더 보기 widens the page the summary is asked for; the extra row every request adds is what says whether another page exists.
   const [upcomingLimit, setUpcomingLimit] = useState(MAX_UPCOMING_EVENTS);
   const [isExpandingUpcoming, setIsExpandingUpcoming] = useState(false);
+  const [isSyncingGoogle, setIsSyncingGoogle] = useState(false);
+  const syncGate = useOfflineGate(OFFLINE_MESSAGES.sync);
+  const settingsGate = useOfflineGate(toOfflineOpenMessage("캘린더 설정"));
+
   // WARN: A ref beside the state, because the month reload and the focus refresh fetch the summary too and must ask for the page the reader is on — keyed on `upcomingLimit` instead, the month effect would refetch the grid on every 더 보기.
   const loadedUpcomingLimit = useRef(MAX_UPCOMING_EVENTS);
   const gridRef = useRef<HTMLDivElement>(null);
@@ -122,15 +140,17 @@ function CalendarPageView({
   const loadedMonthKey = useRef(initialMonthKey);
   // WARN: Two quick swipes leave two fetches in flight, and the slower one may land last. Without this counter it wins, and the grid keeps the previous month's dots while `loadedMonthKey` claims the fetch is done — the effect below has already run and will not re-run.
   const requestId = useRef(0);
-  const lastSummaryFetchAt = useRef(0);
+  const lastSilentRefreshAt = useRef(0);
 
-  const reload = useCallback(async (nextMonthKey: string) => {
+  const reload = useCallback(async (nextMonthKey: string, options?: { silent?: boolean }) => {
     requestId.current += 1;
 
     const id = requestId.current;
     const { from, to } = toCarouselGridRange(nextMonthKey);
 
-    setIsLoadingMonth(true);
+    if (!options?.silent) {
+      setIsLoadingMonth(true);
+    }
 
     try {
       const [nextOccurrences, nextSummary] = await Promise.all([
@@ -143,8 +163,26 @@ function CalendarPageView({
       }
 
       loadedMonthKey.current = nextMonthKey;
-      setOccurrences(nextOccurrences);
-      setSummary(nextSummary);
+
+      setOccurrences((previous) =>
+        JSON.stringify(previous) === JSON.stringify(nextOccurrences) ? previous : nextOccurrences,
+      );
+      setSummary((previous) =>
+        JSON.stringify(previous) === JSON.stringify(nextSummary) ? previous : nextSummary,
+      );
+
+      setDetailed((previous) => {
+        if (!previous) {
+          return null;
+        }
+        return (
+          nextOccurrences.find(
+            (o) => o.event.id === previous.event.id && o.startsAt === previous.startsAt,
+          ) ??
+          nextOccurrences.find((o) => o.event.id === previous.event.id) ??
+          null
+        );
+      });
     } finally {
       // WARN: Only the newest request may clear the flag, or a slow first fetch landing after a fast second one uncovers the agenda while the month it is showing is still in flight.
       if (id === requestId.current) {
@@ -152,6 +190,31 @@ function CalendarPageView({
       }
     }
   }, []);
+
+  const handleManualGoogleSync = useCallback(() => {
+    syncGate.guard(async () => {
+      setIsSyncingGoogle(true);
+
+      try {
+        const result = await syncGoogleCalendar();
+        await reload(activeMonthKeyRef.current, { silent: true });
+
+        if (result.syncError === "reauth_required") {
+          toast.error("Google 계정 재연결이 필요해요");
+        } else if (result.syncError) {
+          toast.error("동기화하지 못했어요");
+        } else if (result.changed) {
+          toast.success("Google 캘린더 변경 사항을 반영했어요");
+        } else {
+          toast.success("이미 최신 상태예요");
+        }
+      } catch {
+        toast.error("동기화하지 못했어요");
+      } finally {
+        setIsSyncingGoogle(false);
+      }
+    })();
+  }, [reload, syncGate]);
 
   useEffect(() => {
     if (monthKey !== loadedMonthKey.current) {
@@ -175,41 +238,52 @@ function CalendarPageView({
 
   /**
    * REQUIREMENTS.md § 11.1. Recomputed when the app comes back, so one left open
-   * across midnight stops showing yesterday's D-day. The count is the server's,
-   * never recomputed here.
-   *
-   * INFO: § 8.4.1. The return is the whole trigger, with no dormancy beside it —
-   * this screen holds no stream, so it never sleeps and the gate is never shut
-   * under it.
+   * across midnight stops showing yesterday's D-day.
    */
-  const refreshSummary = useCallback(() => {
+  const refreshSilently = useCallback(() => {
     if (document.visibilityState !== "visible") {
+      return;
+    }
+
+    if (activeMonthKeyRef.current !== loadedMonthKey.current) {
       return;
     }
 
     const now = Date.now();
 
     // WARN: § 8.4. Coalesced for the same reason the stream's catch-up is: a desktop window raised from behind another fires `focus` and `visibilitychange` for one return, and this used to spend two summary requests on it.
-    if (now - lastSummaryFetchAt.current < SSE_SYNC_COALESCE_WINDOW) {
+    if (now - lastSilentRefreshAt.current < SSE_SYNC_COALESCE_WINDOW) {
       return;
     }
 
-    lastSummaryFetchAt.current = now;
-
-    void fetchCalendarSummary(loadedUpcomingLimit.current + 1)
-      .then(setSummary)
-      .catch(() => undefined);
-  }, []);
+    lastSilentRefreshAt.current = now;
+    void reload(activeMonthKeyRef.current, { silent: true }).catch(() => undefined);
+  }, [reload]);
 
   useEffect(() => {
-    document.addEventListener("visibilitychange", refreshSummary);
-    window.addEventListener("focus", refreshSummary);
+    document.addEventListener("visibilitychange", refreshSilently);
+    window.addEventListener("focus", refreshSilently);
 
     return () => {
-      document.removeEventListener("visibilitychange", refreshSummary);
-      window.removeEventListener("focus", refreshSummary);
+      document.removeEventListener("visibilitychange", refreshSilently);
+      window.removeEventListener("focus", refreshSilently);
     };
-  }, [refreshSummary]);
+  }, [refreshSilently]);
+
+  // INFO: 1-minute silent DB refresh while tab is visible and online.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (
+        document.visibilityState === "visible" &&
+        navigator.onLine &&
+        activeMonthKeyRef.current === loadedMonthKey.current
+      ) {
+        void reload(activeMonthKeyRef.current, { silent: true }).catch(() => undefined);
+      }
+    }, A_MINUTE);
+
+    return () => clearInterval(timer);
+  }, [reload]);
 
   // WARN: `isExpandingUpcoming` holds the button on screen. The limit steps on the press and the page lands a round trip later, so the summary in hand is briefly one page short (REQUIREMENTS.md § 11.5.1.).
   const hasMoreUpcoming = isExpandingUpcoming || summary.upcoming.length > upcomingLimit;
@@ -222,12 +296,12 @@ function CalendarPageView({
         <div className="flex flex-col gap-md p-md">
           <DDayHero className="aspect-[4/5] w-full rounded-lg" summary={summary} />
           <CalendarMonth
+            holidays={holidays}
             monthKey={monthKey}
+            occurrences={occurrences}
+            selectedDayKey={selectedDayKey}
             startDate={summary.startDate}
             todayKey={summary.todayKey}
-            selectedDayKey={selectedDayKey}
-            occurrences={occurrences}
-            holidays={holidays}
             onMonthChange={changeMonth}
             onSelectDay={selectDay}
           />
@@ -240,13 +314,25 @@ function CalendarPageView({
         hasSidePanel
         title="달력"
         trailing={
-          <IconButton
-            variant="floating"
-            Icon={Plus}
-            haptic
-            aria-label="일정 추가"
-            onClick={() => openForm(selectedDayKey)}
-          />
+          <div className="flex items-center gap-2xs">
+            <IconButton
+              variant="floating"
+              Icon={CalendarCog}
+              haptic
+              aria-label="캘린더 설정"
+              aria-disabled={settingsGate.isBlocked || undefined}
+              onClick={settingsGate.guard(() =>
+                router.push(`${CALENDAR_SETTINGS_ROUTE}?from=calendar`),
+              )}
+            />
+            <IconButton
+              variant="floating"
+              Icon={Plus}
+              haptic
+              aria-label="일정 추가"
+              onClick={() => openForm(selectedDayKey)}
+            />
+          </div>
         }
       />
       {/* INFO: DESIGN.md § 7.9. Full-bleed and outside `Container`, since the hero already fills the device height and sits under the floating header on its own. */}
@@ -260,33 +346,35 @@ function CalendarPageView({
       <Container className="space-y-md py-md lg:pt-[calc(var(--app-header-inset)+var(--spacing-md))]">
         {/* INFO: DESIGN.md § 7.9. Under the hero and above the grid, which is affordable because the list is capped and always drawn — it no longer varies between nothing and three rows. */}
         <UpcomingCard
-          occurrences={summary.upcoming.slice(0, upcomingLimit)}
-          todayKey={summary.todayKey}
           hasMore={hasMoreUpcoming}
           isLoadingMore={isExpandingUpcoming}
+          occurrences={summary.upcoming.slice(0, upcomingLimit)}
+          todayKey={summary.todayKey}
           onLoadMore={expandUpcoming}
           onSelect={selectDayFromUpcoming}
         />
         {/* INFO: DESIGN.md § 7.9. `scroll-mt` is what makes `scrollIntoView` clear the floating header (§ 7.12.) rather than parking the first week under it. */}
         <div ref={gridRef} className="scroll-mt-(--app-header-inset) lg:hidden">
           <CalendarMonth
+            holidays={holidays}
             monthKey={monthKey}
+            occurrences={occurrences}
+            selectedDayKey={selectedDayKey}
             startDate={summary.startDate}
             todayKey={summary.todayKey}
-            selectedDayKey={selectedDayKey}
-            occurrences={occurrences}
-            holidays={holidays}
             onMonthChange={changeMonth}
             onSelectDay={selectDay}
           />
         </div>
         <DayAgenda
           dayKey={selectedDayKey}
-          isLoading={isLoadingMonth}
           holiday={findHoliday(selectedDayKey, holidays)}
+          isLoading={isLoadingMonth}
+          isSyncingGoogle={isSyncingGoogle}
           milestones={listMilestonesInRange(summary.startDate, selectedDayKey, selectedDayKey)}
           occurrences={occurrences.filter((occurrence) => occursOnDay(occurrence, selectedDayKey))}
           participants={participants}
+          onSyncGoogle={isGoogleCalendarConnected ? handleManualGoogleSync : undefined}
           onCreate={() => openForm(selectedDayKey)}
           onSelect={setDetailed}
         />
@@ -294,8 +382,8 @@ function CalendarPageView({
         {form && (
           <EventFormSheet
             key={form.token}
-            isOpen={form.isOpen}
             dayKey={form.dayKey}
+            isOpen={form.isOpen}
             occurrence={null}
             onClose={() => setForm((previous) => previous && { ...previous, isOpen: false })}
             onSaved={() => void reloadCurrent()}
@@ -306,8 +394,8 @@ function CalendarPageView({
       <EventDetailDialog
         occurrence={detailed}
         participants={participants}
-        onClose={() => setDetailed(null)}
         onChanged={() => void reloadCurrent()}
+        onClose={() => setDetailed(null)}
       />
     </TwoPane>
   );
@@ -319,7 +407,9 @@ function CalendarPageView({
    * on `이 날은 일정이 없어요` for a day the card just said had an event.
    */
   function selectDay(dayKey: string) {
-    setMonthKey(toMonthKey(dayKey));
+    const nextMonthKey = toMonthKey(dayKey);
+    activeMonthKeyRef.current = nextMonthKey;
+    setMonthKey(nextMonthKey);
     setSelectedDayKey(dayKey);
   }
 
@@ -333,6 +423,7 @@ function CalendarPageView({
   function changeMonth(nextMonthKey: string) {
     const { from, to } = toGridRange(nextMonthKey);
 
+    activeMonthKeyRef.current = nextMonthKey;
     setMonthKey(nextMonthKey);
     setSelectedDayKey((current) => {
       if (current >= from && current <= to) {
@@ -355,8 +446,8 @@ function CalendarPageView({
     selectDay(dayKey);
     // INFO: DESIGN.md § 4.7. Reduced motion keeps the destination and drops the travel.
     gridRef.current?.scrollIntoView({
-      block: "start",
       behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth",
+      block: "start",
     });
   }
 
@@ -367,7 +458,7 @@ function CalendarPageView({
   }
 
   function openForm(dayKey: string) {
-    setForm((previous) => ({ dayKey, token: (previous?.token ?? 0) + 1, isOpen: true }));
+    setForm((previous) => ({ dayKey, isOpen: true, token: (previous?.token ?? 0) + 1 }));
   }
 
   async function reloadCurrent() {

@@ -1,13 +1,21 @@
 "use client";
 
 import type { CalendarSummary, EventOccurrence } from "@/entities/event";
+import { useChatStream } from "@/features/chat-stream";
 import { fetchCalendarSummary } from "@/features/manage-event";
 import {
   MAX_UPCOMING_EVENTS,
   SIDE_PANEL_UPCOMING_PAGE_SIZE,
   SSE_SYNC_COALESCE_WINDOW,
 } from "@/shared/config";
-import { A_DAY, isForReader, isImminent, nextTimeLeftChangeAt, type UserId } from "@/shared/lib";
+import {
+  A_DAY,
+  A_MINUTE,
+  isForReader,
+  isImminent,
+  nextTimeLeftChangeAt,
+  type UserId,
+} from "@/shared/lib";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 export type UpcomingEvents = {
@@ -44,6 +52,7 @@ export function useUpcomingEvents(
   initialSummary: CalendarSummary,
   currentUserId: UserId,
 ): UpcomingEvents {
+  const { subscribe } = useChatStream();
   const [summary, setSummary] = useState(initialSummary);
   const [limit, setLimit] = useState(SIDE_PANEL_UPCOMING_PAGE_SIZE);
   const [cardLimit, setCardLimit] = useState(MAX_UPCOMING_EVENTS);
@@ -89,6 +98,36 @@ export function useUpcomingEvents(
     };
   }, [refresh]);
 
+  // INFO: Subscribe to chat stream system events (event created/rescheduled/deleted/reminder) and resume.
+  useEffect(() => {
+    return subscribe({
+      onMessage: (message) => {
+        if (
+          message.systemAction === "event_created" ||
+          message.systemAction === "event_rescheduled" ||
+          message.systemAction === "event_deleted" ||
+          message.systemAction === "event_reminder"
+        ) {
+          reload();
+        }
+      },
+      onResume: () => {
+        refresh();
+      },
+    });
+  }, [subscribe, reload, refresh]);
+
+  // INFO: 1-minute silent refresh so Google Calendar 1-minute cron imports appear on desktop SidePanel.
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (document.visibilityState === "visible" && navigator.onLine) {
+        reload();
+      }
+    }, A_MINUTE);
+
+    return () => clearInterval(timer);
+  }, [reload]);
+
   // WARN: The mount is skipped through `loadedLimit`, because the server render already answered for the first page — without it opening 채팅 spends a request re-fetching what the HTML came with.
   useEffect(() => {
     if (limit === loadedLimit.current) {
@@ -122,7 +161,7 @@ export function useUpcomingEvents(
     occurrences: summary.upcoming.slice(0, limit),
     cardOccurrences: summary.upcoming.slice(0, cardLimit),
     todayKey: summary.todayKey,
-    // WARN: `now > 0` is the hydration guard, not a shortcut. Seeded at `0` every event is a year out, which is exactly what the server rendered.
+    // WARN: `now > 0` is the hydration guard, not a shortcut. Seeded at `0` every event is a year out, which is what the server rendered.
     // INFO: § 11.5.1. The same set the panel opens itself for — the bloom is the header saying that panel has something in it for the reader.
     isSoon:
       now > 0 &&

@@ -10,23 +10,25 @@ import {
   type Milestone,
   type Nullable,
 } from "@/shared/lib";
-import { Button, EmptyState, Skeleton } from "@/shared/ui";
+import { Button, EmptyState, IconButton, Skeleton } from "@/shared/ui";
 import {
   AgendaEventRow,
   AgendaStaticRow,
   HolidayDot,
   MilestoneDot,
 } from "@/widgets/calendar-month";
-import { CalendarDays } from "lucide-react";
+import { CalendarDays, RefreshCw } from "lucide-react";
 
 export type DayAgendaProps = {
   className?: string;
   dayKey: string;
-  isLoading: boolean;
   holiday: Nullable<Holiday>;
+  isLoading: boolean;
+  isSyncingGoogle?: boolean;
   milestones: Milestone[];
   occurrences: EventOccurrence[];
   participants: Participant[];
+  onSyncGoogle?: () => void;
   onCreate: () => void;
   onSelect: (occurrence: EventOccurrence) => void;
 };
@@ -39,11 +41,13 @@ export type DayAgendaProps = {
 export function DayAgenda({
   className,
   dayKey,
-  isLoading,
   holiday,
+  isLoading,
+  isSyncingGoogle = false,
   milestones,
   occurrences,
   participants,
+  onSyncGoogle,
   onCreate,
   onSelect,
 }: DayAgendaProps) {
@@ -51,10 +55,23 @@ export function DayAgenda({
 
   return (
     <section className={cn("space-y-xs", className)} aria-label="선택한 날의 일정">
-      {/* INFO: The full date, not just the numeral — this is what stays on screen once the grid has scrolled away. */}
-      <h2 className="text-title-md text-ink" aria-live="polite">
-        {formatDateWithWeekday(parseDayKey(dayKey))}
-      </h2>
+      <div className="flex items-center justify-between gap-xs">
+        {/* INFO: The full date, not just the numeral — this is what stays on screen once the grid has scrolled away. */}
+        <h2 className="text-title-md text-ink" aria-live="polite">
+          {formatDateWithWeekday(parseDayKey(dayKey))}
+        </h2>
+        {onSyncGoogle && (
+          <IconButton
+            iconClassName={cn("size-4 text-meta", isSyncingGoogle && "animate-spin")}
+            variant="plain"
+            Icon={RefreshCw}
+            disabled={isSyncingGoogle}
+            haptic
+            aria-label="Google 캘린더 동기화"
+            onClick={onSyncGoogle}
+          />
+        )}
+      </div>
 
       {isLoading && isEmpty ? (
         // WARN: A month still in flight is not an empty day. Without this the agenda asserts `이 날은 일정이 없어요` for every day a swipe lands on, for as long as the fetch takes.

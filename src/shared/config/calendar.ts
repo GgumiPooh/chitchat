@@ -1,4 +1,4 @@
-import type { EventRecurrence } from "@/shared/lib";
+import type { EventRecurrence, Nullable } from "@/shared/lib";
 
 /** REQUIREMENTS.md § 11. The calendar's endpoints. */
 export const EVENTS_PATH = "/api/events";
@@ -26,12 +26,31 @@ export const EVENT_COLORS = ["clay", "honey", "olive", "teal", "blue", "plum"] a
 
 export type EventColor = (typeof EVENT_COLORS)[number];
 
+export const EVENT_RECURRENCES = [
+  "none",
+  "daily",
+  "weekly",
+  "monthly",
+  "yearly",
+  "custom",
+] as const;
+
+export const SELECTABLE_EVENT_RECURRENCES = [
+  "none",
+  "daily",
+  "weekly",
+  "monthly",
+  "yearly",
+] as const;
+
 /** REQUIREMENTS.md § 11.4. The 반복 chips and the detail row's suffix, in the order the form offers them. */
 export const EVENT_RECURRENCE_LABELS: Record<EventRecurrence, string> = {
-  none: "반복 없음",
+  none: "안 함",
+  daily: "매일",
   weekly: "매주",
   monthly: "매월",
   yearly: "매년",
+  custom: "맞춤 반복",
 };
 
 export const EVENT_COLOR_LABELS: Record<EventColor, string> = {
@@ -69,6 +88,100 @@ export const EVENT_FALLBACK_RING_CLASS = "border-meta-soft";
 
 export function isEventColor(value: unknown): value is EventColor {
   return EVENT_COLORS.includes(value as EventColor);
+}
+
+export const EVENT_COLOR_TO_GOOGLE_COLOR: Record<EventColor, string> = {
+  blue: "9",
+  clay: "4",
+  honey: "5",
+  olive: "10",
+  plum: "3",
+  teal: "7",
+};
+
+const GOOGLE_COLOR_TO_EVENT_COLOR: Record<string, Nullable<EventColor>> = {
+  "1": "plum",
+  "2": "olive",
+  "3": "plum",
+  "4": "clay",
+  "5": "honey",
+  "6": "honey",
+  "7": "teal",
+  "8": null,
+  "9": "blue",
+  "10": "olive",
+  "11": "clay",
+};
+
+export function toEventColorFromGoogle(
+  googleColorId: Nullable<string>,
+  calendarBackgroundHex?: Nullable<string>,
+): Nullable<EventColor> {
+  if (googleColorId) {
+    return GOOGLE_COLOR_TO_EVENT_COLOR[googleColorId] ?? null;
+  }
+  if (!calendarBackgroundHex) {
+    return null;
+  }
+  const match = /^#([0-9a-fA-F]{6})$/.exec(calendarBackgroundHex.trim());
+  if (!match) {
+    return null;
+  }
+  const hex = match[1];
+  const r = parseInt(hex.slice(0, 2), 16) / 255;
+  const g = parseInt(hex.slice(2, 4), 16) / 255;
+  const b = parseInt(hex.slice(4, 6), 16) / 255;
+
+  const max = Math.max(r, g, b);
+  const min = Math.min(r, g, b);
+  const delta = max - min;
+  const lightness = (max + min) / 2;
+
+  const saturation = delta === 0 ? 0 : delta / (1 - Math.abs(2 * lightness - 1));
+  if (saturation < 0.18) {
+    return null;
+  }
+
+  let hue = 0;
+  if (delta !== 0) {
+    if (max === r) {
+      hue = ((g - b) / delta + (g < b ? 6 : 0)) * 60;
+    } else if (max === g) {
+      hue = ((b - r) / delta + 2) * 60;
+    } else {
+      hue = ((r - g) / delta + 4) * 60;
+    }
+  }
+
+  if (hue < 0) {
+    hue += 360;
+  }
+
+  if (hue >= 345 || hue < 28) {
+    return "clay";
+  }
+  if (hue < 68) {
+    return "honey";
+  }
+  if (hue < 150) {
+    return "olive";
+  }
+  if (hue < 198) {
+    return "teal";
+  }
+  if (hue < 260) {
+    return "blue";
+  }
+  return "plum";
+}
+
+export function isExcludedGoogleCalendarId(calendarId: string): boolean {
+  const normalized = calendarId.trim().toLowerCase();
+  return (
+    normalized.endsWith("#holiday@group.v.calendar.google.com") ||
+    normalized.endsWith("@holiday.calendar.google.com") ||
+    normalized.endsWith("@group.v.calendar.google.com")
+  );
 }
 
 // INFO: The milestone constants are deliberately NOT here — they live in `shared/lib/date/calendar.ts` beside the arithmetic that reads them, because `shared/config` imports `shared/lib` and the reverse would be a cycle.

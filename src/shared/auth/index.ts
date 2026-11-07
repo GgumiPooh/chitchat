@@ -1,6 +1,8 @@
 export { toDeviceLabel } from "./device-label";
 export { withEncryptedRoute, type EncryptedRouteOptions } from "./encrypted-route";
 export {
+  GOOGLE_CALENDAR_SCOPE,
+  GOOGLE_CALENDAR_SCOPES,
   GOOGLE_CALLBACK_PATH,
   GOOGLE_SCOPES,
   getGoogleClient,
@@ -8,7 +10,14 @@ export {
   verifyGoogleIdToken,
   type GoogleIdentity,
 } from "./google";
-export { clearOAuthCookies, readOAuthCookies, setOAuthCookies } from "./oauth-cookies";
+export { decryptGoogleCalendarToken, encryptGoogleCalendarToken } from "./google-calendar-crypto";
+export {
+  clearOAuthCookies,
+  consumeCalendarOAuthIntent,
+  readOAuthCookies,
+  setCalendarOAuthIntent,
+  setOAuthCookies,
+} from "./oauth-cookies";
 export { takePostLoginRoute } from "./pending-share";
 export {
   PIN_LOCKOUT_MS,

@@ -9,6 +9,7 @@ import {
 } from "@/shared/config";
 import {
   cn,
+  formatDate,
   formatDateWithWeekday,
   formatMultiDaySpan,
   formatOccurrenceTime,
@@ -72,6 +73,7 @@ export function EventDetailDialog({
   const author = participants.find(({ id }) => id === shown?.event.createdBy);
   // INFO: AGENTS.md § 4.1. `ActionSheet`'s desktop anchor for 일정 관리.
   const manageButtonRef = useRef<HTMLButtonElement>(null);
+  const isEventLocked = isReadOnly || Boolean(shown?.event.isReadOnly);
 
   return (
     <>
@@ -84,7 +86,7 @@ export function EventDetailDialog({
           // INFO: `break-all` — the app wraps on spaces (DESIGN.md § 4.2.3.), which leaves a long spaceless title overflowing its own line rather than wrapping.
           className: "pr-24 break-all",
           title: shown?.event.title ?? "일정",
-          action: isReadOnly ? undefined : (
+          action: isEventLocked ? undefined : (
             <>
               <IconButton
                 ref={manageButtonRef}
@@ -126,7 +128,7 @@ export function EventDetailDialog({
               </span>
             </Row>
             <Row label="구분">
-              <span className="flex items-center gap-2xs text-body-md text-ink">
+              <span className="flex flex-wrap items-center gap-2xs text-body-md text-ink">
                 {/* INFO: A swatch and not `EventDot` — a feature may not reach a widget (REQUIREMENTS.md § 2.), and the grid's 4px shape carries scope where this row spells it out in a word. */}
                 <span
                   className={cn(
@@ -139,7 +141,12 @@ export function EventDetailDialog({
                 {/* INFO: REQUIREMENTS.md § 11.5. `개인` and never `내` — both users read this row, so `내` is wrong for whichever of them did not write it. */}
                 {shown.event.scope === "mine" ? "개인 일정" : "우리 일정"}
                 {shown.event.recurrence !== "none" &&
-                  ` · ${EVENT_RECURRENCE_LABELS[shown.event.recurrence]}`}
+                  ` · ${EVENT_RECURRENCE_LABELS[shown.event.recurrence]}${
+                    shown.event.recurrenceUntil
+                      ? ` (${formatDate(parseDayKey(shown.event.recurrenceUntil))}까지)`
+                      : ""
+                  }`}
+                {shown.event.source === "google" && " · Google 캘린더"}
                 {!shown.event.reminderEnabled && " · 알림 없음"}
               </span>
             </Row>
@@ -158,6 +165,11 @@ export function EventDetailDialog({
                   {shown.event.description.trim()}
                 </span>
               </Row>
+            )}
+            {!isReadOnly && shown.event.isReadOnly && (
+              <p className="pt-xs text-caption text-meta">
+                구독 중인 읽기 전용 캘린더 일정은 Google 캘린더에서 관리할 수 있어요
+              </p>
             )}
           </dl>
         )}

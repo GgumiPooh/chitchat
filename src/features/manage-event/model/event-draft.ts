@@ -19,8 +19,10 @@ export type EventDraft = {
   allDay: boolean;
   color: Nullable<EventColor>;
   recurrence: EventRecurrence;
+  recurrenceUntil: string;
   scope: EventScope;
   reminderEnabled: boolean;
+  targetCalendarId: Nullable<string>;
 };
 
 // INFO: A half-hour grid rather than the hour: at 14:05 the next hour boundary is 55 minutes out, which is never the thing being added right now.
@@ -59,8 +61,10 @@ export function toNewDraft(dayKey: string, now: number): EventDraft {
     allDay: false,
     color: null,
     recurrence: "none",
+    recurrenceUntil: "",
     scope: "shared",
     reminderEnabled: true,
+    targetCalendarId: null,
   };
 }
 
@@ -101,8 +105,10 @@ export function toEditDraft(occurrence: EventOccurrence): EventDraft {
     allDay: event.allDay,
     color: event.color,
     recurrence: event.recurrence,
+    recurrenceUntil: event.recurrenceUntil ?? "",
     scope: event.scope,
     reminderEnabled: event.reminderEnabled,
+    targetCalendarId: null,
   };
 }
 
@@ -118,6 +124,8 @@ export function toEventBody(draft: EventDraft): Nullable<EventBody> {
     return null;
   }
 
+  const recurrenceUntil = draft.recurrence === "none" ? null : draft.recurrenceUntil.trim() || null;
+
   return {
     title: draft.title.trim(),
     description: draft.description.trim() || null,
@@ -126,8 +134,10 @@ export function toEventBody(draft: EventDraft): Nullable<EventBody> {
     allDay: draft.allDay,
     color: draft.color,
     recurrence: draft.recurrence,
+    recurrenceUntil,
     scope: draft.scope,
     reminderEnabled: draft.reminderEnabled,
+    ...(draft.targetCalendarId ? { targetCalendarId: draft.targetCalendarId } : {}),
   };
 }
 
@@ -145,7 +155,15 @@ export function isDraftSubmittable(draft: Maybe<EventDraft>): boolean {
 
   const body = toEventBody(draft);
 
-  return body !== null && body.startsAt <= body.endsAt;
+  if (body === null || body.startsAt > body.endsAt) {
+    return false;
+  }
+
+  if (body.recurrenceUntil !== null && body.recurrenceUntil < draft.startDayKey) {
+    return false;
+  }
+
+  return true;
 }
 
 /**
@@ -162,5 +180,13 @@ export function toDraftIssue(draft: EventDraft): Nullable<string> {
     return draft.title.trim() ? "날짜와 시간을 채워 주세요" : null;
   }
 
-  return body.startsAt > body.endsAt ? "종료가 시작보다 빨라요" : null;
+  if (body.startsAt > body.endsAt) {
+    return "종료가 시작보다 빨라요";
+  }
+
+  if (body.recurrenceUntil !== null && body.recurrenceUntil < draft.startDayKey) {
+    return "반복 종료일이 시작일보다 빨라요";
+  }
+
+  return null;
 }

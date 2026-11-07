@@ -1,9 +1,11 @@
 import {
   EVENT_COLORS,
+  EVENT_RECURRENCES,
   MAX_EVENT_DESCRIPTION_LENGTH,
   MAX_EVENT_TITLE_LENGTH,
+  SELECTABLE_EVENT_RECURRENCES,
 } from "@/shared/config";
-import { isDayKey } from "@/shared/lib";
+import { isDayKey, toDayKey } from "@/shared/lib";
 import { z } from "zod";
 
 // WARN: `isDayKey`, not a bare pattern — `2026-13-45` matches the shape and still parses to an Invalid Date, which every date helper downstream throws on.
@@ -23,30 +25,35 @@ export const rangeSchema = z
  * and the UPDATE would wipe all four (REQUIREMENTS.md § 11.4.).
  */
 const fieldsSchema = z.object({
-  title: z.string().trim().min(1).max(MAX_EVENT_TITLE_LENGTH),
-  description: z.string().trim().max(MAX_EVENT_DESCRIPTION_LENGTH).nullable(),
-  startsAt: z.iso.datetime(),
-  endsAt: z.iso.datetime(),
   allDay: z.boolean(),
   // WARN: DESIGN.md § 4.1.7. The set is closed here, not at the column — `events.color` is free `text`, so this is the only thing keeping a class name Tailwind never built out of the database.
   color: z.enum(EVENT_COLORS).nullable(),
-  // INFO: REQUIREMENTS.md § 6. Three fixed cadences. Never widen this into an RRULE.
-  recurrence: z.enum(["none", "weekly", "monthly", "yearly"]),
-  scope: z.enum(["shared", "mine"]),
+  description: z.string().trim().max(MAX_EVENT_DESCRIPTION_LENGTH).nullable(),
+  endsAt: z.iso.datetime(),
+  recurrence: z.enum(EVENT_RECURRENCES),
+  recurrenceUntil: dayKeySchema.nullable(),
   reminderEnabled: z.boolean(),
+  scope: z.enum(["shared", "mine"]),
+  startsAt: z.iso.datetime(),
+  title: z.string().trim().min(1).max(MAX_EVENT_TITLE_LENGTH),
 });
 
 // INFO: REQUIREMENTS.md § 6. `ends_at` is NOT NULL, so an open-ended event is rejected rather than defaulted — the form is what supplies a sensible end. Only a create defaults, and only the fields a create may legitimately omit.
 export const eventBodySchema = fieldsSchema
   .extend({
-    description: fieldsSchema.shape.description.default(null),
     allDay: fieldsSchema.shape.allDay.default(false),
     color: fieldsSchema.shape.color.default(null),
-    recurrence: fieldsSchema.shape.recurrence.default("none"),
-    scope: fieldsSchema.shape.scope.default("shared"),
+    description: fieldsSchema.shape.description.default(null),
+    recurrence: z.enum(SELECTABLE_EVENT_RECURRENCES).default("none"),
+    recurrenceUntil: fieldsSchema.shape.recurrenceUntil.default(null),
     reminderEnabled: fieldsSchema.shape.reminderEnabled.default(true),
+    scope: fieldsSchema.shape.scope.default("shared"),
+    targetCalendarId: z.string().trim().min(1).max(255).optional(),
   })
-  .refine(({ startsAt, endsAt }) => startsAt <= endsAt);
+  .refine(
+    ({ startsAt, endsAt, recurrenceUntil }) =>
+      startsAt <= endsAt && (recurrenceUntil === null || toDayKey(startsAt) <= recurrenceUntil),
+  );
 
 /**
  * REQUIREMENTS.md § 11.4. An edit sends only what changed, and an absent key stays
@@ -59,5 +66,10 @@ export const eventBodySchema = fieldsSchema
 export const eventPatchSchema = fieldsSchema
   .partial()
   .refine(
-    ({ startsAt, endsAt }) => startsAt === undefined || endsAt === undefined || startsAt <= endsAt,
+    ({ startsAt, endsAt, recurrenceUntil }) =>
+      (startsAt === undefined || endsAt === undefined || startsAt <= endsAt) &&
+      (startsAt === undefined ||
+        recurrenceUntil === undefined ||
+        recurrenceUntil === null ||
+        toDayKey(startsAt) <= recurrenceUntil),
   );

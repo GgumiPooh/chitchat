@@ -1,3 +1,4 @@
+import { syncAllGoogleCalendars } from "@/entities/google-calendar";
 import { remindUpcomingEvents } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
 import { isOpsCronConfigured, isOpsCronRequest } from "@/shared/ops";
@@ -18,6 +19,12 @@ export async function POST(request: Request) {
 
   if (!isOpsCronRequest(request)) {
     return apiError("unauthorized");
+  }
+
+  try {
+    await syncAllGoogleCalendars();
+  } catch (error) {
+    console.error("[sync-google-calendar] failed during remind pass", error);
   }
 
   const report = await remindUpcomingEvents();

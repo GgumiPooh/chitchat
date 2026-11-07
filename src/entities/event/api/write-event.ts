@@ -1,36 +1,56 @@
 import "server-only";
 
 import type { EventColor } from "@/shared/config";
-import { events, getDb, nextSnowflake, type EventRecurrence, type EventScope } from "@/shared/db";
+import {
+  events,
+  getDb,
+  nextSnowflake,
+  type EventRecurrence,
+  type EventScope,
+  type EventSource,
+} from "@/shared/db";
 import type { EventId, Nullable, UserId } from "@/shared/lib";
 import { eq } from "drizzle-orm";
 import { toCalendarEvent } from "../model/to-calendar-event";
 import type { CalendarEvent } from "../model/types";
 
 export type CreateEventParams = {
-  title: string;
-  description: Nullable<string>;
-  startsAt: Date;
-  endsAt: Date;
   allDay: boolean;
   color: Nullable<EventColor>;
-  recurrence: EventRecurrence;
-  scope: EventScope;
-  reminderEnabled: boolean;
   createdBy: UserId;
+  description: Nullable<string>;
+  endsAt: Date;
+  exdates?: string[];
+  iCalUid?: Nullable<string>;
+  isReadOnly?: boolean;
+  recurrence: EventRecurrence;
+  recurrenceUntil?: Nullable<string>;
+  reminderEnabled: boolean;
+  rrule?: Nullable<string>;
+  scope: EventScope;
+  source?: EventSource;
+  startsAt: Date;
+  title: string;
 };
 
 /** REQUIREMENTS.md § 11.4. Every field is optional — an edit sends only what changed. */
 export type UpdateEventParams = {
-  title?: string;
-  description?: Nullable<string>;
-  startsAt?: Date;
-  endsAt?: Date;
   allDay?: boolean;
   color?: Nullable<EventColor>;
+  description?: Nullable<string>;
+  endsAt?: Date;
+  exdates?: string[];
+  iCalUid?: Nullable<string>;
+  isReadOnly?: boolean;
   recurrence?: EventRecurrence;
-  scope?: EventScope;
+  recurrenceUntil?: Nullable<string>;
   reminderEnabled?: boolean;
+  rrule?: Nullable<string>;
+  scope?: EventScope;
+  source?: EventSource;
+  startsAt?: Date;
+  title?: string;
+  updatedAt?: Date;
 };
 
 export async function getEvent(id: EventId): Promise<Nullable<CalendarEvent>> {
@@ -61,7 +81,28 @@ export async function updateEvent(
   params: UpdateEventParams,
 ): Promise<Nullable<CalendarEvent>> {
   const db = getDb();
-  const [row] = await db.update(events).set(params).where(eq(events.id, id)).returning();
+  const patch: UpdateEventParams = {
+    ...params,
+    updatedAt: new Date(),
+  };
+
+  if (
+    params.recurrence !== undefined &&
+    params.recurrence !== "custom" &&
+    params.rrule === undefined
+  ) {
+    patch.rrule = null;
+  }
+  if (params.recurrence === "none") {
+    if (params.recurrenceUntil === undefined) {
+      patch.recurrenceUntil = null;
+    }
+    if (params.exdates === undefined) {
+      patch.exdates = [];
+    }
+  }
+
+  const [row] = await db.update(events).set(patch).where(eq(events.id, id)).returning();
 
   return row ? toCalendarEvent(row) : null;
 }

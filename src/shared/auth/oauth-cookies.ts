@@ -1,10 +1,12 @@
 import "server-only";
 
-import { A_MINUTE, A_SECOND, type Nullable } from "@/shared/lib";
+import { snowflakeSchema } from "@/shared/config";
+import { A_MINUTE, A_SECOND, type Nullable, type UserId } from "@/shared/lib";
 import { cookies } from "next/headers";
 
 const STATE_COOKIE_NAME = "jandh_oauth_state";
 const CODE_VERIFIER_COOKIE_NAME = "jandh_oauth_verifier";
+const CALENDAR_INTENT_COOKIE_NAME = "jandh_oauth_calendar_user";
 
 // INFO: Only has to outlive the Google consent screen; a long-lived value would widen the replay window.
 const OAUTH_COOKIE_MAX_AGE = 10 * A_MINUTE;
@@ -42,4 +44,28 @@ export async function clearOAuthCookies(): Promise<void> {
 
   cookieStore.delete(STATE_COOKIE_NAME);
   cookieStore.delete(CODE_VERIFIER_COOKIE_NAME);
+  cookieStore.delete(CALENDAR_INTENT_COOKIE_NAME);
+}
+
+export async function setCalendarOAuthIntent(userId: UserId): Promise<void> {
+  const cookieStore = await cookies();
+
+  cookieStore.set(CALENDAR_INTENT_COOKIE_NAME, userId, OAUTH_COOKIE_OPTIONS);
+}
+
+export async function consumeCalendarOAuthIntent(): Promise<Nullable<UserId>> {
+  const cookieStore = await cookies();
+  const raw = cookieStore.get(CALENDAR_INTENT_COOKIE_NAME)?.value;
+
+  if (raw !== undefined) {
+    cookieStore.delete(CALENDAR_INTENT_COOKIE_NAME);
+  }
+
+  if (!raw) {
+    return null;
+  }
+
+  const parsed = snowflakeSchema<UserId>().safeParse(raw);
+
+  return parsed.success ? parsed.data : null;
 }

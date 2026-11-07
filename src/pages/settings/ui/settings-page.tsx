@@ -5,6 +5,7 @@ import { IS_DEV } from "@/shared/config";
 import type { User } from "@/shared/db";
 import { cn } from "@/shared/lib";
 import {
+  CalendarSettingsRow,
   ChatSettingsRow,
   DevRefreshRow,
   NotificationSettingsRow,
@@ -46,6 +47,7 @@ export function SettingsPage({ className, user, isProfileBackgroundVideo }: Sett
 
         {/* INFO: Subpage navigation menus */}
         <ChatSettingsRow />
+        <CalendarSettingsRow />
         <NotificationSettingsRow />
         <SecuritySettingsRow />
         <ServerSettingsRow />

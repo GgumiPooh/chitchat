@@ -160,6 +160,11 @@ export const VOCA_ACTION_ADD = "add-word";
 export const VOCA_ACTION_RECOMMEND = "recommend";
 
 export const SETTINGS_ROUTE = "/settings";
+export const CALENDAR_SETTINGS_ROUTE = "/settings/calendar";
+export const GOOGLE_CALENDAR_CONNECT_PATH = "/api/auth/google-calendar/connect";
+export const GOOGLE_CALENDAR_ACCOUNT_PATH = "/api/google-calendar/account";
+export const GOOGLE_CALENDAR_SOURCES_PATH = "/api/google-calendar/sources";
+export const GOOGLE_CALENDAR_SYNC_PATH = "/api/google-calendar/sync";
 export const CHAT_SETTINGS_ROUTE = "/settings/chat";
 export const NOTIFICATIONS_SETTINGS_ROUTE = "/settings/notifications";
 export const SECURITY_SETTINGS_ROUTE = "/settings/security";

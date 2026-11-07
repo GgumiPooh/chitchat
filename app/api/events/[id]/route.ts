@@ -1,12 +1,23 @@
 import { deleteEvent, getEvent, updateEvent, type UpdateEventParams } from "@/entities/event";
+import {
+  deleteLinkedGoogleEvents,
+  listEventGoogleLinksForDelete,
+  syncUpdatedEventToGoogle,
+} from "@/entities/google-calendar";
 import { createSystemMessage } from "@/entities/message";
 import { notifyMessageRecipients } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
 import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { snowflakeSchema } from "@/shared/config";
 import type { SystemAction, User } from "@/shared/db";
-import { composeEventNoticeBody, safelyRunAsync, type EventId, type Nullable } from "@/shared/lib";
-import { NextResponse, after } from "next/server";
+import {
+  composeEventNoticeBody,
+  safelyRunAsync,
+  toDayKey,
+  type EventId,
+  type Nullable,
+} from "@/shared/lib";
+import { after, NextResponse } from "next/server";
 import type { z } from "zod";
 import { eventPatchSchema } from "../schema";
 
@@ -67,7 +78,15 @@ export const PATCH = withEncryptedRoute(async (request: Request, { params }: Rou
     return apiError("not_found");
   }
 
+  if (before.isReadOnly) {
+    return apiError("unprocessable");
+  }
+
   const patch = toUpdateParams(body.data);
+
+  if (patch.recurrence === "custom" && before.recurrence !== "custom") {
+    return apiError("invalid_request");
+  }
 
   // INFO: The schema can only compare two ends it was given both of; moving one alone is checked against the row we just read.
   if (!isOrderedAgainst(before, patch)) {
@@ -85,6 +104,10 @@ export const PATCH = withEncryptedRoute(async (request: Request, { params }: Rou
     await postNotice(user, "event_rescheduled", event.id, event.title, event.startsAt);
   }
 
+  after(() => {
+    safelyRunAsync(() => syncUpdatedEventToGoogle(before, event));
+  });
+
   return NextResponse.json({ event });
 });
 
@@ -101,6 +124,17 @@ export const DELETE = withEncryptedRoute(async (_request: Request, { params }: R
     return apiError("invalid_request");
   }
 
+  const before = await getEvent(id.data);
+
+  if (!before) {
+    return apiError("not_found");
+  }
+
+  if (before.isReadOnly) {
+    return apiError("unprocessable");
+  }
+
+  const googleLinks = await listEventGoogleLinksForDelete(id.data);
   const event = await deleteEvent(id.data);
 
   if (!event) {
@@ -109,6 +143,10 @@ export const DELETE = withEncryptedRoute(async (_request: Request, { params }: R
 
   // WARN: `eventId` is null — the row is already gone, and `messages.event_id` is `ON DELETE SET NULL` anyway (§ 6.). The snapshot is what lets the notice still name what was deleted.
   await postNotice(user, "event_deleted", null, event.title, event.startsAt);
+
+  after(() => {
+    safelyRunAsync(() => deleteLinkedGoogleEvents(googleLinks));
+  });
 
   return new NextResponse(null, { status: 204 });
 });
@@ -121,11 +159,11 @@ async function postNotice(
   startsAt: string,
 ) {
   const notice = await createSystemMessage({
-    senderId: user.id,
     action,
     eventId,
-    eventTitle: title,
     eventStartsAt: new Date(startsAt),
+    eventTitle: title,
+    senderId: user.id,
   });
 
   after(() =>
@@ -140,20 +178,30 @@ async function postNotice(
 
 // INFO: The wire carries instants as ISO strings; the column takes a `Date`. An absent key stays absent, so the UPDATE never overwrites a field the edit did not touch.
 function toUpdateParams({
-  startsAt,
   endsAt,
+  recurrenceUntil,
+  startsAt,
   ...rest
 }: z.infer<typeof eventPatchSchema>): UpdateEventParams {
   return {
     ...rest,
-    ...(startsAt === undefined ? {} : { startsAt: new Date(startsAt) }),
     ...(endsAt === undefined ? {} : { endsAt: new Date(endsAt) }),
+    ...(recurrenceUntil === undefined ? {} : { recurrenceUntil }),
+    ...(startsAt === undefined ? {} : { startsAt: new Date(startsAt) }),
   };
 }
 
-function isOrderedAgainst(before: { startsAt: string; endsAt: string }, patch: UpdateEventParams) {
+function isOrderedAgainst(
+  before: { endsAt: string; recurrenceUntil: Nullable<string>; startsAt: string },
+  patch: UpdateEventParams,
+) {
   const startsAt = patch.startsAt ?? new Date(before.startsAt);
   const endsAt = patch.endsAt ?? new Date(before.endsAt);
+  const effectiveRecurrenceUntil =
+    patch.recurrenceUntil !== undefined ? patch.recurrenceUntil : before.recurrenceUntil;
 
-  return startsAt <= endsAt;
+  return (
+    startsAt <= endsAt &&
+    (effectiveRecurrenceUntil === null || toDayKey(startsAt) <= effectiveRecurrenceUntil)
+  );
 }

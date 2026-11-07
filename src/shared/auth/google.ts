@@ -9,6 +9,8 @@ import { createRemoteJWKSet, jwtVerify } from "jose";
 export const GOOGLE_CALLBACK_PATH = "/api/auth/callback/google";
 
 export const GOOGLE_SCOPES = ["openid", "email", "profile"];
+export const GOOGLE_CALENDAR_SCOPE = "https://www.googleapis.com/auth/calendar";
+export const GOOGLE_CALENDAR_SCOPES = [...GOOGLE_SCOPES, GOOGLE_CALENDAR_SCOPE];
 
 const GOOGLE_ISSUERS = ["https://accounts.google.com", "accounts.google.com"];
 

@@ -1,11 +1,12 @@
 "use client";
 
 import type { CalendarEvent, EventOccurrence } from "@/entities/event";
-import { type Maybe } from "@/shared/lib";
+import type { GoogleCalendarSource } from "@/entities/google-calendar";
+import { type Maybe, type Nullable } from "@/shared/lib";
 import { OFFLINE_MESSAGES, useOfflineGate } from "@/shared/offline-ux";
 import { BottomSheet, toast } from "@/shared/ui";
-import { useState } from "react";
-import { createEvent, updateEvent } from "../api/write-event";
+import { useEffect, useState } from "react";
+import { createEvent, fetchWritableGoogleCalendars, updateEvent } from "../api/write-event";
 import {
   toDraftIssue,
   toEditDraft,
@@ -49,21 +50,48 @@ export function EventFormSheet({
   const [draft, setDraft] = useState<EventDraft>(() =>
     occurrence ? toEditDraft(occurrence) : toNewDraft(dayKey, Date.now()),
   );
+  const [writableCalendars, setWritableCalendars] = useState<GoogleCalendarSource[]>([]);
+  const [defaultCalendarId, setDefaultCalendarId] = useState<Nullable<string>>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const issue = toDraftIssue(draft);
   const { isBlocked, guard } = useOfflineGate(OFFLINE_MESSAGES.save);
   const title = occurrence ? "일정 수정" : "새 일정";
 
+  useEffect(() => {
+    if (occurrence || !isOpen) {
+      return;
+    }
+
+    let isMounted = true;
+
+    void fetchWritableGoogleCalendars()
+      .then(({ defaultCalendarId: initialDefaultId, calendars }) => {
+        if (!isMounted) {
+          return;
+        }
+
+        setWritableCalendars(calendars);
+        setDefaultCalendarId(initialDefaultId);
+      })
+      .catch(() => undefined);
+
+    return () => {
+      isMounted = false;
+    };
+  }, [occurrence, isOpen]);
+
   const fields = (
     <EventForm
       draft={draft}
-      issue={issue}
       isBlocked={isBlocked}
-      isSubmitting={isSubmitting}
       isEditing={!!occurrence}
-      onUpdate={update}
+      isSubmitting={isSubmitting}
+      issue={issue}
+      selectedCalendarId={defaultCalendarId}
+      writableCalendars={writableCalendars}
       onStartDayKeyChange={handleStartDayKeyChange}
       onSubmit={guard(() => void submit())}
+      onUpdate={update}
     />
   );
 
@@ -82,7 +110,14 @@ export function EventFormSheet({
     setDraft((previous) => ({
       ...previous,
       startDayKey,
-      endDayKey: previous.endDayKey < startDayKey ? startDayKey : previous.endDayKey,
+      endDayKey:
+        previous.endDayKey === previous.startDayKey || previous.endDayKey < startDayKey
+          ? startDayKey
+          : previous.endDayKey,
+      recurrenceUntil:
+        previous.recurrenceUntil && previous.recurrenceUntil < startDayKey
+          ? startDayKey
+          : previous.recurrenceUntil,
     }));
   }
 
@@ -101,11 +136,13 @@ export function EventFormSheet({
       onClose();
     } catch (error) {
       // INFO: The other participant deleting the event while this sheet was open is the one failure worth naming — everything else is the same "try again".
-      toast.error(
-        error instanceof Error && error.message === "404"
-          ? "이미 삭제된 일정이에요"
-          : "일정을 저장하지 못했어요",
-      );
+      if (error instanceof Error && error.message === "404") {
+        toast.error("이미 삭제된 일정이에요");
+      } else if (error instanceof Error && error.message === "422") {
+        toast.error("읽기 전용 캘린더 일정은 수정할 수 없어요");
+      } else {
+        toast.error("일정을 저장하지 못했어요");
+      }
     } finally {
       setIsSubmitting(false);
     }

@@ -18,10 +18,12 @@ export {
 export {
   eventRecurrenceEnum,
   eventScopeEnum,
+  eventSourceEnum,
   events,
   type Event,
   type EventRecurrence,
   type EventScope,
+  type EventSource,
 } from "./events";
 export {
   geeknewsArticles,
@@ -34,6 +36,17 @@ export {
   type GeeknewsSubscription,
   type NewGeeknewsSubscription,
 } from "./geeknews-subscriptions";
+export {
+  eventGoogleLinks,
+  googleCalendarAccounts,
+  googleCalendarSources,
+  type EventGoogleLink,
+  type GoogleCalendarAccount,
+  type GoogleCalendarSourceRow,
+  type NewEventGoogleLink,
+  type NewGoogleCalendarAccount,
+  type NewGoogleCalendarSourceRow,
+} from "./google-calendar";
 export {
   linkPreviewKindEnum,
   linkPreviewStatusEnum,

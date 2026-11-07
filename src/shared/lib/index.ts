@@ -100,8 +100,11 @@ export {
   type HolidayTable,
 } from "./date/holidays";
 export {
+  fromGoogleRecurrence,
   projectRecurrence,
+  toGoogleRecurrence,
   type EventRecurrence,
+  type ParsedGoogleRecurrence,
   type RecurrenceSpan,
   type RecurringSpan,
 } from "./date/recurrence";

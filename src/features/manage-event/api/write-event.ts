@@ -1,6 +1,12 @@
 import type { CalendarEvent, CalendarSummary, EventOccurrence } from "@/entities/event";
+import type { GoogleCalendarOverview, GoogleCalendarSource } from "@/entities/google-calendar";
 import { request } from "@/shared/api";
-import { CALENDAR_SUMMARY_PATH, EVENTS_PATH, type EventColor } from "@/shared/config";
+import {
+  CALENDAR_SUMMARY_PATH,
+  EVENTS_PATH,
+  GOOGLE_CALENDAR_SOURCES_PATH,
+  type EventColor,
+} from "@/shared/config";
 import type { EventRecurrence, EventScope } from "@/shared/db";
 import type { EventId, Nullable } from "@/shared/lib";
 
@@ -12,8 +18,10 @@ export type EventBody = {
   allDay: boolean;
   color: Nullable<EventColor>;
   recurrence: EventRecurrence;
+  recurrenceUntil: Nullable<string>;
   scope: EventScope;
   reminderEnabled: boolean;
+  targetCalendarId?: string;
 };
 
 export async function fetchOccurrences(fromKey: string, toKey: string): Promise<EventOccurrence[]> {
@@ -55,6 +63,21 @@ export async function updateEvent(id: string, body: Partial<EventBody>): Promise
 
 export async function deleteEvent(id: string): Promise<void> {
   await send(`${EVENTS_PATH}/${id}`, "DELETE");
+}
+
+export async function fetchWritableGoogleCalendars(): Promise<{
+  defaultCalendarId: Nullable<string>;
+  calendars: GoogleCalendarSource[];
+}> {
+  const overview = await send<GoogleCalendarOverview>(GOOGLE_CALENDAR_SOURCES_PATH, "GET");
+
+  if (!overview.account) {
+    return { defaultCalendarId: null, calendars: [] };
+  }
+
+  const calendars = overview.sources.filter((source) => source.syncEnabled && source.isWritable);
+
+  return { defaultCalendarId: overview.account.defaultCalendarId, calendars };
 }
 
 // WARN: Throws the response status as the message, matching `features/author-emoticon` — screens branch on `404`, which is how the other participant deleting the event mid-edit surfaces.

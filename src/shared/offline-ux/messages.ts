@@ -25,6 +25,8 @@ export const OFFLINE_MESSAGES = {
   preview: "인터넷에 연결되면 미리 볼 수 있어요",
   sweep: "인터넷에 연결되면 정리할 수 있어요",
   reload: "인터넷에 연결되면 다시 불러올 수 있어요",
+  connect: "인터넷에 연결되면 연결할 수 있어요",
+  sync: "인터넷에 연결되면 동기화할 수 있어요",
 } as const;
 
 /** What the always-mounted description node reads, and the one string reused from `/offline`. */

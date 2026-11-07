@@ -190,9 +190,29 @@ function toDueThresholds(occurrence: EventOccurrence, now: number): Threshold[] 
     .sort((left, right) => right.at - left.at);
 }
 
-// INFO: REQUIREMENTS.md § 16.3. A weekly event's 7일 전 is the previous occurrence's own start — a banner at the moment the last one began.
+// INFO: REQUIREMENTS.md § 16.3. Weekly and daily routines skip leads that collide with the previous instance's start.
 function isSkippedLead(occurrence: EventOccurrence, lead: ReminderLead): boolean {
-  return lead === "d7" && occurrence.event.recurrence === "weekly";
+  const { allDay, recurrence, rrule } = occurrence.event;
+
+  if (recurrence === "weekly") {
+    return lead === "d7";
+  }
+
+  if (recurrence === "daily") {
+    return lead === "d7" || (!allDay && lead === "d1");
+  }
+
+  if (recurrence === "custom") {
+    const rule = rrule ?? "";
+    if (rule.includes("FREQ=DAILY")) {
+      return lead === "d7" || (!allDay && lead === "d1");
+    }
+    if (rule.includes("FREQ=WEEKLY")) {
+      return lead === "d7";
+    }
+  }
+
+  return false;
 }
 
 function toThresholds(occurrence: EventOccurrence, startsAt: number): Threshold[] {

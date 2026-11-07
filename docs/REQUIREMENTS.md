@@ -342,8 +342,15 @@ Schema, migrations, and triggers have landed. **Columns are not listed here — 
 **Events**
 
 - `events.ends_at` is NOT NULL — the create form defaults it rather than admitting an open-ended event, which would need its own branch in every month-grid calculation. `color` is nullable
-- **Recurrence is three fixed cadences** — `weekly`, `monthly`, `yearly` — never RRULE, an interval or an end date: a recurring row is projected onto the requested range on read (`occurrences.ts`, and once more in SQL for § 11.5.'s `LIMIT`). `monthly` clamps to the last day of a shorter month in `TIME_ZONE` wall-clock (31일 → 2월 28일) and, like `weekly`, never projects before its anchor; `yearly` keeps its older rule — a 2월 29일 anchor overflows to 3월 1일, and it is projected onto the year before its anchor too. The relationship start date, 100-day marks, and yearly anniversaries are **not rows** (§ 11.2.)
+- **Recurrence supports fixed cadences (`daily`, `weekly`, `monthly`, `yearly`) and Google Calendar custom RFC 5545 `RRULE` (`custom`)**, with an optional `recurrence_until` (`date`) bound and `exdates` (`text[]` ISO strings) for deleted instances: a recurring row is projected onto the requested range on read (`occurrences.ts`, and once more in SQL for § 11.5.'s `LIMIT`). `monthly` clamps to the last day of a shorter month in `TIME_ZONE` wall-clock (31일 → 2월 28일) and never projects before its anchor; `yearly` keeps its rule — a 2월 29일 anchor overflows to 3월 1일, and it is projected onto the year before its anchor too. The relationship start date, 100-day marks, and yearly anniversaries are **not rows** (§ 11.2.)
+- **`events.source` (`jandh` | `google`) and `i_cal_uid`**: distinguishes events authored directly inside J&H from imported Google Calendar events, with `i_cal_uid` enabling cross-user deduplication when both participants connect Google Calendar.
 - **`events.reminder_enabled` is per event, not per user** (§ 16.3.) — both users edit every event, so one switch is what the form can honestly show
+
+**Google Calendar Synchronization (`0083`)**
+
+- **`google_calendar_accounts` stores per-user OAuth connection and sync state**: `user_id` (PK, references `users.id`), `google_user_id`, `google_email`, AES-256-GCM encrypted tokens (`encrypted_access_token`, `encrypted_refresh_token`), `token_expires_at`, `default_calendar_id`, `sync_error`, `last_synced_at`, and `initial_export_done`.
+- **`google_calendar_sources` tracks individual Google calendars per user**: `id` (snowflake PK), `user_id`, `calendar_id`, `summary`, `description`, `background_color`, `is_primary`, `is_writable`, `access_role`, `sync_enabled`, `sync_token`, and `last_synced_at`. Virtual and holiday calendar IDs (`#holiday@group.v.calendar.google.com`, `import@virtual`, `contacts@group.v.calendar.google.com`) are deterministically excluded.
+- **`event_google_links` maintains bidirectional mapping between J&H events and Google Calendar events**: `id` (snowflake PK), `user_id`, `event_id` (references `events.id` ON DELETE CASCADE), `calendar_id`, `google_event_id`, `etag`, `last_pushed_at`, and `last_pulled_at`.
 
 **Emoticons**
 
@@ -1552,22 +1559,39 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 - **A holiday is not an event and takes no dot.** It rides its own field on the grid cell, so it can never consume one of § 11.3.'s three marker slots, and the agenda's holiday row is static like a milestone's — it opens nothing. `대체공휴일` is labelled as such rather than shown as a second copy of the same name
 - **`primary` stays out of it.** The milestone diamond is `primary` (§ 11.2.) and Saturday's header letter is too; extending Saturday's colour to its numeral would collide with today's, so the grid colours Sunday and holidays only
 
+### 11.8. Two-Way Google Calendar Synchronization ✅
+
+Two-way synchronization bridges J&H calendar with Google Calendar accounts for either or both participants.
+
+- **Account connection**: Authenticated via Google OAuth 2.0 (`/api/auth/google-calendar/connect`) requesting incremental `calendar.events` and `calendar.readonly` scopes, capturing offline refresh tokens with explicit consent prompt.
+- **Two-way sync semantics**:
+  - **Shared schedule (`shared`)**: Exported to both participants' connected primary/default Google calendars. Edits made by either participant in J&H propagate to both Google calendars.
+  - **Personal schedule (`mine`)**: Exported only to the author's connected default Google calendar.
+  - **Google Calendar imports**: Events imported from connected Google calendars enter J&H with `scope = 'mine'`, `source = 'google'`, and `reminder_enabled = false` (preventing unsolicited push notifications).
+  - **Deduplication via `i_cal_uid`**: When both partners share an event in Google Calendar, cross-user deduplication prevents duplicate rows in J&H, mapping both users' external events to a single shared row through `event_google_links`.
+- **Recurrence engine (`shared/lib/date/recurrence.ts`)**: Supports `none`, `daily`, `weekly`, `monthly`, `yearly`, and `custom` (full RFC 5545 `RRULE` parsed with `rrule-rust` / `rrule` engine). Supports optional `recurrence_until` and `exdates` for exception dates when individual occurrences are deleted or rescheduled.
+- **Header Settings & Background Sync**: `CalendarCog` icon in calendar header navigates to `/settings/calendar?from=calendar`. Background incremental sync (`syncGoogleCalendar`) triggers automatically on screen mount and tab focus/visibility change (throttled to `2 * A_MINUTE` cooldown).
+- **Target Calendar Selection**: When a user connects multiple writable Google calendars, `EventForm` renders a clean `Chip` selector for target Google calendar selection.
+
 ---
 
 ## 12. Settings Tab ✅
 
-**Landed:** the profile editor (nickname + avatar + cover), the tap-to-enlarge avatar, the IA reorganization into dedicated subpages (`/settings/chat`, `/settings/notifications`, `/settings/security`, `/settings/server`), 오피스 모드 (사내망 프라이버시 모드), the 6-digit 보안 PIN 화면 잠금 및 PIN 변경 (§ 5.5.), 입력 중 표시 switch (§ 8.12.), the two backgrounds (§ 12.1., § 12.2.), the profile screen (§ 12.3.), 로그아웃, the device list and the ops console (§ 12.4.).
+**Landed:** the profile editor (nickname + avatar + cover), the tap-to-enlarge avatar, the IA reorganization into dedicated subpages (`/settings/chat`, `/settings/calendar`, `/settings/notifications`, `/settings/security`, `/settings/server`), 오피스 모드 (사내망 프라이버시 모드), the 6-digit 보안 PIN 화면 잠금 및 PIN 변경 (§ 5.5.), 입력 중 표시 switch (§ 8.12.), the two backgrounds (§ 12.1., § 12.2.), the profile screen (§ 12.3.), 로그아웃, the device list and the ops console (§ 12.4.).
 
 The screen opens on a **fixed-height cover header** (`DESIGN.md § 7.16.`) rather than the old padded avatar block — the § 12.1. background is drawn behind the avatar and the name, and tapping the avatar opens § 12.3.
 
-**The main screen (`/settings`) organizes rows into profile, 4 subpage navigation links, theme, and account:**
+**The main screen (`/settings`) organizes rows into profile, 5 subpage navigation links, theme, and account:**
 
 1. **프로필**: `ProfileSettingsRow` (닉네임 + 프로필 사진 + 커버 편집)
 2. **채팅방 설정 (`/settings/chat`)**: 채팅방 효과음 (§ 13.6., 오피스 모드 연동), 채팅방 배경화면 (§ 12.2.), AI 지침 (§ 8.15.), 이모티콘 묶음 관리 (§ 13.5.), 미니이모티콘 묶음 관리 (§ 13).
-3. **알림 설정 (`/settings/notifications`)**: 푸시 알림 (§ 16.1.), 알림 소리 (오피스 모드 연동), 알림 내용 표시 (오피스 모드 연동).
-4. **보안 및 기기 관리 (`/settings/security`)**: 오피스 모드 (사내망 프라이버시 모드), 이 기기에서 화면 잠금 (6자리 PIN, § 5.5.), 입력 중 표시 (§ 8.12.), 비밀번호 변경, 공유 단축어 키, 로그인된 기기 목록 (`DeviceList`, `/settings/devices` redirects here).
-5. **서버 관리 (`/settings/server`)**: 서버 상태, 버전 정보, 캐시 초기화 (§ 12.4.).
-6. **앱 및 세션**: 화면 테마 (`ThemeSettingsRow`), 개발자 새로고침 (`DevRefreshRow` in dev), 로그아웃 (`LogoutButton`).
+3. **캘린더 설정 (`/settings/calendar`)**: Google 캘린더 연동, 가져올 달력 선택, 기본 달력 설정, 양방향 동기화 관리 (§ 11.8., § 12.5.).
+4. **알림 설정 (`/settings/notifications`)**: 푸시 알림 (§ 16.1.), 알림 소리 (오피스 모드 연동), 알림 내용 표시 (오피스 모드 연동).
+5. **보안 및 기기 관리 (`/settings/security`)**: 오피스 모드 (사내망 프라이버시 모드), 이 기기에서 화면 잠금 (6자리 PIN, § 5.5.), 입력 중 표시 (§ 8.12.), 비밀번호 변경, 공유 단축어 키, 로그인된 기기 목록 (`DeviceList`, `/settings/devices` redirects here).
+6. **서버 관리 (`/settings/server`)**: 서버 상태, 버전 정보, 캐시 초기화 (§ 12.4.).
+7. **앱 및 세션**: 화면 테마 (`ThemeSettingsRow`), 개발자 새로고침 (`DevRefreshRow` in dev), 로그아웃 (`LogoutButton`).
+8. **서버 관리 (`/settings/server`)**: 서버 상태, 버전 정보, 캐시 초기화 (§ 12.4.).
+9. **앱 및 세션**: 화면 테마 (`ThemeSettingsRow`), 개발자 새로고침 (`DevRefreshRow` in dev), 로그아웃 (`LogoutButton`).
 
 **오피스 모드 (Office Mode)** — per-device toggle in `/settings/security` (`jandh:office-mode` cookie & `localStorage`). **Defaults to ON (`true`)** on every device until explicitly turned off. Designed for corporate/office environments:
 
@@ -1747,6 +1771,22 @@ Tapping an avatar opens a full-screen profile, KakaoTalk-style: the § 12.1. cov
 - **A failure answers a § 14. code and nothing else**, and the modal turns that code into a sentence. The upstream message is an `aws` stderr line carrying bucket paths and key ids, so it never crosses. **No copy here points at jandh-ops' push**: that notification goes to `BACKUP_NOTIFY_EMAIL` alone — one account of the two — so the reader who pressed the button may be the one it will never reach
 - **The two dispatching controls report a REQUEST, not a result.** `workflow_dispatch` answers 204 the moment the run is queued and says nothing about how it goes, so the modal says 백업을 요청했어요 / 정리를 요청했어요 and the run's own push carries the outcome. This retires the timeout problem rather than solving it: the old proxy waited on a `pg_dump` that outlived undici's 300s header timeout, and there is now nothing to wait on
 - **No admin role, and none is invented.** § 5.1. already admits exactly two allowlisted emails, so anyone signed in is trusted with this screen
+
+### 12.5. Calendar Settings (`/settings/calendar`) ✅
+
+Dedicated settings subpage for managing Google Calendar synchronization and source calendars.
+
+- **Unconnected state**: Displays an informative card describing two-way sync, how shared events route to both users' Google calendars while personal events stay on the creator's calendar, and a `Google 캘린더 연결` action button (`GOOGLE_CALENDAR_CONNECT_PATH`). Clear error handling for cancelled or refused OAuth flows (`denied`, `no_refresh_token`, `failed`), with immediate URL cleanup (`replaceState`) and dismissible alerts.
+- **Connected state**:
+  - **Account status**: Displays the connected Google account email, relative last sync time, `[지금 동기화]` button (`syncGoogleCalendar`, gated by `OFFLINE_MESSAGES.sync`), and `[연동 해제]` button opening a confirmation `Modal` (`Google 캘린더 연동을 해제할까요?`).
+  - **Re-authentication banner**: Shown when `account.syncError === 'reauth_required'`, alerting the user and providing a one-click `다시 연결` action.
+  - **Default target calendar selection**: When a user has multiple writable enabled calendars (`isWritable && syncEnabled >= 2`), renders an interactive `Chip` selector for choosing the default target calendar for newly created events (`updateDefaultGoogleCalendar`), with long summaries truncated.
+  - **Synced calendars list (`가져올 달력`)**: Displays all fetched Google calendar sources with their Google-defined background color swatches, summaries, descriptions, and optimistic `Switch` controls (`updateGoogleCalendarSources`). Toggling a calendar updates that specific source and debounces follow-up sync to avoid rapid switch races.
+- **Two-way Sync Architecture & Background Cron**:
+  - **1-Minute Cloudflare Worker Cron (`* * * * *`)**: Periodic Google <-> Postgres DB sync runs every minute without `calendarList` caching, ensuring new or edited external Google events and calendars reflect in the database promptly.
+  - **Pull-before-Export & Conflict Resolution**: Sync runs a pull-before-export pass with `extendedProperties.shared.jandhEventId` re-linking and Last-Write-Wins (LWW) conflict resolution across J&H and Google Calendar.
+  - **Read-Only Calendar Protection**: Imported events from subscribed or read-only Google calendars are marked with `events.is_read_only = true`. `EventDetailDialog` suppresses edit/delete controls and displays a guidance caption directing users to manage the event in Google Calendar.
+  - **Screen-level UI Sync**: `/calendar` executes a 1-minute silent DB refresh (`reload(..., { silent: true })`) on visibility/focus and interval (coalesced, zero skeleton flash, state JSON-diff checked, reconciling any open `EventDetailDialog`). Manual Google sync is exposed unobtrusively via an inline `RefreshCw` button in `DayAgenda`. The `/chat` desktop upcoming panel synchronizes via SSE chat stream events (`event_created`, `event_rescheduled`, `event_deleted`, `event_reminder`) and a 1-minute interval.
 
 ---
 
@@ -2330,7 +2370,7 @@ Everything filed here was scoped out of the first pass and has since shipped. Th
 - **A reminder is audible**, unlike § 12.4.'s ops banners: it is something the reader asked to be told, so it honours the per-device 알림 소리 rather than overriding it. It links to the day it is about, through `CALENDAR_DAY_PARAM`
 - **The reminder is posted into the conversation as well as pushed, at the LAST threshold only** — a `type = 'system'` row carrying `system_action = 'event_reminder'`, drawn by § 11.5.'s pill and linking to the same day. A banner is read once and gone; this is the record of it, and it is what the reader finds when the phone was face-down. **It names the date and never the remaining time**, unlike the banner: the row is scrolled past weeks later, where `2시간 뒤` goes on saying so forever. **It is rendered with no actor** — `sender_id` is the event's author only because the column is `NOT NULL`, and `composeEventNotice` drops the `~님이` prefix for this action, since naming them would say they did something they did not. **Only 2시간 (1일 for an all-day row) posts one**: all three thresholds fire for one event and the row names a date rather than a countdown, so posting each would leave three byte-identical rows a week apart, the first of them saying 다가왔어요 seven days out
 - **The claim and the notice are one transaction; the push is outside it.** A stamp that outlived a failed INSERT would be a threshold marked sent with nothing written, and no later run retries it — so the two commit together. The push is not in that transaction: a device that took the banner cannot be un-taken, and rolling back on a recipient who has **no subscription at all** would destroy the record on every run for exactly the reader with no banner to read instead
-- **Two clocks call the same pass, and the pass is one function (`remindUpcomingEvents`, in `features/notify-chat` beside § 16.1.'s trigger).** GitHub drops most of a public repository's ten-minute schedules — `ops-remind.yml` landed 2–7 times a day from late August, with gaps of up to twelve hours, so the 2시간 banner arrived after the event or not at all. `infra/remind-worker` is a Cloudflare Worker cron that calls `POST /api/ops/remind` every ten minutes with `OPS_CRON_TOKEN` as a bearer token (`isOpsCronRequest`, hashed and compared in constant time; unset it answers `unavailable`); the Worker cannot reach the private-network database, so it is only the clock and the app runs the pass. The Actions workflow stays deployed beside it: the claim above is an UPDATE predicate, so the two clocks cannot send one banner twice, and the one that is late is simply the one that finds nothing to do
+- **Two clocks call the same pass, and the pass is one function (`remindUpcomingEvents`, in `features/notify-chat` beside § 16.1.'s trigger).** GitHub drops most of a public repository's ten-minute schedules — `ops-remind.yml` landed 2–7 times a day from late August, with gaps of up to twelve hours, so the 2시간 banner arrived after the event or not at all. `infra/remind-worker` is a Cloudflare Worker cron that calls `POST /api/ops/remind` every minute (`* * * * *`) with `OPS_CRON_TOKEN` as a bearer token (`isOpsCronRequest`, hashed and compared in constant time; unset it answers `unavailable`), coordinating periodic two-way Google Calendar synchronization (`syncAllGoogleCalendars`, pull-before-export, LWW, no `calendarList` caching) ahead of `remindUpcomingEvents`. The Worker cannot reach the private-network database, so it is only the clock and the app runs the pass. The Actions workflow stays deployed beside it: the claim above is an UPDATE predicate, so the two clocks cannot send one banner twice, and the one that is late is simply the one that finds nothing to do.
 
 ### 16.4. GeekNews Feed Synchronization (Playground Tab)
 

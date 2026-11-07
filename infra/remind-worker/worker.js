@@ -1,5 +1,6 @@
 /**
- * REQUIREMENTS.md § 16.3. Asks the app to run one reminder pass every ten minutes.
+ * REQUIREMENTS.md § 16.3. Asks the app to run one reminder and Google Calendar sync pass
+ * every minute.
  *
  * INFO: GitHub drops most of a public repository's ten-minute schedules — the Actions run
  * lands a handful of times a day — so the 2시간 banner arrived hours late or not at all.

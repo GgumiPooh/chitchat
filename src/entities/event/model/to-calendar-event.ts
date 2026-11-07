@@ -9,16 +9,22 @@ import type { CalendarEvent } from "./types";
  */
 export function toCalendarEvent(row: Event): CalendarEvent {
   return {
-    title: row.title,
-    description: row.description,
-    startsAt: row.startsAt.toISOString(),
-    endsAt: row.endsAt.toISOString(),
     allDay: row.allDay,
     color: isEventColor(row.color) ? row.color : null,
-    recurrence: row.recurrence,
-    scope: row.scope,
-    reminderEnabled: row.reminderEnabled,
     createdBy: row.createdBy,
+    description: row.description,
+    endsAt: row.endsAt.toISOString(),
+    exdates: row.exdates ?? [],
+    iCalUid: row.iCalUid,
+    isReadOnly: row.isReadOnly,
     id: row.id,
+    recurrence: row.recurrence,
+    recurrenceUntil: row.recurrenceUntil,
+    reminderEnabled: row.reminderEnabled,
+    rrule: row.rrule,
+    scope: row.scope,
+    source: row.source,
+    startsAt: row.startsAt.toISOString(),
+    title: row.title,
   };
 }

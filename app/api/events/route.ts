@@ -1,10 +1,11 @@
 import { createEvent, listEventOccurrences } from "@/entities/event";
+import { syncCreatedEventToGoogle } from "@/entities/google-calendar";
 import { createSystemMessage } from "@/entities/message";
 import { notifyMessageRecipients } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
 import { getCurrentUser, withEncryptedRoute } from "@/shared/auth";
 import { composeEventNoticeBody, safelyRunAsync } from "@/shared/lib";
-import { NextResponse, after } from "next/server";
+import { after, NextResponse } from "next/server";
 import { eventBodySchema, rangeSchema } from "./schema";
 
 /** REQUIREMENTS.md § 11.3. One month's cells, with `yearly` rows projected onto the year in view. */
@@ -42,47 +43,52 @@ export const POST = withEncryptedRoute(async (request: Request) => {
   }
 
   const {
-    title,
+    allDay,
+    color,
     description,
-    startsAt,
     endsAt,
-    allDay,
-    color,
     recurrence,
-    scope,
+    recurrenceUntil,
     reminderEnabled,
-  } = body.data;
-  const event = await createEvent({
+    scope,
+    startsAt,
+    targetCalendarId,
     title,
-    description,
-    startsAt: new Date(startsAt),
-    endsAt: new Date(endsAt),
+  } = body.data;
+
+  const event = await createEvent({
     allDay,
     color,
-    recurrence,
-    scope,
-    reminderEnabled,
     createdBy: user.id,
+    description,
+    endsAt: new Date(endsAt),
+    recurrence,
+    recurrenceUntil,
+    reminderEnabled,
+    scope,
+    startsAt: new Date(startsAt),
+    title,
   });
 
   // INFO: REQUIREMENTS.md § 11.5. The notice rides the § 8.4. pipeline — the `AFTER INSERT` trigger on `messages` is what delivers it, so nothing is published here.
   const notice = await createSystemMessage({
-    senderId: user.id,
     action: "event_created",
     eventId: event.id,
-    eventTitle: event.title,
     eventStartsAt: new Date(event.startsAt),
+    eventTitle: event.title,
+    senderId: user.id,
   });
 
   // WARN: REQUIREMENTS.md § 16.1. `after`, for the same reason `POST /api/messages` uses it — the fan-out's round trips must never sit between the user and their 201.
-  after(() =>
+  after(() => {
     safelyRunAsync(() =>
       notifyMessageRecipients(
         user,
         composeEventNoticeBody(notice.systemAction, notice.eventTitle, notice.eventStartsAt),
       ),
-    ),
-  );
+    );
+    safelyRunAsync(() => syncCreatedEventToGoogle(event, user.id, targetCalendarId));
+  });
 
   return NextResponse.json({ event }, { status: 201 });
 });

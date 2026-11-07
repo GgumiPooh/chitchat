@@ -2,7 +2,8 @@
 
 `REQUIREMENTS.md § 16.3.` GitHub drops most of a public repository's ten-minute schedules, so
 `ops-remind.yml` ran a handful of times a day and the 2시간 banner landed hours late or not
-at all. This Worker calls `POST /api/ops/remind` every ten minutes instead; the pass itself
+at all. This Worker calls `POST /api/ops/remind` every minute (`* * * * *`) instead to execute
+Google Calendar sync passes and deliver prompt 2-hour reminders; the pass itself
 runs inside the app, which is the only thing that can reach the database. The Actions
 workflow stays deployed beside it — the app's claim makes two clocks safe.
 
@@ -25,7 +26,7 @@ Deployed separately from the app, like `keepalive-worker`: one file, no build, n
 
 `APP_ORIGIN` is an optional var defaulting to `https://jandh.jeheecheon.com`.
 
-## Try it without waiting ten minutes
+## Try it without waiting for the cron
 
 ```sh
 echo 'OPS_CRON_TOKEN=...' > .dev.vars
@@ -33,7 +34,7 @@ npx wrangler dev --test-scheduled
 curl "http://localhost:8787/__scheduled"
 ```
 
-This sends real reminders — it is the same code path the cron runs.
+This triggers Google Calendar sync and sends real reminders — it is the same code path the cron runs.
 
 ## What can go wrong, and how you would know
 

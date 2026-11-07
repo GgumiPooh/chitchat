@@ -1,3 +1,4 @@
+export { CalendarSettingsRow, type CalendarSettingsRowProps } from "./ui/calendar-settings-row";
 export { ChatSettingsRow, type ChatSettingsRowProps } from "./ui/chat-settings-row";
 export { DevRefreshRow, type DevRefreshRowProps } from "./ui/dev-refresh-row";
 export { DeviceSettingsRow, type DeviceSettingsRowProps } from "./ui/device-settings-row";

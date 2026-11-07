@@ -1,5 +1,5 @@
 import type { EventColor } from "@/shared/config";
-import type { EventRecurrence, EventScope } from "@/shared/db";
+import type { EventRecurrence, EventScope, EventSource } from "@/shared/db";
 import type { EventId, Nullable, UpcomingMilestone, UserId } from "@/shared/lib";
 
 /**
@@ -11,18 +11,24 @@ import type { EventId, Nullable, UpcomingMilestone, UserId } from "@/shared/lib"
  * The projection onto a displayed year is `EventOccurrence`.
  */
 export type CalendarEvent = {
-  title: string;
-  description: Nullable<string>;
-  startsAt: string;
-  endsAt: string;
   allDay: boolean;
   // INFO: DESIGN.md § 4.1.7. Null is the common case, not an error — the cell falls back to `meta-soft`.
   color: Nullable<EventColor>;
-  recurrence: EventRecurrence;
-  scope: EventScope;
-  reminderEnabled: boolean;
   // INFO: REQUIREMENTS.md § 11.4. A record of authorship, never a permission check — either user may edit any event.
   createdBy: UserId;
+  description: Nullable<string>;
+  endsAt: string;
+  exdates: string[];
+  iCalUid: Nullable<string>;
+  isReadOnly: boolean;
+  recurrence: EventRecurrence;
+  recurrenceUntil: Nullable<string>;
+  reminderEnabled: boolean;
+  rrule: Nullable<string>;
+  scope: EventScope;
+  source: EventSource;
+  startsAt: string;
+  title: string;
   id: EventId;
 };
 
@@ -36,9 +42,9 @@ export type CalendarEvent = {
  * forward into whatever year the user happened to be looking at.
  */
 export type EventOccurrence = {
+  endsAt: string;
   event: CalendarEvent;
   startsAt: string;
-  endsAt: string;
 };
 
 /**
@@ -49,13 +55,12 @@ export type EventOccurrence = {
  * milestone markers for any month it scrolls to without another request.
  */
 export type CalendarSummary = {
-  startDate: string;
+  dayCount: number;
   /** REQUIREMENTS.md § 11.1. `couple_settings.first_user_id` / `second_user_id` — login order, not permission. */
   firstUserId: Nullable<UserId>;
-  secondUserId: Nullable<UserId>;
-  todayKey: string;
-  /** Following the Korean convention, the start date itself is day 1. */
-  dayCount: number;
   nextMilestone: Nullable<UpcomingMilestone>;
+  secondUserId: Nullable<UserId>;
+  startDate: string;
+  todayKey: string;
   upcoming: EventOccurrence[];
 };

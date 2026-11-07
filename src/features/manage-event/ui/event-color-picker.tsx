@@ -7,7 +7,7 @@ import {
   EVENT_FALLBACK_FILL_CLASS,
   type EventColor,
 } from "@/shared/config";
-import { cn, type Nullable } from "@/shared/lib";
+import { cn, useRovingTabIndex, type Nullable } from "@/shared/lib";
 import { HapticTarget } from "@/shared/ui";
 
 export type EventColorPickerProps = {
@@ -21,6 +21,12 @@ export type EventColorPickerProps = {
  * the common case, so it is a swatch of its own rather than a cleared selection.
  */
 export function EventColorPicker({ className, value, onChange }: EventColorPickerProps) {
+  const handleKeyDown = useRovingTabIndex({
+    orientation: "horizontal",
+    selector: "[role='radio']",
+  });
+  const isNoneTabStop = value === null || !EVENT_COLORS.includes(value);
+
   return (
     <div
       className={cn(
@@ -29,11 +35,13 @@ export function EventColorPicker({ className, value, onChange }: EventColorPicke
       )}
       role="radiogroup"
       aria-label="색상"
+      onKeyDown={handleKeyDown}
     >
       <Swatch
         colorClassName={EVENT_FALLBACK_FILL_CLASS}
         label="색상 없음"
         isSelected={value === null}
+        tabIndex={isNoneTabStop ? 0 : -1}
         onSelect={() => onChange(null)}
       />
       {EVENT_COLORS.map((color) => (
@@ -42,6 +50,7 @@ export function EventColorPicker({ className, value, onChange }: EventColorPicke
           colorClassName={EVENT_COLOR_FILL_CLASSES[color]}
           label={EVENT_COLOR_LABELS[color]}
           isSelected={value === color}
+          tabIndex={value === color ? 0 : -1}
           onSelect={() => onChange(color)}
         />
       ))}
@@ -52,12 +61,13 @@ export function EventColorPicker({ className, value, onChange }: EventColorPicke
 type SwatchProps = {
   className?: string;
   colorClassName: string;
-  label: string;
   isSelected: boolean;
+  label: string;
+  tabIndex: number;
   onSelect: () => void;
 };
 
-function Swatch({ className, colorClassName, label, isSelected, onSelect }: SwatchProps) {
+function Swatch({ className, colorClassName, isSelected, label, tabIndex, onSelect }: SwatchProps) {
   return (
     // INFO: Silent on the swatch already chosen — re-picking it changes nothing.
     <HapticTarget className={cn("inline-flex shrink-0", className)} isTicking={!isSelected}>
@@ -71,6 +81,7 @@ function Swatch({ className, colorClassName, label, isSelected, onSelect }: Swat
         )}
         type="button"
         role="radio"
+        tabIndex={tabIndex}
         aria-checked={isSelected}
         aria-label={label}
         onClick={onSelect}
