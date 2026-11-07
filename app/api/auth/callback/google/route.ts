@@ -125,6 +125,28 @@ export async function GET(request: NextRequest) {
 
     const user = await upsertGoogleUser(identity);
 
+    if (tokens.hasScopes() && tokens.scopes().includes(GOOGLE_CALENDAR_SCOPE)) {
+      const refreshToken = tokens.hasRefreshToken() ? tokens.refreshToken() : undefined;
+      const accessToken = tokens.accessToken();
+      const accessTokenExpiresAt = tokens.accessTokenExpiresAt();
+
+      const connected = await connectGoogleCalendarAccount({
+        accessToken,
+        accessTokenExpiresAt,
+        googleEmail: identity.email,
+        refreshToken,
+        userId: user.id,
+      });
+
+      if (connected) {
+        after(() =>
+          safelyRunAsync(async () => {
+            await syncUserGoogleCalendar(user.id);
+          }),
+        );
+      }
+    }
+
     if (await consumePinResetCookie()) {
       await clearUserPin(user.id);
     }

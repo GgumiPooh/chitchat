@@ -1563,7 +1563,7 @@ Landed as § 16.1. Calendar changes reach the user as § 11.5. chat system messa
 
 Two-way synchronization bridges ChitChat's calendar with Google Calendar accounts for either or both participants.
 
-- **Account connection**: Authenticated via Google OAuth 2.0 (`/api/auth/google-calendar/connect`) requesting incremental `calendar.events` and `calendar.readonly` scopes, capturing offline refresh tokens with explicit consent prompt.
+- **Account connection**: Authenticated via Google OAuth 2.0 either during primary login (`/api/auth/login/google`) or explicitly via settings (`/api/auth/google-calendar/connect`) requesting incremental `calendar.events` and `calendar.readonly` scopes, capturing offline refresh tokens with explicit consent prompt.
 - **Two-way sync semantics**:
   - **Shared schedule (`shared`)**: Exported to both participants' connected default writable Google calendars (`event_google_links` stores one `(event_id, user_id)` mapping per participant). Edits or deletions made by either participant in ChitChat or on a writable Google calendar propagate across ChitChat and both participants' linked Google calendars.
   - **Personal schedule (`mine`)**: Exported only to the author's connected default Google calendar. Switching `scope` between `shared` and `mine` inserts or removes the partner's remote Google event accordingly.

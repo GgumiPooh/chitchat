@@ -205,9 +205,7 @@ function CalendarSettingsView({
 
   const errorMessage = errorCode ? (ERROR_MESSAGES[errorCode] ?? ERROR_MESSAGES.failed) : null;
 
-  const writableSources = overview.sources.filter(
-    (source) => source.isWritable && source.syncEnabled,
-  );
+  const writableSources = overview.sources.filter((source) => source.isWritable);
   const handleDefaultCalendarKeyDown = useRovingTabIndex({
     orientation: "horizontal",
     selector: "[role='radio']",

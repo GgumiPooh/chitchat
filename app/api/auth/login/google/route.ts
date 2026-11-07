@@ -1,4 +1,9 @@
-import { clearOAuthCookies, getGoogleClient, GOOGLE_SCOPES, setOAuthCookies } from "@/shared/auth";
+import {
+  clearOAuthCookies,
+  getGoogleClient,
+  GOOGLE_CALENDAR_SCOPES,
+  setOAuthCookies,
+} from "@/shared/auth";
 import { generateCodeVerifier, generateState } from "arctic";
 import { type NextRequest, NextResponse } from "next/server";
 
@@ -8,11 +13,12 @@ export async function GET(request: NextRequest) {
   const authorizationUrl = getGoogleClient(request.headers.get("host")).createAuthorizationURL(
     state,
     codeVerifier,
-    GOOGLE_SCOPES,
+    GOOGLE_CALENDAR_SCOPES,
   );
 
-  // INFO: REQUIREMENTS.md § 5.1. Without this Google skips the chooser for a single signed-in account, so a not_allowed login cannot be retried as anyone else.
-  authorizationUrl.searchParams.set("prompt", "select_account");
+  authorizationUrl.searchParams.set("access_type", "offline");
+  authorizationUrl.searchParams.set("prompt", "consent select_account");
+  authorizationUrl.searchParams.set("include_granted_scopes", "true");
 
   await clearOAuthCookies();
   await setOAuthCookies(state, codeVerifier);
