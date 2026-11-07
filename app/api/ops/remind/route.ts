@@ -1,6 +1,7 @@
 import { syncAllGoogleCalendars } from "@/entities/google-calendar";
 import { remindUpcomingEvents } from "@/features/notify-chat";
 import { apiError } from "@/shared/api";
+import { A_SECOND } from "@/shared/lib";
 import { isOpsCronConfigured, isOpsCronRequest } from "@/shared/ops";
 import { NextResponse } from "next/server";
 
@@ -22,7 +23,7 @@ export async function POST(request: Request) {
   }
 
   try {
-    await syncAllGoogleCalendars();
+    await syncAllGoogleCalendars({ minIntervalMs: 45 * A_SECOND });
   } catch (error) {
     console.error("[sync-google-calendar] failed during remind pass", error);
   }

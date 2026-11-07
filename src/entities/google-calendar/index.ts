@@ -5,9 +5,11 @@ export {
   getGoogleCalendarOverview,
   hasGoogleCalendarAccount,
   refreshAndGetGoogleCalendarSources,
+  syncRemoteCalendarSources,
   updateGoogleCalendarDefault,
   updateGoogleCalendarSourceSelection,
 } from "./api/account";
+export { GoogleApiAuthError, GoogleCalendarApiError, toSyncErrorCode } from "./api/client";
 export {
   deleteLinkedGoogleEvents,
   listEventGoogleLinksForDelete,

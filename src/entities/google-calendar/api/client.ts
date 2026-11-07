@@ -18,6 +18,106 @@ export class GoogleApiAuthError extends Error {
   }
 }
 
+export class GoogleCalendarApiError extends Error {
+  readonly status: number;
+  readonly reason: Nullable<string>;
+  readonly isApiDisabled: boolean;
+  readonly isInsufficientPermissions: boolean;
+
+  constructor(params: {
+    isApiDisabled: boolean;
+    isInsufficientPermissions: boolean;
+    message: string;
+    reason?: Nullable<string>;
+    status: number;
+  }) {
+    super(params.message);
+    this.name = "GoogleCalendarApiError";
+    this.status = params.status;
+    this.reason = params.reason ?? null;
+    this.isApiDisabled = params.isApiDisabled;
+    this.isInsufficientPermissions = params.isInsufficientPermissions;
+  }
+}
+
+export function toSyncErrorCode(error: unknown): string {
+  if (error instanceof GoogleCalendarApiError) {
+    if (error.isApiDisabled) {
+      return "api_disabled";
+    }
+    if (error.isInsufficientPermissions) {
+      return "reauth_required";
+    }
+  }
+
+  if (error instanceof GoogleApiAuthError) {
+    return "reauth_required";
+  }
+
+  return "sync_failed";
+}
+
+async function parseGoogleApiError(
+  operation: string,
+  response: Response,
+): Promise<GoogleCalendarApiError> {
+  const rawText = await response.text().catch(() => "");
+  let apiMessage = "";
+  let reason: Nullable<string> = null;
+  let detailReason: Nullable<string> = null;
+
+  try {
+    const body = JSON.parse(rawText) as {
+      error?: {
+        details?: Array<{ reason?: unknown }>;
+        errors?: Array<{ reason?: unknown }>;
+        message?: unknown;
+      };
+    };
+
+    if (typeof body?.error?.message === "string") {
+      apiMessage = body.error.message;
+    }
+    if (typeof body?.error?.errors?.[0]?.reason === "string") {
+      reason = body.error.errors[0].reason;
+    }
+    if (Array.isArray(body?.error?.details)) {
+      const detailEntry = body.error.details.find((entry) => typeof entry?.reason === "string");
+      if (detailEntry && typeof detailEntry.reason === "string") {
+        detailReason = detailEntry.reason;
+      }
+    }
+  } catch {
+    if (rawText) {
+      apiMessage = rawText.slice(0, 300);
+    }
+  }
+
+  const effectiveReason = detailReason || reason || null;
+  const isApiDisabled =
+    response.status === 403 &&
+    (reason === "accessNotConfigured" ||
+      detailReason === "SERVICE_DISABLED" ||
+      apiMessage.includes("has not been used in project") ||
+      apiMessage.includes("it is disabled"));
+
+  const isInsufficientPermissions =
+    response.status === 403 &&
+    (reason === "insufficientPermissions" || detailReason === "ACCESS_TOKEN_SCOPE_INSUFFICIENT");
+
+  console.error(
+    `[google-calendar-api] ${operation} failed (${response.status}${effectiveReason ? ` ${effectiveReason}` : ""}): ${apiMessage || "no body"}`,
+  );
+
+  return new GoogleCalendarApiError({
+    isApiDisabled,
+    isInsufficientPermissions,
+    message: apiMessage || `Google Calendar API error (${response.status})`,
+    reason: effectiveReason,
+    status: response.status,
+  });
+}
+
 export type RemoteCalendarEntry = {
   accessRole: string;
   backgroundColor: Nullable<string>;
@@ -201,7 +301,7 @@ export async function listRemoteCalendars(accessToken: string): Promise<RemoteCa
     }
 
     if (!response.ok) {
-      throw new Error(`Google Calendar list failed with status ${response.status}`);
+      throw await parseGoogleApiError("listRemoteCalendars", response);
     }
 
     const data = (await response.json()) as {
@@ -278,7 +378,7 @@ export async function listRemoteEvents(
     }
 
     if (!response.ok) {
-      throw new Error(`Google Calendar events fetch failed with status ${response.status}`);
+      throw await parseGoogleApiError("listRemoteEvents", response);
     }
 
     const data = (await response.json()) as {
@@ -325,7 +425,7 @@ export async function insertRemoteEvent(
   }
 
   if (!response.ok) {
-    throw new Error(`Google Calendar insert failed with status ${response.status}`);
+    throw await parseGoogleApiError("insertRemoteEvent", response);
   }
 
   return (await response.json()) as GoogleEventResource;
@@ -357,7 +457,7 @@ export async function patchRemoteEvent(
   }
 
   if (!response.ok) {
-    throw new Error(`Google Calendar patch failed with status ${response.status}`);
+    throw await parseGoogleApiError("patchRemoteEvent", response);
   }
 
   const event = (await response.json()) as GoogleEventResource;
@@ -392,5 +492,5 @@ export async function deleteRemoteEvent(
     return;
   }
 
-  throw new Error(`Google Calendar delete failed with status ${response.status}`);
+  throw await parseGoogleApiError("deleteRemoteEvent", response);
 }

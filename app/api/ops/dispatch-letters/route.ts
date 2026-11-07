@@ -1,14 +1,21 @@
 import "server-only";
 
+import { syncAllGoogleCalendars } from "@/entities/google-calendar";
 import { countUnreadMessages, createTimeLetterMessage } from "@/entities/message";
 import { pushToUser } from "@/entities/push-subscription";
 import { apiError } from "@/shared/api";
 import { TIME_LETTERS_ROUTE } from "@/shared/config";
 import { getDb, letterMedia, messageMedia, timeLetters, users } from "@/shared/db";
-import type { Nullable, TimeLetterId, UserId } from "@/shared/lib";
+import {
+  A_SECOND,
+  safelyRunAsync,
+  type Nullable,
+  type TimeLetterId,
+  type UserId,
+} from "@/shared/lib";
 import { isOpsCronConfigured, isOpsCronRequest } from "@/shared/ops";
 import { asc, eq, sql } from "drizzle-orm";
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 
 export const dynamic = "force-dynamic";
 
@@ -133,6 +140,12 @@ export async function POST(request: Request) {
       console.error("[dispatch-letters] Failed to send push notifications:", error);
     }
   }
+
+  after(() =>
+    safelyRunAsync(async () => {
+      await syncAllGoogleCalendars({ minIntervalMs: 45 * A_SECOND });
+    }),
+  );
 
   return NextResponse.json({ dispatched: dispatchedLetters.length });
 }

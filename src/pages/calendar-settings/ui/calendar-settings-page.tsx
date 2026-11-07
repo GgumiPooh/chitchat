@@ -9,6 +9,7 @@ import {
   updateGoogleCalendarSources,
 } from "@/features/google-calendar";
 import {
+  APP_NAME,
   CALENDAR_ROUTE,
   CALENDAR_SETTINGS_ROUTE,
   GOOGLE_CALENDAR_CONNECT_PATH,
@@ -124,42 +125,49 @@ function CalendarSettingsView({
     }
   }, [connectedFlag, errorCode, isFromCalendar]);
 
-  const handleSync = useCallback(async (options?: { silentSuccess?: boolean }) => {
-    setIsSyncing(true);
+  const handleSync = useCallback(
+    async (options?: { isInitialConnect?: boolean; silentSuccess?: boolean }) => {
+      setIsSyncing(true);
 
-    try {
-      const result = await syncGoogleCalendar();
+      try {
+        const result = await syncGoogleCalendar();
 
-      if (!isMountedRef.current) {
-        return;
-      }
+        if (!isMountedRef.current) {
+          return;
+        }
 
-      if (result.syncError === "reauth_required") {
-        toast.error("Google 계정 재연결이 필요해요");
-      } else if (result.syncError) {
-        toast.error("동기화하지 못했어요");
-      } else if (!options?.silentSuccess) {
-        if (result.changed || (result.exported ?? 0) > 0) {
-          toast.success("Google 캘린더 변경 사항을 반영했어요");
-        } else {
-          toast.success("이미 최신 상태예요");
+        if (result.syncError === "reauth_required") {
+          toast.error("Google 계정 재연결이 필요해요");
+        } else if (result.syncError === "api_disabled") {
+          toast.error("Google Cloud에서 Calendar API를 사용 설정해 주세요");
+        } else if (result.syncError) {
+          toast.error("동기화하지 못했어요");
+        } else if (options?.isInitialConnect) {
+          toast.success("Google 캘린더가 연결되었어요");
+        } else if (!options?.silentSuccess) {
+          if (result.changed || (result.exported ?? 0) > 0) {
+            toast.success("Google 캘린더 변경 사항을 반영했어요");
+          } else {
+            toast.success("이미 최신 상태예요");
+          }
+        }
+
+        const fresh = await fetchGoogleCalendarOverview();
+        if (isMountedRef.current) {
+          setOverview(fresh);
+        }
+      } catch {
+        if (isMountedRef.current) {
+          toast.error("동기화하지 못했어요");
+        }
+      } finally {
+        if (isMountedRef.current) {
+          setIsSyncing(false);
         }
       }
-
-      const fresh = await fetchGoogleCalendarOverview();
-      if (isMountedRef.current) {
-        setOverview(fresh);
-      }
-    } catch {
-      if (isMountedRef.current) {
-        toast.error("동기화하지 못했어요");
-      }
-    } finally {
-      if (isMountedRef.current) {
-        setIsSyncing(false);
-      }
-    }
-  }, []);
+    },
+    [],
+  );
 
   // INFO: Refresh secondary sources from Google at most once on mount when connected.
   useEffect(() => {
@@ -191,8 +199,7 @@ function CalendarSettingsView({
   useEffect(() => {
     if (connectedFlag && !didAutoSync.current) {
       didAutoSync.current = true;
-      toast.success("Google 캘린더가 연결되었어요");
-      void handleSync({ silentSuccess: true });
+      void handleSync({ isInitialConnect: true });
     }
   }, [connectedFlag, handleSync]);
 
@@ -252,8 +259,8 @@ function CalendarSettingsView({
             <div className="space-y-sm rounded-lg border border-hairline-soft bg-surface-soft p-md">
               <h3 className="text-body-lg font-semibold text-ink">Google 캘린더 연동</h3>
               <p className="text-body-sm text-body">
-                내 Google 캘린더 일정을 달력에 함께 표시하고, J&H에서 만든 일정도 Google 캘린더와
-                양방향으로 동기화해요.
+                내 Google 캘린더 일정을 달력에 함께 표시하고, {APP_NAME}에서 만든 일정도 Google
+                캘린더와 양방향으로 동기화해요.
               </p>
               <p className="text-caption text-meta">
                 우리 일정은 연동된 두 분의 달력에, 내 일정은 내 달력에만 반영돼요.
@@ -286,6 +293,23 @@ function CalendarSettingsView({
                   >
                     다시 연결
                   </Button>
+                </div>
+              </div>
+            )}
+
+            {overview.account.syncError === "api_disabled" && (
+              <div className="px-md pt-md">
+                <div
+                  className="space-y-xs rounded-lg border border-hairline bg-surface-soft p-md"
+                  role="alert"
+                >
+                  <p className="text-body-sm font-medium text-semantic-error">
+                    Google Cloud 콘솔에서 Google Calendar API가 비활성화되어 있어요.
+                  </p>
+                  <p className="text-caption text-body">
+                    Google Cloud 콘솔의 ‘API 및 서비스 → 라이브러리’에서 Google Calendar API를 사용
+                    설정한 뒤 ‘지금 동기화’를 눌러 주세요.
+                  </p>
                 </div>
               </div>
             )}
@@ -366,7 +390,7 @@ function CalendarSettingsView({
               </div>
             )}
 
-            {overview.sources.length > 0 && (
+            {overview.sources.length > 0 ? (
               <div>
                 <div className="px-md pt-lg pb-xs">
                   <h2 className="text-caption font-semibold text-meta">가져올 달력</h2>
@@ -413,6 +437,16 @@ function CalendarSettingsView({
                   ))}
                 </div>
               </div>
+            ) : (
+              overview.account.syncError !== "api_disabled" &&
+              overview.account.syncError !== "reauth_required" && (
+                <div className="px-md pt-md">
+                  <p className="text-body-sm text-meta">
+                    달력 목록을 아직 불러오지 못했어요. 잠시 후 ‘지금 동기화’를 눌러 다시 시도해
+                    주세요.
+                  </p>
+                </div>
+              )
             )}
           </>
         )}
@@ -425,8 +459,8 @@ function CalendarSettingsView({
       >
         <div className="space-y-md">
           <p className="text-body-sm text-meta">
-            Google에서 가져온 일정은 J&H 달력에서 정리되고, J&H에서 직접 만든 일정은 그대로
-            유지돼요.
+            Google에서 가져온 일정은 {APP_NAME} 달력에서 정리되고, {APP_NAME}에서 직접 만든 일정은
+            그대로 유지돼요.
           </p>
           <div className="flex gap-xs">
             <Button

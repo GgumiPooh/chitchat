@@ -22,7 +22,12 @@ import type {
   GoogleCalendarOverview,
   GoogleCalendarSource,
 } from "../model/types";
-import { listRemoteCalendars, withGoogleAccessToken } from "./client";
+import {
+  GoogleApiAuthError,
+  listRemoteCalendars,
+  toSyncErrorCode,
+  withGoogleAccessToken,
+} from "./client";
 
 export function isWritableAccessRole(role: string): boolean {
   return role === "owner" || role === "writer";
@@ -180,17 +185,16 @@ export async function getGoogleCalendarOverview(userId: UserId): Promise<GoogleC
   };
 }
 
-export async function refreshAndGetGoogleCalendarSources(
-  userId: UserId,
-): Promise<GoogleCalendarOverview> {
+export async function syncRemoteCalendarSources(userId: UserId): Promise<GoogleCalendarOverview> {
   const db = getDb();
   const remoteCalendars = await withGoogleAccessToken(userId, (accessToken) =>
     listRemoteCalendars(accessToken),
   );
 
   if (!remoteCalendars) {
-    return getGoogleCalendarOverview(userId);
+    throw new GoogleApiAuthError("Google access token unavailable");
   }
+
   const existingSources = await db
     .select()
     .from(googleCalendarSources)
@@ -224,8 +228,8 @@ export async function refreshAndGetGoogleCalendarSources(
         backgroundColor: remote.backgroundColor,
         calendarId: remote.calendarId,
         isPrimary: remote.isPrimary,
-        syncEnabled: remote.isPrimary,
         summary: remote.summary,
+        syncEnabled: remote.isPrimary,
         updatedAt: new Date(),
         userId,
       });
@@ -252,17 +256,51 @@ export async function refreshAndGetGoogleCalendarSources(
     .where(eq(googleCalendarAccounts.userId, userId))
     .limit(1);
 
-  if (account && account.defaultCalendarId === "primary") {
-    const primarySource = remoteCalendars.find((calendar) => calendar.isPrimary);
-    if (primarySource) {
+  if (account) {
+    const updates: { defaultCalendarId?: string; syncError?: Nullable<string>; updatedAt: Date } = {
+      updatedAt: new Date(),
+    };
+    let shouldUpdate = false;
+
+    if (account.syncError === "api_disabled") {
+      updates.syncError = null;
+      shouldUpdate = true;
+    }
+
+    if (account.defaultCalendarId === "primary") {
+      const primarySource = remoteCalendars.find((calendar) => calendar.isPrimary);
+      if (primarySource) {
+        updates.defaultCalendarId = primarySource.calendarId;
+        shouldUpdate = true;
+      }
+    }
+
+    if (shouldUpdate) {
       await db
         .update(googleCalendarAccounts)
-        .set({ defaultCalendarId: primarySource.calendarId, updatedAt: new Date() })
+        .set(updates)
         .where(eq(googleCalendarAccounts.userId, userId));
     }
   }
 
   return getGoogleCalendarOverview(userId);
+}
+
+export async function refreshAndGetGoogleCalendarSources(
+  userId: UserId,
+): Promise<GoogleCalendarOverview> {
+  try {
+    return await syncRemoteCalendarSources(userId);
+  } catch (error) {
+    const errorCode = toSyncErrorCode(error);
+    const db = getDb();
+    await db
+      .update(googleCalendarAccounts)
+      .set({ syncError: errorCode, updatedAt: new Date() })
+      .where(eq(googleCalendarAccounts.userId, userId));
+
+    return getGoogleCalendarOverview(userId);
+  }
 }
 
 export async function connectGoogleCalendarAccount(params: {

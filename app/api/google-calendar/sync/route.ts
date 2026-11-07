@@ -10,7 +10,10 @@ export const POST = withEncryptedRoute(async () => {
     return apiError("unauthorized");
   }
 
-  const result = await syncUserGoogleCalendar(user.id, { waitForInFlight: true });
+  const result = await syncUserGoogleCalendar(user.id, {
+    source: "manual",
+    waitForInFlight: true,
+  });
 
   return NextResponse.json(result);
 });

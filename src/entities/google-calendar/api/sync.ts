@@ -22,8 +22,8 @@ import { and, eq, isNull, lt, ne, or } from "drizzle-orm";
 import type { GoogleCalendarSyncResult } from "../model/types";
 import {
   isWritableAccessRole,
-  refreshAndGetGoogleCalendarSources,
   resolveTargetCalendarId,
+  syncRemoteCalendarSources,
 } from "./account";
 import {
   GoogleApiAuthError,
@@ -33,6 +33,7 @@ import {
   invalidateGoogleAccessToken,
   listRemoteEvents,
   patchRemoteEvent,
+  toSyncErrorCode,
   withGoogleAccessToken,
 } from "./client";
 import { fromRemotePayload, toGoogleEventPayload } from "./payload";
@@ -60,11 +61,82 @@ async function upsertEventGoogleLink(values: NewEventGoogleLink): Promise<void> 
     });
 }
 
+export type SyncUserGoogleCalendarOptions = {
+  minIntervalMs?: number;
+  source?: "cron" | "manual";
+  waitForInFlight?: boolean;
+};
+
 export async function syncUserGoogleCalendar(
   userId: UserId,
-  options?: { waitForInFlight?: boolean },
+  options?: SyncUserGoogleCalendarOptions,
 ): Promise<GoogleCalendarSyncResult> {
+  const source = options?.source ?? "cron";
   const db = getDb();
+
+  if (source === "cron") {
+    const [existingAccount] = await db
+      .select()
+      .from(googleCalendarAccounts)
+      .where(eq(googleCalendarAccounts.userId, userId))
+      .limit(1);
+
+    if (!existingAccount) {
+      return {
+        changed: false,
+        deleted: 0,
+        exported: 0,
+        imported: 0,
+        lastSyncedAt: null,
+        syncError: null,
+        updated: 0,
+      };
+    }
+
+    if (existingAccount.syncError === "reauth_required") {
+      return {
+        changed: false,
+        deleted: 0,
+        exported: 0,
+        imported: 0,
+        lastSyncedAt: existingAccount.lastSyncedAt?.toISOString() ?? null,
+        syncError: "reauth_required",
+        updated: 0,
+      };
+    }
+
+    if (
+      existingAccount.syncError === "api_disabled" &&
+      existingAccount.updatedAt.getTime() > Date.now() - 5 * A_MINUTE
+    ) {
+      return {
+        changed: false,
+        deleted: 0,
+        exported: 0,
+        imported: 0,
+        lastSyncedAt: existingAccount.lastSyncedAt?.toISOString() ?? null,
+        syncError: "api_disabled",
+        updated: 0,
+      };
+    }
+
+    if (
+      options?.minIntervalMs &&
+      existingAccount.lastSyncedAt &&
+      existingAccount.lastSyncedAt.getTime() > Date.now() - options.minIntervalMs
+    ) {
+      return {
+        changed: false,
+        deleted: 0,
+        exported: 0,
+        imported: 0,
+        lastSyncedAt: existingAccount.lastSyncedAt.toISOString(),
+        syncError: existingAccount.syncError ?? null,
+        updated: 0,
+      };
+    }
+  }
+
   const waitStartedAt = Date.now();
   const leaseUntil = new Date(waitStartedAt + 2 * A_MINUTE);
 
@@ -195,7 +267,7 @@ export async function syncUserGoogleCalendar(
       return fn(accessToken);
     };
 
-    await refreshAndGetGoogleCalendarSources(userId);
+    await syncRemoteCalendarSources(userId);
 
     const sources = await db
       .select()
@@ -1184,20 +1256,18 @@ export async function syncUserGoogleCalendar(
     };
   } catch (syncErr) {
     console.error(`[sync-google-calendar] sync failed for user ${userId}`, syncErr);
+    const errorCode = toSyncErrorCode(syncErr);
+
+    await db
+      .update(googleCalendarAccounts)
+      .set({ syncError: errorCode, updatedAt: new Date() })
+      .where(eq(googleCalendarAccounts.userId, userId));
+
     const [current] = await db
       .select()
       .from(googleCalendarAccounts)
       .where(eq(googleCalendarAccounts.userId, userId))
       .limit(1);
-
-    const finalSyncError =
-      current?.syncError === "reauth_required" ? "reauth_required" : "sync_failed";
-    if (current?.syncError !== "reauth_required") {
-      await db
-        .update(googleCalendarAccounts)
-        .set({ syncError: "sync_failed", updatedAt: new Date() })
-        .where(eq(googleCalendarAccounts.userId, userId));
-    }
 
     return {
       changed: false,
@@ -1205,7 +1275,7 @@ export async function syncUserGoogleCalendar(
       exported,
       imported,
       lastSyncedAt: current?.lastSyncedAt?.toISOString() ?? null,
-      syncError: finalSyncError,
+      syncError: errorCode,
       updated,
     };
   } finally {
@@ -1216,7 +1286,7 @@ export async function syncUserGoogleCalendar(
   }
 }
 
-export async function syncAllGoogleCalendars(): Promise<{
+export async function syncAllGoogleCalendars(options?: { minIntervalMs?: number }): Promise<{
   changed: boolean;
   syncedUsers: number;
 }> {
@@ -1230,7 +1300,10 @@ export async function syncAllGoogleCalendars(): Promise<{
 
   for (const account of accounts) {
     try {
-      const result = await syncUserGoogleCalendar(account.userId);
+      const result = await syncUserGoogleCalendar(account.userId, {
+        minIntervalMs: options?.minIntervalMs,
+        source: "cron",
+      });
       if (result.changed) {
         anyChanged = true;
       }
