@@ -1,5 +1,6 @@
 import "server-only";
 
+import { isGoogleBirthdayGreeting } from "@/shared/config";
 import { events, getDb } from "@/shared/db";
 import {
   MILESTONE_HORIZON_DAYS,
@@ -38,7 +39,8 @@ export async function listEventOccurrences(
       ),
     );
 
-  return toOccurrencesInRange(rows.map(toCalendarEvent), fromKey, toKey);
+  const activeRows = rows.filter((row) => !isGoogleBirthdayGreeting(row));
+  return toOccurrencesInRange(activeRows.map(toCalendarEvent), fromKey, toKey);
 }
 
 /**
@@ -70,6 +72,9 @@ export async function listUpcomingOccurrences(
   const upcomingPerEvent: EventOccurrence[] = [];
 
   for (const row of rows) {
+    if (isGoogleBirthdayGreeting(row)) {
+      continue;
+    }
     const event = toCalendarEvent(row);
     const candidates = projectRecurrence(event, todayKey, horizonKey)
       .filter((span) => {

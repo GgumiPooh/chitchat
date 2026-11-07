@@ -21,7 +21,7 @@ import {
   type Optional,
   type UserId,
 } from "@/shared/lib";
-import { and, eq, isNull, lt, ne, or } from "drizzle-orm";
+import { and, eq, inArray, isNull, lt, ne, or } from "drizzle-orm";
 import type { GoogleCalendarSyncResult } from "../model/types";
 import {
   isWritableAccessRole,
@@ -478,6 +478,30 @@ export async function syncUserGoogleCalendar(
     };
 
     await syncRemoteCalendarSources(userId);
+
+    // INFO: REQUIREMENTS.md § 11.8. Purge generic Google birthday greetings ("생일 축하합니다!") so they don't duplicate alongside contact birthdays.
+    const greetingLinks = await db
+      .select({ eventId: eventGoogleLinks.eventId })
+      .from(eventGoogleLinks)
+      .innerJoin(events, eq(events.id, eventGoogleLinks.eventId))
+      .where(
+        and(
+          eq(eventGoogleLinks.userId, userId),
+          eq(events.source, "google"),
+          inArray(events.title, [
+            "생일 축하합니다!",
+            "생일 축하합니다",
+            "Happy Birthday!",
+            "Happy Birthday",
+          ]),
+        ),
+      );
+
+    if (greetingLinks.length > 0) {
+      const greetingEventIds = Array.from(new Set(greetingLinks.map((l) => l.eventId)));
+      await db.delete(eventGoogleLinks).where(inArray(eventGoogleLinks.eventId, greetingEventIds));
+      await db.delete(events).where(inArray(events.id, greetingEventIds));
+    }
 
     const sources = await db
       .select()

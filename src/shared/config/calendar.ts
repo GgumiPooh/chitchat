@@ -201,6 +201,28 @@ export function isExcludedGoogleCalendarId(calendarId: string): boolean {
   return normalized.endsWith("@group.v.calendar.google.com");
 }
 
+/**
+ * REQUIREMENTS.md § 11.8. Google places generic "생일 축하합니다!" / "Happy Birthday!"
+ * greeting events on the user's primary calendar when the Google Account has a birthday.
+ * When contacts/birthday calendar is synced, this results in duplicate birthdays alongside
+ * the user's actual contact birthday ("천제희님의 생일").
+ */
+export function isGoogleBirthdayGreeting(event: {
+  source?: Nullable<string>;
+  title: string;
+}): boolean {
+  if (event.source !== "google") {
+    return false;
+  }
+  const norm = event.title.trim().toLowerCase();
+  return (
+    norm === "생일 축하합니다!" ||
+    norm === "생일 축하합니다" ||
+    norm === "happy birthday!" ||
+    norm === "happy birthday"
+  );
+}
+
 // INFO: The milestone constants are deliberately NOT here — they live in `shared/lib/date/calendar.ts` beside the arithmetic that reads them, because `shared/config` imports `shared/lib` and the reverse would be a cycle.
 
 /** DESIGN.md § 7.9. A day cell shows at most this many dots however many events fall on it. */

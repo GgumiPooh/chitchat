@@ -176,6 +176,7 @@ export {
   WEEKDAY_LABELS,
   isEventColor,
   isExcludedGoogleCalendarId,
+  isGoogleBirthdayGreeting,
   toEventColorFromGoogle,
   type EventColor,
 } from "./calendar";

@@ -3,6 +3,7 @@ import "server-only";
 import {
   EVENT_COLOR_TO_GOOGLE_COLOR,
   isEventColor,
+  isGoogleBirthdayGreeting,
   MAX_EVENT_DESCRIPTION_LENGTH,
   MAX_EVENT_TITLE_LENGTH,
   toEventColorFromGoogle,
@@ -130,7 +131,11 @@ export function fromRemotePayload(
   sourceBackgroundColor?: Nullable<string>,
   accessRole?: string,
 ): Nullable<MappedJandhEvent> {
-  if (gEvent.eventType === "workingLocation" || gEvent.eventType === "focusTime") {
+  if (
+    gEvent.eventType === "workingLocation" ||
+    gEvent.eventType === "focusTime" ||
+    isGoogleBirthdayGreeting({ source: "google", title: gEvent.summary ?? "" })
+  ) {
     return null;
   }
 
