@@ -1,4 +1,4 @@
-import { cn, type Nullable } from "@/shared/lib";
+import { cn, parseEventMemo, type Nullable } from "@/shared/lib";
 
 export type EventMemoProps = {
   className?: string;
@@ -10,7 +10,8 @@ export type EventMemoProps = {
  * readable only from inside the edit form.
  */
 export function EventMemo({ className, description }: EventMemoProps) {
-  const memo = description?.trim();
+  // INFO: REQUIREMENTS.md § 11.4. Parse and cleanse memo so external author prefixes, boilerplate, and empty category labels are stripped.
+  const { memo } = parseEventMemo(description);
 
   if (!memo) {
     return null;

@@ -11,6 +11,8 @@ import {
 import type { Event } from "@/shared/db";
 import {
   AN_HOUR,
+  cleanseEventMemo,
+  formatExternalAuthorTag,
   fromGoogleRecurrence,
   shiftDayKey,
   TIME_ZONE,
@@ -115,6 +117,14 @@ export function toGoogleEventPayload(
   return payload;
 }
 
+// INFO: REQUIREMENTS.md § 11.8. Strip Google Calendar observance/holiday settings boilerplate so system imports do not show noisy duplicate memos.
+export function cleanseRemoteDescription(
+  rawDescription: Optional<Nullable<string>>,
+): Nullable<string> {
+  const memo = cleanseEventMemo(rawDescription);
+  return memo ? memo.slice(0, MAX_EVENT_DESCRIPTION_LENGTH) : null;
+}
+
 export function fromRemotePayload(
   gEvent: GoogleEventResource,
   sourceBackgroundColor?: Nullable<string>,
@@ -160,8 +170,17 @@ export function fromRemotePayload(
   const color = toEventColorFromGoogle(gEvent.colorId ?? null, sourceBackgroundColor);
   const fallbackTitle = accessRole === "freeBusyReader" ? "바쁨" : "(제목 없음)";
   const title = (gEvent.summary?.trim() || fallbackTitle).slice(0, MAX_EVENT_TITLE_LENGTH);
-  const rawDescription = gEvent.description?.trim();
-  const description = rawDescription ? rawDescription.slice(0, MAX_EVENT_DESCRIPTION_LENGTH) : null;
+  // INFO: REQUIREMENTS.md § 11.8. Strip Google Calendar's observance/holiday settings boilerplate so system imports do not show noisy duplicate memos.
+  let description = cleanseRemoteDescription(gEvent.description);
+
+  // INFO: REQUIREMENTS.md § 11.4. In shared/family calendars where creator is another member, prefix author tag for UI attribution.
+  if (gEvent.creator && gEvent.creator.self === false) {
+    const creatorName = gEvent.creator.displayName?.trim() || gEvent.creator.email?.trim();
+    if (creatorName) {
+      const tag = formatExternalAuthorTag(creatorName);
+      description = description ? `${tag}\n${description}` : tag;
+    }
+  }
 
   return {
     allDay,

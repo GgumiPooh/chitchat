@@ -300,6 +300,13 @@ export { runWhenIdle } from "./run/idle";
 export { mapPooled, type PoolOptions } from "./run/pool";
 export { safelyGet, safelyGetAsync, safelyRun, safelyRunAsync } from "./run/safely";
 export {
+  cleanseEventMemo,
+  formatExternalAuthorTag,
+  isGoogleSettingsBoilerplate,
+  parseEventMemo,
+  type ParsedEventMemo,
+} from "./text/event-memo";
+export {
   measureFontFamily,
   measureLineHeight,
   warmLineHeights,

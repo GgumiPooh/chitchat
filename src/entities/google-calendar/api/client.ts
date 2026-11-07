@@ -148,6 +148,12 @@ export type GoogleEventResource = {
   updated?: string;
   visibility?: string;
   id: string;
+  creator?: {
+    displayName?: string;
+    email?: string;
+    self?: boolean;
+    id?: string;
+  };
   extendedProperties?: {
     private?: Record<string, string>;
     shared?: Record<string, string>;
@@ -284,7 +290,8 @@ export async function listRemoteCalendars(accessToken: string): Promise<RemoteCa
   do {
     const url = new URL("https://www.googleapis.com/calendar/v3/users/me/calendarList");
     url.searchParams.set("minAccessRole", "reader");
-    url.searchParams.set("showHidden", "false");
+    // INFO: REQUIREMENTS.md § 11.8. Google hides system contacts/birthday calendars by default; showHidden=true admits them for discovery.
+    url.searchParams.set("showHidden", "true");
     if (pageToken) {
       url.searchParams.set("pageToken", pageToken);
     }

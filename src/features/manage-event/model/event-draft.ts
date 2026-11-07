@@ -1,7 +1,15 @@
 import type { EventOccurrence } from "@/entities/event";
 import type { EventColor } from "@/shared/config";
 import type { EventRecurrence, EventScope } from "@/shared/db";
-import { AN_HOUR, toDayKey, toInstant, toTimeField, type Maybe, type Nullable } from "@/shared/lib";
+import {
+  AN_HOUR,
+  parseEventMemo,
+  toDayKey,
+  toInstant,
+  toTimeField,
+  type Maybe,
+  type Nullable,
+} from "@/shared/lib";
 import type { EventBody } from "../api/write-event";
 
 /**
@@ -97,7 +105,7 @@ export function toEditDraft(occurrence: EventOccurrence): EventDraft {
 
   return {
     title: event.title,
-    description: event.description ?? "",
+    description: parseEventMemo(event.description).memo ?? "",
     startDayKey: toDayKey(event.startsAt),
     startTime: toTimeField(event.startsAt),
     endDayKey: toDayKey(event.endsAt),

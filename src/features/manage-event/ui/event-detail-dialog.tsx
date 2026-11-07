@@ -14,6 +14,7 @@ import {
   formatMultiDaySpan,
   formatOccurrenceTime,
   parseDayKey,
+  parseEventMemo,
   toDayKey,
   type Nullable,
 } from "@/shared/lib";
@@ -71,6 +72,7 @@ export function EventDetailDialog({
   const [isEditing, setIsEditing] = useState(false);
   const deleteGate = useOfflineGate(OFFLINE_MESSAGES.remove);
   const author = participants.find(({ id }) => id === shown?.event.createdBy);
+  const { externalAuthor, memo: cleanDescription } = parseEventMemo(shown?.event.description);
   // INFO: AGENTS.md § 4.1. `ActionSheet`'s desktop anchor for 일정 관리.
   const manageButtonRef = useRef<HTMLButtonElement>(null);
   const isEventLocked = isReadOnly || Boolean(shown?.event.isReadOnly);
@@ -150,19 +152,36 @@ export function EventDetailDialog({
                 {!shown.event.reminderEnabled && " · 알림 없음"}
               </span>
             </Row>
-            {author && (
+            {/* INFO: REQUIREMENTS.md § 11.4. Read-only system/external subscription events omit authorship; shared/family events show external creator name when available. */}
+            {!shown.event.isReadOnly && (externalAuthor || author) && (
               <Row label="추가한 사람">
-                <span className="flex items-center gap-2xs text-body-md text-ink">
-                  <Avatar className="size-6" name={author.name} mediaId={author.avatarMediaId} />
-                  {author.name}
-                </span>
+                {externalAuthor ? (
+                  <span className="flex items-center gap-2xs text-body-md text-ink">
+                    <span className="flex size-6 items-center justify-center rounded-full bg-surface-strong text-caption font-semibold text-meta">
+                      G
+                    </span>
+                    <span>{externalAuthor}</span>
+                    <span className="text-caption text-meta">(Google 캘린더)</span>
+                  </span>
+                ) : (
+                  author && (
+                    <span className="flex items-center gap-2xs text-body-md text-ink">
+                      <Avatar
+                        className="size-6"
+                        name={author.name}
+                        mediaId={author.avatarMediaId}
+                      />
+                      {author.name}
+                    </span>
+                  )
+                )}
               </Row>
             )}
-            {shown.event.description?.trim() && (
+            {cleanDescription && (
               <Row label="메모">
                 {/* INFO: In full and never clamped — this dialog is what the list's two-line clamp leads to. */}
                 <span className="block text-body-md wrap-anywhere [word-break:normal] whitespace-pre-line text-ink">
-                  {shown.event.description.trim()}
+                  {cleanDescription}
                 </span>
               </Row>
             )}
