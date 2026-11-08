@@ -234,13 +234,29 @@ export function EventForm({
           </div>
         </div>
 
+        {/* INFO: REQUIREMENTS.md § 16.3. One switch for the event, not per user — whoever turns it off silences it for both. */}
+        <SettingsRow
+          rowClassName="rounded-md border border-hairline-soft bg-surface-soft"
+          description={REMINDER_HINTS[draft.reminderEnabled ? draft.scope : "off"]}
+          Icon={draft.reminderEnabled ? Bell : BellOff}
+          label="알림 받기"
+          trailing={
+            <Switch
+              checked={draft.reminderEnabled}
+              haptic
+              aria-label="알림 받기"
+              onCheckedChange={(reminderEnabled) => onUpdate({ reminderEnabled })}
+            />
+          }
+        />
+
         {!isEditing && writableCalendars && writableCalendars.length >= 2 && (
           <div className="space-y-xs">
-            <Label>구글 캘린더</Label>
+            <Label>Google 캘린더 선택</Label>
             <div
               className="flex flex-wrap gap-xs"
               role="radiogroup"
-              aria-label="구글 캘린더"
+              aria-label="Google 캘린더 선택"
               onKeyDown={handleRadioKeyDown}
             >
               {writableCalendars.map((calendar, index) => {
@@ -262,22 +278,6 @@ export function EventForm({
             </div>
           </div>
         )}
-
-        {/* INFO: REQUIREMENTS.md § 16.3. One switch for the event, not per user — whoever turns it off silences it for both. */}
-        <SettingsRow
-          rowClassName="rounded-md border border-hairline-soft bg-surface-soft"
-          description={REMINDER_HINTS[draft.reminderEnabled ? draft.scope : "off"]}
-          Icon={draft.reminderEnabled ? Bell : BellOff}
-          label="알림 받기"
-          trailing={
-            <Switch
-              checked={draft.reminderEnabled}
-              haptic
-              aria-label="알림 받기"
-              onCheckedChange={(reminderEnabled) => onUpdate({ reminderEnabled })}
-            />
-          }
-        />
       </div>
 
       <div className="space-y-xs">
