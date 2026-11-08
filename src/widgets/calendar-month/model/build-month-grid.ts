@@ -1,6 +1,8 @@
 import type { EventOccurrence } from "@/entities/event";
+import { isCuratedObservance } from "@/shared/config";
 import {
   findHoliday,
+  findObservance,
   listDayKeysBetween,
   listMilestonesInRange,
   shiftDayKey,
@@ -23,9 +25,23 @@ export type MonthCell = {
   isCurrentMonth: boolean;
   /** REQUIREMENTS.md § 11.7. Never an occurrence — a holiday takes no event dot and no slot. */
   holiday: Nullable<Holiday>;
+  /** REQUIREMENTS.md § 11.7. Curated Korean observances (e.g. 어버이날, 식목일) — takes no event dot. */
+  observance: Nullable<string>;
   occurrences: EventOccurrence[];
   milestones: Milestone[];
 };
+
+/**
+ * Checks whether an occurrence represents a Google holiday calendar observance (e.g. 어버이날, 초복).
+ * Personal couple events manually created with the same name are never filtered.
+ */
+function isObservanceOccurrence(occurrence: EventOccurrence): boolean {
+  return (
+    occurrence.event.source === "google" &&
+    occurrence.event.allDay &&
+    isCuratedObservance(occurrence.event.title)
+  );
+}
 
 /**
  * DESIGN.md § 7.9. The month's cells, padded to whole weeks with the adjacent
@@ -42,20 +58,29 @@ export function buildMonthGrid(
   holidays: HolidayTable,
 ): MonthCell[] {
   const dayKeys = listGridDayKeys(monthKey);
-  const occurrencesByDay = groupByDay(occurrences);
+  const nonObservanceOccurrences = occurrences.filter((occ) => !isObservanceOccurrence(occ));
+  const occurrencesByDay = groupByDay(nonObservanceOccurrences);
+  const observancesByDay = groupObservancesByDay(occurrences);
   const milestonesByDay = groupMilestonesByDay(
     listMilestonesInRange(startDate, dayKeys[0], dayKeys.at(-1) ?? dayKeys[0]),
   );
 
-  return dayKeys.map((dayKey) => ({
-    dayKey,
-    dayOfMonth: toDayOfMonth(dayKey),
-    weekday: toWeekday(dayKey),
-    isCurrentMonth: toMonthKey(dayKey) === monthKey,
-    holiday: findHoliday(dayKey, holidays),
-    occurrences: occurrencesByDay.get(dayKey) ?? [],
-    milestones: milestonesByDay.get(dayKey) ?? [],
-  }));
+  return dayKeys.map((dayKey) => {
+    const holiday = findHoliday(dayKey, holidays);
+    const rawObservance = findObservance(dayKey, observancesByDay.get(dayKey));
+    const observance = holiday && holiday.name === rawObservance ? null : rawObservance;
+
+    return {
+      dayKey,
+      dayOfMonth: toDayOfMonth(dayKey),
+      weekday: toWeekday(dayKey),
+      isCurrentMonth: toMonthKey(dayKey) === monthKey,
+      holiday,
+      observance,
+      occurrences: occurrencesByDay.get(dayKey) ?? [],
+      milestones: milestonesByDay.get(dayKey) ?? [],
+    };
+  });
 }
 
 /** The inclusive day-key range the grid covers, which is what the month's fetch asks for. */
@@ -91,6 +116,22 @@ function groupMilestonesByDay(milestones: Milestone[]): Map<string, Milestone[]>
 
   for (const milestone of milestones) {
     grouped.set(milestone.dayKey, [...(grouped.get(milestone.dayKey) ?? []), milestone]);
+  }
+
+  return grouped;
+}
+
+function groupObservancesByDay(occurrences: EventOccurrence[]): Map<string, string> {
+  const grouped = new Map<string, string>();
+
+  for (const occurrence of occurrences) {
+    if (isObservanceOccurrence(occurrence)) {
+      for (const dayKey of listDayKeysBetween(occurrence.startsAt, occurrence.endsAt)) {
+        if (!grouped.has(dayKey)) {
+          grouped.set(dayKey, occurrence.event.title);
+        }
+      }
+    }
   }
 
   return grouped;

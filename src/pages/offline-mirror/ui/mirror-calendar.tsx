@@ -4,8 +4,11 @@ import type { EventOccurrence } from "@/entities/event";
 import type { Participant } from "@/entities/user";
 import { EventDetailDialog } from "@/features/manage-event";
 import type { CalendarSnapshot } from "@/features/offline-snapshot";
+import { isCuratedObservance } from "@/shared/config";
 import {
   findHoliday,
+  findHolidayConsecutiveDays,
+  findObservance,
   formatDateWithWeekday,
   listMilestonesInRange,
   occursOnDay,
@@ -121,8 +124,26 @@ export function MirrorCalendar({ className, participants }: MirrorCalendarProps)
   function renderMonth(payload: CalendarSnapshot, savedAt: number) {
     const dayKey = pickedDayKey ?? payload.summary.todayKey;
     const holiday = findHoliday(dayKey, payload.holidays);
+    const consecutiveDays = holiday ? findHolidayConsecutiveDays(dayKey, payload.holidays) : 0;
+    const observanceOccurrence = payload.occurrences.find(
+      (occ) =>
+        occursOnDay(occ, dayKey) &&
+        occ.event.source === "google" &&
+        occ.event.allDay &&
+        isCuratedObservance(occ.event.title),
+    );
+    const rawObservance = findObservance(dayKey, observanceOccurrence?.event.title);
+    const observance = holiday && holiday.name === rawObservance ? null : rawObservance;
     const milestones = listMilestonesInRange(payload.summary.startDate, dayKey, dayKey);
-    const occurrences = payload.occurrences.filter((occurrence) => occursOnDay(occurrence, dayKey));
+    const occurrences = payload.occurrences.filter(
+      (occurrence) =>
+        occursOnDay(occurrence, dayKey) &&
+        !(
+          occurrence.event.source === "google" &&
+          occurrence.event.allDay &&
+          isCuratedObservance(occurrence.event.title)
+        ),
+    );
     const isEmpty = holiday === null && milestones.length === 0 && occurrences.length === 0;
 
     return (
@@ -153,9 +174,18 @@ export function MirrorCalendar({ className, participants }: MirrorCalendarProps)
           </div>
         </div>
         <section className="space-y-xs" aria-label="선택한 날의 일정">
-          <h2 className="text-title-md text-ink" aria-live="polite">
-            {formatDateWithWeekday(parseDayKey(dayKey))}
-          </h2>
+          <div className="min-w-0">
+            <h2 className="text-title-md text-ink" aria-live="polite">
+              {formatDateWithWeekday(parseDayKey(dayKey))}
+              {observance && <span className="sr-only">, {observance}</span>}
+            </h2>
+            {observance && (
+              <p className="mt-0.5 flex items-center gap-1.5 text-caption font-medium text-meta">
+                <span className="size-1.5 shrink-0 rounded-full bg-meta/60" aria-hidden="true" />
+                <span>{observance}</span>
+              </p>
+            )}
+          </div>
           {isEmpty ? (
             <EmptyState Icon={CalendarDays} description="이 날은 일정이 없어요" />
           ) : (
@@ -165,6 +195,13 @@ export function MirrorCalendar({ className, participants }: MirrorCalendarProps)
                   caption={holiday.isSubstitute ? "대체공휴일" : "공휴일"}
                   label={holiday.name}
                   marker={<HolidayDot />}
+                  badge={
+                    consecutiveDays >= 3 ? (
+                      <span className="shrink-0 rounded bg-semantic-error/10 px-1.5 py-0.5 text-micro font-semibold whitespace-nowrap text-semantic-error">
+                        {consecutiveDays}일 연휴
+                      </span>
+                    ) : undefined
+                  }
                 />
               )}
               {milestones.map((milestone) => (

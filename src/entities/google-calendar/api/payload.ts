@@ -2,8 +2,11 @@ import "server-only";
 
 import {
   EVENT_COLOR_TO_GOOGLE_COLOR,
+  isCuratedObservance,
   isEventColor,
   isGoogleBirthdayGreeting,
+  isGooglePublicHoliday,
+  isHolidayCalendarId,
   MAX_EVENT_DESCRIPTION_LENGTH,
   MAX_EVENT_TITLE_LENGTH,
   toEventColorFromGoogle,
@@ -130,13 +133,26 @@ export function fromRemotePayload(
   gEvent: GoogleEventResource,
   sourceBackgroundColor?: Nullable<string>,
   accessRole?: string,
+  calendarId?: string,
 ): Nullable<MappedJandhEvent> {
+  const summary = gEvent.summary?.trim() ?? "";
+
   if (
     gEvent.eventType === "workingLocation" ||
     gEvent.eventType === "focusTime" ||
-    isGoogleBirthdayGreeting({ source: "google", title: gEvent.summary ?? "" })
+    isGoogleBirthdayGreeting({ source: "google", title: summary })
   ) {
     return null;
+  }
+
+  // INFO: REQUIREMENTS.md § 11.7. On Google holiday calendars, public holidays are rendered natively by ChitChat (red numerals, no dot, static row), so duplicate events are skipped. Uncurated observances (24 solar terms, random observances) are filtered out.
+  if (calendarId && isHolidayCalendarId(calendarId)) {
+    if (isGooglePublicHoliday(summary)) {
+      return null;
+    }
+    if (!isCuratedObservance(summary)) {
+      return null;
+    }
   }
 
   let allDay: boolean;

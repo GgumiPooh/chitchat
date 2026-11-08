@@ -2,11 +2,15 @@
 
 import type { EventOccurrence } from "@/entities/event";
 import type { Participant } from "@/entities/user";
+import { isCuratedObservance } from "@/shared/config";
 import {
   cn,
+  findHolidayConsecutiveDays,
+  findObservance,
   formatDateWithWeekday,
   parseDayKey,
   type Holiday,
+  type HolidayTable,
   type Milestone,
   type Nullable,
 } from "@/shared/lib";
@@ -23,6 +27,7 @@ export type DayAgendaProps = {
   className?: string;
   dayKey: string;
   holiday: Nullable<Holiday>;
+  holidays?: HolidayTable;
   isLoading: boolean;
   isSyncingGoogle?: boolean;
   milestones: Milestone[];
@@ -42,6 +47,7 @@ export function DayAgenda({
   className,
   dayKey,
   holiday,
+  holidays,
   isLoading,
   isSyncingGoogle = false,
   milestones,
@@ -51,17 +57,41 @@ export function DayAgenda({
   onCreate,
   onSelect,
 }: DayAgendaProps) {
-  const isEmpty = occurrences.length === 0 && milestones.length === 0 && holiday === null;
+  const observanceOccurrence = occurrences.find(
+    (occ) =>
+      occ.event.source === "google" && occ.event.allDay && isCuratedObservance(occ.event.title),
+  );
+  const rawObservance = findObservance(dayKey, observanceOccurrence?.event.title);
+  const observance = holiday && holiday.name === rawObservance ? null : rawObservance;
+
+  // INFO: REQUIREMENTS.md § 11.7. Filter out Google holiday observances from the interactive agenda list.
+  const agendaOccurrences = occurrences.filter(
+    (occ) =>
+      !(occ.event.source === "google" && occ.event.allDay && isCuratedObservance(occ.event.title)),
+  );
+
+  const consecutiveDays = holidays && holiday ? findHolidayConsecutiveDays(dayKey, holidays) : 0;
+  const isEmpty = agendaOccurrences.length === 0 && milestones.length === 0 && holiday === null;
 
   return (
     <section className={cn("space-y-xs", className)} aria-label="선택한 날의 일정">
-      <div className="flex items-center justify-between gap-xs">
+      <div className="flex items-start justify-between gap-xs">
         {/* INFO: The full date, not just the numeral — this is what stays on screen once the grid has scrolled away. */}
-        <h2 className="text-title-md text-ink" aria-live="polite">
-          {formatDateWithWeekday(parseDayKey(dayKey))}
-        </h2>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-title-md text-ink" aria-live="polite">
+            {formatDateWithWeekday(parseDayKey(dayKey))}
+            {observance && <span className="sr-only">, {observance}</span>}
+          </h2>
+          {observance && (
+            <p className="mt-0.5 flex items-center gap-1.5 text-caption font-medium text-meta">
+              <span className="size-1.5 shrink-0 rounded-full bg-meta/60" aria-hidden="true" />
+              <span>{observance}</span>
+            </p>
+          )}
+        </div>
         {onSyncGoogle && (
           <IconButton
+            className="mt-0.5"
             iconClassName={cn("size-4 text-meta", isSyncingGoogle && "animate-spin")}
             variant="plain"
             Icon={RefreshCw}
@@ -93,6 +123,13 @@ export function DayAgenda({
               caption={holiday.isSubstitute ? "대체공휴일" : "공휴일"}
               label={holiday.name}
               marker={<HolidayDot />}
+              badge={
+                consecutiveDays >= 3 ? (
+                  <span className="shrink-0 rounded bg-semantic-error/10 px-1.5 py-0.5 text-micro font-semibold whitespace-nowrap text-semantic-error">
+                    {consecutiveDays}일 연휴
+                  </span>
+                ) : undefined
+              }
             />
           )}
           {/* INFO: REQUIREMENTS.md § 11.2. Listed above the events, and without the empty state a milestone-only day would otherwise get — the grid marked the day, so the list must say what marked it. */}
@@ -104,7 +141,7 @@ export function DayAgenda({
               marker={<MilestoneDot />}
             />
           ))}
-          {occurrences.map((occurrence) => (
+          {agendaOccurrences.map((occurrence) => (
             <AgendaEventRow
               key={occurrence.event.id + occurrence.startsAt}
               occurrence={occurrence}

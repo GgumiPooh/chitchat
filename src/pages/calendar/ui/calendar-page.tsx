@@ -371,6 +371,7 @@ function CalendarPageView({
         <DayAgenda
           dayKey={selectedDayKey}
           holiday={findHoliday(selectedDayKey, holidays)}
+          holidays={holidays}
           isLoading={isLoadingMonth}
           isSyncingGoogle={isSyncingGoogle}
           milestones={listMilestonesInRange(summary.startDate, selectedDayKey, selectedDayKey)}

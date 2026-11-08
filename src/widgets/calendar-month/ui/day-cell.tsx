@@ -61,10 +61,15 @@ export function DayCell({ className, cell, isToday, isSelected, onSelect }: DayC
 }
 
 function toCellLabel(cell: MonthCell, isToday: boolean): string {
+  const holidayName = cell.holiday ? formatHolidayName(cell.holiday) : "";
+  const observanceName =
+    cell.observance && cell.observance !== cell.holiday?.name ? cell.observance : "";
+
   return [
     `${formatMonthDay(cell.dayKey)} ${WEEKDAY_LABELS[cell.weekday]}요일`,
     isToday ? "오늘" : "",
-    cell.holiday ? formatHolidayName(cell.holiday) : "",
+    holidayName,
+    observanceName,
     ...cell.milestones.map(({ label }) => label),
     cell.occurrences.length > 0 ? `일정 ${cell.occurrences.length}개` : "",
   ]

@@ -86,13 +86,20 @@ export type AgendaStaticRowProps = {
   marker: ReactNode;
   label: string;
   caption: string;
+  badge?: ReactNode;
 };
 
 /**
  * DESIGN.md § 7.9. The treatment a 공휴일 and a 기념일 share — `hairline` on
  * `canvas`, with no hover or active state, because neither one opens anything.
  */
-export function AgendaStaticRow({ className, marker, label, caption }: AgendaStaticRowProps) {
+export function AgendaStaticRow({
+  className,
+  marker,
+  label,
+  caption,
+  badge,
+}: AgendaStaticRowProps) {
   return (
     <li
       className={cn(
@@ -102,7 +109,10 @@ export function AgendaStaticRow({ className, marker, label, caption }: AgendaSta
     >
       {marker}
       <span className="min-w-0 flex-1">
-        <span className="block truncate text-title-sm text-ink">{label}</span>
+        <span className="flex min-w-0 items-center gap-1.5">
+          <span className="truncate text-title-sm text-ink">{label}</span>
+          {badge}
+        </span>
         <span className="block text-caption text-meta">{caption}</span>
       </span>
     </li>

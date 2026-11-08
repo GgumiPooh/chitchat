@@ -1,7 +1,7 @@
 import "server-only";
 
-import { isGoogleBirthdayGreeting } from "@/shared/config";
-import { events, getDb } from "@/shared/db";
+import { isCuratedObservance, isGoogleBirthdayGreeting } from "@/shared/config";
+import { events, getDb, type EventSource } from "@/shared/db";
 import {
   MILESTONE_HORIZON_DAYS,
   parseDayKey,
@@ -13,6 +13,14 @@ import { and, gte, lte, ne, or } from "drizzle-orm";
 import { compareOccurrences, toOccurrencesInRange } from "../model/occurrences";
 import { toCalendarEvent } from "../model/to-calendar-event";
 import type { EventOccurrence } from "../model/types";
+
+function isGoogleObservance(row: {
+  allDay?: boolean;
+  source: EventSource;
+  title: string;
+}): boolean {
+  return row.source === "google" && (row.allDay ?? true) && isCuratedObservance(row.title);
+}
 
 /**
  * Every occurrence falling between two day keys, inclusive, with recurring rows
@@ -72,7 +80,7 @@ export async function listUpcomingOccurrences(
   const upcomingPerEvent: EventOccurrence[] = [];
 
   for (const row of rows) {
-    if (isGoogleBirthdayGreeting(row)) {
+    if (isGoogleBirthdayGreeting(row) || isGoogleObservance(row)) {
       continue;
     }
     const event = toCalendarEvent(row);
@@ -99,8 +107,9 @@ export async function listUpcomingOccurrences(
 /** REQUIREMENTS.md § 11.5. Whether anything falls on a day — the tab-bar dot asks nothing more. */
 export async function hasEventOnDay(dayKey: string): Promise<boolean> {
   const occurrences = await listEventOccurrences(dayKey, dayKey);
+  const activeOccurrences = occurrences.filter((occ) => !isGoogleObservance(occ.event));
 
-  return occurrences.length > 0;
+  return activeOccurrences.length > 0;
 }
 
 /**

@@ -174,9 +174,12 @@ export {
   SIDE_PANEL_UPCOMING_PAGE_SIZE,
   UPCOMING_EVENTS_PAGE_SIZE,
   WEEKDAY_LABELS,
+  isCuratedObservance,
   isEventColor,
   isExcludedGoogleCalendarId,
   isGoogleBirthdayGreeting,
+  isGooglePublicHoliday,
+  isHolidayCalendarId,
   toEventColorFromGoogle,
   type EventColor,
 } from "./calendar";

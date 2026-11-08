@@ -176,6 +176,17 @@ export function toEventColorFromGoogle(
 }
 
 /**
+ * REQUIREMENTS.md § 11.8. Detects Google holiday virtual calendars.
+ */
+export function isHolidayCalendarId(calendarId: string): boolean {
+  const normalized = calendarId.trim().toLowerCase();
+  return (
+    normalized.includes("holiday@group.v.calendar.google.com") ||
+    normalized.includes("@holiday.calendar.google.com")
+  );
+}
+
+/**
  * REQUIREMENTS.md § 11.8. Filters out Google virtual calendars that are not supported.
  *
  * INFO: Public holiday calendars and contacts/birthday calendars are allowed (sync_enabled defaults to false).
@@ -184,9 +195,7 @@ export function toEventColorFromGoogle(
 export function isExcludedGoogleCalendarId(calendarId: string): boolean {
   const normalized = calendarId.trim().toLowerCase();
 
-  const isHolidayCalendar =
-    normalized.includes("holiday@group.v.calendar.google.com") ||
-    normalized.includes("@holiday.calendar.google.com");
+  const isHolidayCalendar = isHolidayCalendarId(calendarId);
   const isBirthdayCalendar =
     normalized.includes("contacts@group.v.calendar.google.com") ||
     normalized.includes("birthday@group.v.calendar.google.com") ||
@@ -199,6 +208,107 @@ export function isExcludedGoogleCalendarId(calendarId: string): boolean {
   }
 
   return normalized.endsWith("@group.v.calendar.google.com");
+}
+
+/**
+ * REQUIREMENTS.md § 11.7. Recognizes Google Calendar public holiday titles.
+ * These are rendered natively by ChitChat's built-in holiday engine (red numerals,
+ * static agenda row, no dot consumption), so they must not be duplicated as events.
+ */
+export function isGooglePublicHoliday(title: string): boolean {
+  const norm = title.trim().toLowerCase().replace(/\s+/g, "");
+  if (norm.includes("대체공휴일") || norm.includes("substituteholiday")) {
+    return true;
+  }
+  return (
+    norm === "신정" ||
+    norm === "새해첫날" ||
+    norm === "newyear'sday" ||
+    norm === "newyearsday" ||
+    norm === "설날전날" ||
+    norm === "설날" ||
+    norm === "설날다음날" ||
+    norm === "설날연휴" ||
+    norm === "lunarnewyear'sday" ||
+    norm === "3·1절" ||
+    norm === "3.1절" ||
+    norm === "삼일절" ||
+    norm === "independencemovementday" ||
+    norm === "근로자의날" ||
+    norm === "노동절" ||
+    norm === "laborday" ||
+    norm === "workers'day" ||
+    norm === "어린이날" ||
+    norm === "children'sday" ||
+    norm === "부처님오신날" ||
+    norm === "석가탄신일" ||
+    norm === "buddha'sbirthday" ||
+    norm === "현충일" ||
+    norm === "memorialday" ||
+    norm === "제헌절" ||
+    norm === "constitutionday" ||
+    norm === "광복절" ||
+    norm === "nationalliberationday" ||
+    norm === "추석전날" ||
+    norm === "추석" ||
+    norm === "추석다음날" ||
+    norm === "추석연휴" ||
+    norm === "chuseok" ||
+    norm === "개천절" ||
+    norm === "nationalfoundationday" ||
+    norm === "한글날" ||
+    norm === "hangeulday" ||
+    norm === "hangulday" ||
+    norm === "성탄절" ||
+    norm === "기독탄신일" ||
+    norm === "크리스마스" ||
+    norm === "christmasday" ||
+    norm === "임시공휴일" ||
+    norm === "국회의원선거" ||
+    norm === "대통령선거" ||
+    norm === "지방선거"
+  );
+}
+
+/**
+ * REQUIREMENTS.md § 11.7. Curated, popular Korean non-public observances.
+ * Kept visible as subtle agenda captions without cluttering the month grid with event dots.
+ * Strictly exact match only — never partial match, to prevent hijacking user events like "어버이날 식사" or "안동 지사".
+ */
+export function isCuratedObservance(title: string): boolean {
+  const norm = title.trim().toLowerCase().replace(/\s+/g, "");
+  return (
+    norm === "어버이날" ||
+    norm === "parents'day" ||
+    norm === "parentsday" ||
+    norm === "스승의날" ||
+    norm === "teachers'day" ||
+    norm === "teachersday" ||
+    norm === "성년의날" ||
+    norm === "comingofageday" ||
+    norm === "부부의날" ||
+    norm === "marriedcouples'day" ||
+    norm === "식목일" ||
+    norm === "arborday" ||
+    norm === "국군의날" ||
+    norm === "armedforcesday" ||
+    norm === "정월대보름" ||
+    norm === "초복" ||
+    norm === "중복" ||
+    norm === "말복" ||
+    norm === "동지" ||
+    norm === "독도의날" ||
+    norm === "농업인의날" ||
+    norm === "빼빼로데이" ||
+    norm === "밸런타인데이" ||
+    norm === "발렌타인데이" ||
+    norm === "valentine'sday" ||
+    norm === "valentinesday" ||
+    norm === "화이트데이" ||
+    norm === "whiteday" ||
+    norm === "크리스마스이브" ||
+    norm === "christmaseve"
+  );
 }
 
 /**

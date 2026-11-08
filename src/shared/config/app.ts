@@ -686,16 +686,18 @@ export const IS_DEV_LOGIN_ENABLED =
 // WARN: `NODE_ENV` alone, deliberately — it gates developer tooling rather than an auth path, so it must not follow `IS_DEV_LOGIN_ENABLED`'s override onto a production build.
 export const IS_DEV = process.env.NODE_ENV === "development";
 
-const BUILTIN_HOLIDAYS_SETTING = (process.env.ENABLE_BUILTIN_HOLIDAYS ?? "").trim().toLowerCase();
+const BUILTIN_HOLIDAYS_SETTING = (process.env.ENABLE_BUILTIN_HOLIDAYS ?? "true")
+  .trim()
+  .toLowerCase();
 
 /**
  * REQUIREMENTS.md § 11.7. Controls whether built-in public holidays are loaded
  * from 공공데이터포털 특일 정보 with fallback to `holiday-table.ts`.
  *
- * INFO: Defaults to false when empty or unset.
+ * INFO: Defaults to true so Korean public holidays render natively as red days.
  */
 export const IS_BUILTIN_HOLIDAYS_ENABLED =
-  BUILTIN_HOLIDAYS_SETTING === "true" || BUILTIN_HOLIDAYS_SETTING === "1";
+  BUILTIN_HOLIDAYS_SETTING !== "false" && BUILTIN_HOLIDAYS_SETTING !== "0";
 
 /**
  * Name of the httpOnly cookie holding the opaque session token.

@@ -1,6 +1,11 @@
 import "server-only";
 
-import { snowflakeSchema } from "@/shared/config";
+import {
+  isCuratedObservance,
+  isGooglePublicHoliday,
+  isHolidayCalendarId,
+  snowflakeSchema,
+} from "@/shared/config";
 import {
   eventGoogleLinks,
   events,
@@ -503,6 +508,32 @@ export async function syncUserGoogleCalendar(
       await db.delete(events).where(inArray(events.id, greetingEventIds));
     }
 
+    // INFO: REQUIREMENTS.md § 11.7. Purge duplicate public holiday events and uncurated holiday noise previously imported from Google holiday calendars.
+    const holidayLinks = await db
+      .select({
+        calendarId: eventGoogleLinks.calendarId,
+        eventId: eventGoogleLinks.eventId,
+        title: events.title,
+      })
+      .from(eventGoogleLinks)
+      .innerJoin(events, eq(events.id, eventGoogleLinks.eventId))
+      .where(and(eq(eventGoogleLinks.userId, userId), eq(events.source, "google")));
+
+    const staleHolidayEventIds: EventId[] = [];
+    for (const link of holidayLinks) {
+      if (isHolidayCalendarId(link.calendarId)) {
+        if (isGooglePublicHoliday(link.title) || !isCuratedObservance(link.title)) {
+          staleHolidayEventIds.push(link.eventId);
+        }
+      }
+    }
+
+    if (staleHolidayEventIds.length > 0) {
+      const uniqueIds = Array.from(new Set(staleHolidayEventIds));
+      await db.delete(eventGoogleLinks).where(inArray(eventGoogleLinks.eventId, uniqueIds));
+      await db.delete(events).where(inArray(events.id, uniqueIds));
+    }
+
     const sources = await db
       .select()
       .from(googleCalendarSources)
@@ -629,6 +660,7 @@ export async function syncUserGoogleCalendar(
               item,
               source.isPrimary ? null : source.backgroundColor,
               source.accessRole,
+              source.calendarId,
             );
             if (!mapped) {
               continue;
@@ -864,6 +896,7 @@ export async function syncUserGoogleCalendar(
             item,
             source.isPrimary ? null : source.backgroundColor,
             source.accessRole,
+            source.calendarId,
           );
           if (!mapped) {
             continue;

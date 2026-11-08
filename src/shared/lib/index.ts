@@ -99,6 +99,7 @@ export {
   type HolidayEntry,
   type HolidayTable,
 } from "./date/holidays";
+export { FIXED_OBSERVANCES, findHolidayConsecutiveDays, findObservance } from "./date/observances";
 export {
   fromGoogleRecurrence,
   projectRecurrence,
